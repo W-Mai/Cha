@@ -1,0 +1,8 @@
+[plugins.length]
+max_function_lines = 60
+
+[plugins.complexity]
+warn_threshold = 15
+
+[plugins.api_surface]
+enabled = false

@@ -3,18 +3,18 @@ use std::collections::HashMap;
 use std::path::Path;
 
 /// Top-level config from `.cha.toml`.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 pub struct Config {
     #[serde(default)]
     pub plugins: HashMap<String, PluginConfig>,
 }
 
 /// Per-plugin config section.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct PluginConfig {
     #[serde(default = "default_true")]
     pub enabled: bool,
-    #[serde(default)]
+    #[serde(flatten)]
     pub options: HashMap<String, toml::Value>,
 }
 
@@ -38,6 +38,53 @@ impl Config {
         match std::fs::read_to_string(&path) {
             Ok(content) => toml::from_str(&content).unwrap_or_default(),
             Err(_) => Self::default(),
+        }
+    }
+
+    /// Load merged config for a specific file by walking up from its directory to root.
+    /// Child configs override parent configs (child-wins merge).
+    pub fn load_for_file(file_path: &Path, project_root: &Path) -> Self {
+        let abs_file = std::fs::canonicalize(file_path).unwrap_or(file_path.to_path_buf());
+        let abs_root = std::fs::canonicalize(project_root).unwrap_or(project_root.to_path_buf());
+        let dir = abs_file.parent().unwrap_or(&abs_root);
+        let mut configs = Vec::new();
+
+        // Collect configs from file's dir up to project root
+        let mut current = dir.to_path_buf();
+        loop {
+            let cfg_path = current.join(".cha.toml");
+            if cfg_path.is_file()
+                && let Ok(content) = std::fs::read_to_string(&cfg_path)
+                && let Ok(cfg) = toml::from_str::<Config>(&content)
+            {
+                configs.push(cfg);
+            }
+            if current == abs_root {
+                break;
+            }
+            match current.parent() {
+                Some(p) if p.starts_with(&abs_root) || p == abs_root => current = p.to_path_buf(),
+                _ => break,
+            }
+        }
+
+        // Merge: last (root) is base, first (closest) wins
+        configs.reverse();
+        let mut merged = Config::default();
+        for cfg in configs {
+            merged.merge(cfg);
+        }
+        merged
+    }
+
+    /// Merge another config into self. `other` values take precedence.
+    pub fn merge(&mut self, other: Config) {
+        for (name, other_pc) in other.plugins {
+            let entry = self.plugins.entry(name).or_default();
+            entry.enabled = other_pc.enabled;
+            for (k, v) in other_pc.options {
+                entry.options.insert(k, v);
+            }
         }
     }
 

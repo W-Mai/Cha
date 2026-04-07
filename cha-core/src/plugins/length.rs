@@ -26,9 +26,15 @@ impl Plugin for LengthAnalyzer {
 
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let mut findings = Vec::new();
-        let path = &ctx.file.path;
+        self.check_functions(ctx, &mut findings);
+        self.check_classes(ctx, &mut findings);
+        self.check_file(ctx, &mut findings);
+        findings
+    }
+}
 
-        // Long Method detection
+impl LengthAnalyzer {
+    fn check_functions(&self, ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
         for f in &ctx.model.functions {
             if f.line_count > self.max_function_lines {
                 findings.push(Finding {
@@ -36,7 +42,7 @@ impl Plugin for LengthAnalyzer {
                     category: SmellCategory::Bloaters,
                     severity: severity_for_ratio(f.line_count, self.max_function_lines),
                     location: Location {
-                        path: path.clone(),
+                        path: ctx.file.path.clone(),
                         start_line: f.start_line,
                         end_line: f.end_line,
                         name: Some(f.name.clone()),
@@ -49,47 +55,50 @@ impl Plugin for LengthAnalyzer {
                 });
             }
         }
+    }
 
-        // Large Class detection
+    fn check_classes(&self, ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
         for c in &ctx.model.classes {
             let over_methods = c.method_count > self.max_class_methods;
             let over_lines = c.line_count > self.max_class_lines;
-            if over_methods || over_lines {
-                let mut reasons = Vec::new();
-                if over_methods {
-                    reasons.push(format!("{} methods", c.method_count));
-                }
-                if over_lines {
-                    reasons.push(format!("{} lines", c.line_count));
-                }
-                findings.push(Finding {
-                    smell_name: "large_class".into(),
-                    category: SmellCategory::Bloaters,
-                    severity: if over_methods && over_lines {
-                        Severity::Error
-                    } else {
-                        Severity::Warning
-                    },
-                    location: Location {
-                        path: path.clone(),
-                        start_line: c.start_line,
-                        end_line: c.end_line,
-                        name: Some(c.name.clone()),
-                    },
-                    message: format!("Class `{}` is too large ({})", c.name, reasons.join(", ")),
-                    suggested_refactorings: vec!["Extract Class".into()],
-                });
+            if !over_methods && !over_lines {
+                continue;
             }
+            let mut reasons = Vec::new();
+            if over_methods {
+                reasons.push(format!("{} methods", c.method_count));
+            }
+            if over_lines {
+                reasons.push(format!("{} lines", c.line_count));
+            }
+            findings.push(Finding {
+                smell_name: "large_class".into(),
+                category: SmellCategory::Bloaters,
+                severity: if over_methods && over_lines {
+                    Severity::Error
+                } else {
+                    Severity::Warning
+                },
+                location: Location {
+                    path: ctx.file.path.clone(),
+                    start_line: c.start_line,
+                    end_line: c.end_line,
+                    name: Some(c.name.clone()),
+                },
+                message: format!("Class `{}` is too large ({})", c.name, reasons.join(", ")),
+                suggested_refactorings: vec!["Extract Class".into()],
+            });
         }
+    }
 
-        // Large File detection
+    fn check_file(&self, ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
         if ctx.model.total_lines > self.max_file_lines {
             findings.push(Finding {
                 smell_name: "large_file".into(),
                 category: SmellCategory::Bloaters,
                 severity: severity_for_ratio(ctx.model.total_lines, self.max_file_lines),
                 location: Location {
-                    path: path.clone(),
+                    path: ctx.file.path.clone(),
                     start_line: 1,
                     end_line: ctx.model.total_lines,
                     name: None,
@@ -101,8 +110,6 @@ impl Plugin for LengthAnalyzer {
                 suggested_refactorings: vec!["Extract Class".into(), "Move Method".into()],
             });
         }
-
-        findings
     }
 }
 

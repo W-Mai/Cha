@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process;
 
 use cha_core::{
@@ -120,8 +120,6 @@ fn git_diff_files() -> Vec<PathBuf> {
 
 fn cmd_analyze(paths: &[String], format: &Format, fail_on: Option<&FailLevel>, diff: bool) -> i32 {
     let cwd = std::env::current_dir().unwrap_or_default();
-    let config = Config::load(&cwd);
-    let registry = PluginRegistry::from_config(&config, &cwd);
     let files = resolve_files(paths, diff);
 
     if files.is_empty() {
@@ -129,7 +127,7 @@ fn cmd_analyze(paths: &[String], format: &Format, fail_on: Option<&FailLevel>, d
         return 0;
     }
 
-    let all_findings = run_analysis(&files, &registry);
+    let all_findings = run_analysis(&files, &cwd);
     print_report(&all_findings, format);
     exit_code(&all_findings, fail_on)
 }
@@ -147,8 +145,8 @@ fn resolve_files(paths: &[String], diff: bool) -> Vec<PathBuf> {
     }
 }
 
-/// Analyze files in parallel using rayon.
-fn run_analysis(files: &[PathBuf], registry: &PluginRegistry) -> Vec<Finding> {
+/// Analyze files in parallel using rayon, with per-file config inheritance.
+fn run_analysis(files: &[PathBuf], project_root: &Path) -> Vec<Finding> {
     files
         .par_iter()
         .flat_map(|path| {
@@ -161,6 +159,8 @@ fn run_analysis(files: &[PathBuf], registry: &PluginRegistry) -> Vec<Finding> {
                 Some(m) => m,
                 None => return vec![],
             };
+            let config = Config::load_for_file(path, project_root);
+            let registry = PluginRegistry::from_config(&config, project_root);
             let ctx = AnalysisContext {
                 file: &file,
                 model: &model,

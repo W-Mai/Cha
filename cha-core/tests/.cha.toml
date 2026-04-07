@@ -1,0 +1,5 @@
+[plugins.dead_code]
+enabled = false
+
+[plugins.duplicate_code]
+enabled = false
