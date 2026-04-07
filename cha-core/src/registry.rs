@@ -3,7 +3,10 @@ use std::path::Path;
 use crate::{
     Plugin,
     config::Config,
-    plugins::{ComplexityAnalyzer, LengthAnalyzer},
+    plugins::{
+        ApiSurfaceAnalyzer, ComplexityAnalyzer, CouplingAnalyzer, DeadCodeAnalyzer,
+        DuplicateCodeAnalyzer, LayerViolationAnalyzer, LengthAnalyzer, NamingAnalyzer,
+    },
     wasm,
 };
 
@@ -14,7 +17,6 @@ pub struct PluginRegistry {
 
 impl PluginRegistry {
     /// Build registry from config, applying thresholds.
-    /// `project_dir` is used to scan for WASM plugins.
     pub fn from_config(config: &Config, project_dir: &Path) -> Self {
         let mut plugins: Vec<Box<dyn Plugin>> = Vec::new();
 
@@ -43,6 +45,49 @@ impl PluginRegistry {
             if let Some(v) = config.get_usize("complexity", "error_threshold") {
                 p.error_threshold = v;
             }
+            plugins.push(Box::new(p));
+        }
+
+        if config.is_enabled("duplicate_code") {
+            plugins.push(Box::new(DuplicateCodeAnalyzer));
+        }
+
+        if config.is_enabled("coupling") {
+            let mut p = CouplingAnalyzer::default();
+            if let Some(v) = config.get_usize("coupling", "max_imports") {
+                p.max_imports = v;
+            }
+            plugins.push(Box::new(p));
+        }
+
+        if config.is_enabled("naming") {
+            let mut p = NamingAnalyzer::default();
+            if let Some(v) = config.get_usize("naming", "min_name_length") {
+                p.min_name_length = v;
+            }
+            if let Some(v) = config.get_usize("naming", "max_name_length") {
+                p.max_name_length = v;
+            }
+            plugins.push(Box::new(p));
+        }
+
+        if config.is_enabled("dead_code") {
+            plugins.push(Box::new(DeadCodeAnalyzer));
+        }
+
+        if config.is_enabled("api_surface") {
+            let mut p = ApiSurfaceAnalyzer::default();
+            if let Some(v) = config.get_usize("api_surface", "max_exported_count") {
+                p.max_exported_count = v;
+            }
+            plugins.push(Box::new(p));
+        }
+
+        if config.is_enabled("layer_violation") {
+            let p = config
+                .get_str("layer_violation", "layers")
+                .map(|s| LayerViolationAnalyzer::from_config_str(&s))
+                .unwrap_or_default();
             plugins.push(Box::new(p));
         }
 

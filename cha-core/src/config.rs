@@ -55,4 +55,14 @@ impl Config {
             .as_integer()
             .map(|v| v as usize)
     }
+
+    /// Get a string option for a plugin.
+    pub fn get_str(&self, plugin: &str, key: &str) -> Option<String> {
+        self.plugins
+            .get(plugin)?
+            .options
+            .get(key)?
+            .as_str()
+            .map(|s| s.to_string())
+    }
 }

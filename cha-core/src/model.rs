@@ -7,6 +7,10 @@ pub struct FunctionInfo {
     pub line_count: usize,
     /// Cyclomatic complexity (1 + number of branch points).
     pub complexity: usize,
+    /// Hash of the function body AST structure for duplicate detection.
+    pub body_hash: Option<u64>,
+    /// Whether this function is exported (pub/export).
+    pub is_exported: bool,
 }
 
 /// Extracted class/struct info from AST.
@@ -17,6 +21,8 @@ pub struct ClassInfo {
     pub end_line: usize,
     pub method_count: usize,
     pub line_count: usize,
+    /// Whether this class is exported.
+    pub is_exported: bool,
 }
 
 /// Extracted import info.
