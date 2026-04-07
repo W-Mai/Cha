@@ -6,6 +6,7 @@ use cha_core::{
     SarifReporter, Severity, SourceFile, TerminalReporter,
 };
 use clap::{Parser, ValueEnum};
+use rayon::prelude::*;
 
 #[derive(Clone, ValueEnum)]
 enum Format {
@@ -31,7 +32,7 @@ enum FailLevel {
 enum Cli {
     /// Analyze source files for code smells
     Analyze {
-        /// Files or directories to analyze
+        /// Files or directories to analyze (defaults to current directory)
         paths: Vec<String>,
         /// Output format
         #[arg(long, default_value = "terminal")]
@@ -45,7 +46,7 @@ enum Cli {
     },
     /// Parse source files and show structure
     Parse {
-        /// Files to parse
+        /// Files or directories to parse (defaults to current directory)
         paths: Vec<String>,
     },
 }
@@ -66,21 +67,35 @@ fn main() {
     }
 }
 
+/// Recursively collect source files, respecting .gitignore and skipping common build dirs.
 fn collect_files(paths: &[String]) -> Vec<PathBuf> {
+    let targets: Vec<&str> = if paths.is_empty() {
+        vec!["."]
+    } else {
+        paths.iter().map(|s| s.as_str()).collect()
+    };
+
     let mut files = Vec::new();
-    for p in paths {
-        let path = PathBuf::from(p);
-        if path.is_dir() {
-            if let Ok(entries) = std::fs::read_dir(&path) {
-                for entry in entries.flatten() {
-                    let ep = entry.path();
-                    if ep.is_file() {
-                        files.push(ep);
-                    }
-                }
-            }
-        } else {
+    for target in targets {
+        let path = PathBuf::from(target);
+        if path.is_file() {
             files.push(path);
+            continue;
+        }
+        // Recursive walk with .gitignore support
+        let walker = ignore::WalkBuilder::new(&path)
+            .hidden(true)
+            .git_ignore(true)
+            .git_global(true)
+            .filter_entry(|e| {
+                let name = e.file_name().to_string_lossy();
+                !matches!(name.as_ref(), "target" | "node_modules" | "dist" | "build")
+            })
+            .build();
+        for entry in walker.flatten() {
+            if entry.file_type().is_some_and(|ft| ft.is_file()) {
+                files.push(entry.into_path());
+            }
         }
     }
     files
@@ -132,30 +147,31 @@ fn resolve_files(paths: &[String], diff: bool) -> Vec<PathBuf> {
     }
 }
 
+/// Analyze files in parallel using rayon.
 fn run_analysis(files: &[PathBuf], registry: &PluginRegistry) -> Vec<Finding> {
-    let mut all_findings = Vec::new();
-    for path in files {
-        let content = match std::fs::read_to_string(path) {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("error reading {}: {}", path.display(), e);
-                continue;
-            }
-        };
-        let file = SourceFile::new(path.clone(), content);
-        let model = match cha_parser::parse_file(&file) {
-            Some(m) => m,
-            None => continue,
-        };
-        let ctx = AnalysisContext {
-            file: &file,
-            model: &model,
-        };
-        for plugin in registry.plugins() {
-            all_findings.extend(plugin.analyze(&ctx));
-        }
-    }
-    all_findings
+    files
+        .par_iter()
+        .flat_map(|path| {
+            let content = match std::fs::read_to_string(path) {
+                Ok(c) => c,
+                Err(_) => return vec![],
+            };
+            let file = SourceFile::new(path.clone(), content);
+            let model = match cha_parser::parse_file(&file) {
+                Some(m) => m,
+                None => return vec![],
+            };
+            let ctx = AnalysisContext {
+                file: &file,
+                model: &model,
+            };
+            registry
+                .plugins()
+                .iter()
+                .flat_map(|p| p.analyze(&ctx))
+                .collect::<Vec<_>>()
+        })
+        .collect()
 }
 
 fn print_report(findings: &[Finding], format: &Format) {
@@ -183,19 +199,18 @@ fn exit_code(findings: &[Finding], fail_on: Option<&FailLevel>) -> i32 {
 }
 
 fn cmd_parse(paths: &[String]) {
-    for path_str in paths {
-        let path = PathBuf::from(path_str);
-        let content = match std::fs::read_to_string(&path) {
+    let files = collect_files(paths);
+    for path in &files {
+        let content = match std::fs::read_to_string(path) {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("error reading {}: {}", path_str, e);
+                eprintln!("error reading {}: {}", path.display(), e);
                 continue;
             }
         };
-        let file = SourceFile::new(path, content);
-        match cha_parser::parse_file(&file) {
-            Some(model) => print_model(path_str, &model),
-            None => eprintln!("unsupported file: {}", path_str),
+        let file = SourceFile::new(path.clone(), content);
+        if let Some(model) = cha_parser::parse_file(&file) {
+            print_model(&path.to_string_lossy(), &model);
         }
     }
 }
