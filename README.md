@@ -8,6 +8,21 @@
   <strong>察 — Code Health Analyzer</strong>
 </p>
 
+<p align="center">
+  <a href="https://github.com/W-Mai/Cha/actions">
+    <img src="https://img.shields.io/github/actions/workflow/status/W-Mai/Cha/ci.yml?style=flat-square" alt="CI" />
+  </a>
+  <a href="https://github.com/W-Mai/Cha/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/W-Mai/Cha?style=flat-square" alt="License" />
+  </a>
+  <a href="https://github.com/W-Mai/Cha">
+    <img src="https://img.shields.io/github/stars/W-Mai/Cha?style=flat-square" alt="Stars" />
+  </a>
+  <a href="https://github.com/W-Mai/Cha/releases">
+    <img src="https://img.shields.io/github/v/release/W-Mai/Cha?style=flat-square" alt="Release" />
+  </a>
+</p>
+
 **Cha** (察, "to examine") is a pluggable code smell detection toolkit written in Rust. It parses source code via Tree-sitter, runs a suite of architectural health checks, and reports findings as terminal output, JSON, LLM context, or SARIF for CI integration.
 
 ## 📖 Table of Contents
