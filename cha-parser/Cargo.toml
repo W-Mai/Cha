@@ -1,10 +1,10 @@
 [package]
-name = "cha-cli"
+name = "cha-parser"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 cha-core.workspace = true
-cha-parser.workspace = true
-clap = { version = "4", features = ["derive"] }
+tree-sitter.workspace = true
+tree-sitter-typescript = "0.23"
