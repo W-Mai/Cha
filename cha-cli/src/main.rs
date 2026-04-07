@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
-use cha_core::plugins::{ComplexityAnalyzer, LengthAnalyzer};
-use cha_core::{AnalysisContext, Finding, Plugin, SourceFile};
+use cha_core::{AnalysisContext, Config, Finding, PluginRegistry, SourceFile};
 use clap::Parser;
 
 #[derive(Parser)]
@@ -52,10 +51,9 @@ fn collect_files(paths: &[String]) -> Vec<PathBuf> {
 }
 
 fn cmd_analyze(paths: &[String]) {
-    let plugins: Vec<Box<dyn Plugin>> = vec![
-        Box::new(LengthAnalyzer::default()),
-        Box::new(ComplexityAnalyzer::default()),
-    ];
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let config = Config::load(&cwd);
+    let registry = PluginRegistry::from_config(&config);
     let files = collect_files(paths);
     let mut all_findings: Vec<Finding> = Vec::new();
 
@@ -76,7 +74,7 @@ fn cmd_analyze(paths: &[String]) {
             file: &file,
             model: &model,
         };
-        for plugin in &plugins {
+        for plugin in registry.plugins() {
             all_findings.extend(plugin.analyze(&ctx));
         }
     }
@@ -131,8 +129,8 @@ fn print_model(path: &str, model: &cha_parser::SourceModel) {
     println!("  functions: {}", model.functions.len());
     for f in &model.functions {
         println!(
-            "    - {} (L{}-L{}, {} lines)",
-            f.name, f.start_line, f.end_line, f.line_count
+            "    - {} (L{}-L{}, {} lines, complexity {})",
+            f.name, f.start_line, f.end_line, f.line_count, f.complexity
         );
     }
     println!("  classes: {}", model.classes.len());
