@@ -23,4 +23,4 @@ jobs:
         run: cargo build --release
 
       - name: Self-analyze
-        run: ./target/release/cha analyze . --format sarif --fail-on warning
+        run: ./target/release/cha-cli analyze . --format sarif --fail-on warning
