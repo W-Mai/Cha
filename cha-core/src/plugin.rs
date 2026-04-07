@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-use crate::SourceFile;
+use crate::{SourceFile, SourceModel};
 
 /// Severity level for a finding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -46,6 +46,7 @@ pub struct Finding {
 /// Analysis context passed to plugins.
 pub struct AnalysisContext<'a> {
     pub file: &'a SourceFile,
+    pub model: &'a SourceModel,
 }
 
 /// Core trait that all analyzers implement.

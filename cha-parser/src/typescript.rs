@@ -1,7 +1,7 @@
-use cha_core::SourceFile;
+use cha_core::{ClassInfo, FunctionInfo, ImportInfo, SourceFile, SourceModel};
 use tree_sitter::{Node, Parser};
 
-use crate::{ClassInfo, FunctionInfo, ImportInfo, LanguageParser, SourceModel};
+use crate::LanguageParser;
 
 pub struct TypeScriptParser;
 

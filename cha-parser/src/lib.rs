@@ -1,7 +1,6 @@
-mod model;
 mod typescript;
 
-pub use model::*;
+pub use cha_core::{ClassInfo, FunctionInfo, ImportInfo, SourceModel};
 pub use typescript::TypeScriptParser;
 
 use cha_core::SourceFile;

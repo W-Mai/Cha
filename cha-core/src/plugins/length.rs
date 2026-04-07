@@ -1,0 +1,116 @@
+use crate::{AnalysisContext, Finding, Location, Plugin, Severity, SmellCategory};
+
+/// Configurable thresholds for length checks.
+pub struct LengthAnalyzer {
+    pub max_function_lines: usize,
+    pub max_class_methods: usize,
+    pub max_class_lines: usize,
+    pub max_file_lines: usize,
+}
+
+impl Default for LengthAnalyzer {
+    fn default() -> Self {
+        Self {
+            max_function_lines: 30,
+            max_class_methods: 10,
+            max_class_lines: 200,
+            max_file_lines: 500,
+        }
+    }
+}
+
+impl Plugin for LengthAnalyzer {
+    fn name(&self) -> &str {
+        "length"
+    }
+
+    fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
+        let mut findings = Vec::new();
+        let path = &ctx.file.path;
+
+        // Long Method detection
+        for f in &ctx.model.functions {
+            if f.line_count > self.max_function_lines {
+                findings.push(Finding {
+                    smell_name: "long_method".into(),
+                    category: SmellCategory::Bloaters,
+                    severity: severity_for_ratio(f.line_count, self.max_function_lines),
+                    location: Location {
+                        path: path.clone(),
+                        start_line: f.start_line,
+                        end_line: f.end_line,
+                        name: Some(f.name.clone()),
+                    },
+                    message: format!(
+                        "Function `{}` is {} lines (threshold: {})",
+                        f.name, f.line_count, self.max_function_lines
+                    ),
+                    suggested_refactorings: vec!["Extract Method".into()],
+                });
+            }
+        }
+
+        // Large Class detection
+        for c in &ctx.model.classes {
+            let over_methods = c.method_count > self.max_class_methods;
+            let over_lines = c.line_count > self.max_class_lines;
+            if over_methods || over_lines {
+                let mut reasons = Vec::new();
+                if over_methods {
+                    reasons.push(format!("{} methods", c.method_count));
+                }
+                if over_lines {
+                    reasons.push(format!("{} lines", c.line_count));
+                }
+                findings.push(Finding {
+                    smell_name: "large_class".into(),
+                    category: SmellCategory::Bloaters,
+                    severity: if over_methods && over_lines {
+                        Severity::Error
+                    } else {
+                        Severity::Warning
+                    },
+                    location: Location {
+                        path: path.clone(),
+                        start_line: c.start_line,
+                        end_line: c.end_line,
+                        name: Some(c.name.clone()),
+                    },
+                    message: format!("Class `{}` is too large ({})", c.name, reasons.join(", ")),
+                    suggested_refactorings: vec!["Extract Class".into()],
+                });
+            }
+        }
+
+        // Large File detection
+        if ctx.model.total_lines > self.max_file_lines {
+            findings.push(Finding {
+                smell_name: "large_file".into(),
+                category: SmellCategory::Bloaters,
+                severity: severity_for_ratio(ctx.model.total_lines, self.max_file_lines),
+                location: Location {
+                    path: path.clone(),
+                    start_line: 1,
+                    end_line: ctx.model.total_lines,
+                    name: None,
+                },
+                message: format!(
+                    "File is {} lines (threshold: {})",
+                    ctx.model.total_lines, self.max_file_lines
+                ),
+                suggested_refactorings: vec!["Extract Class".into(), "Move Method".into()],
+            });
+        }
+
+        findings
+    }
+}
+
+fn severity_for_ratio(actual: usize, threshold: usize) -> Severity {
+    let ratio = actual as f64 / threshold as f64;
+    if ratio > 2.0 {
+        Severity::Error
+    } else {
+        Severity::Warning
+    }
+}
