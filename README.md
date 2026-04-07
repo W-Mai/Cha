@@ -23,53 +23,25 @@
   </a>
 </p>
 
-**Cha** (察, "to examine") is a pluggable code smell detection toolkit written in Rust. It parses source code via Tree-sitter, runs a suite of architectural health checks, and reports findings as terminal output, JSON, LLM context, or SARIF for CI integration.
-
-## 📖 Table of Contents
-
-- [Core Features](#-core-features)
-- [Quick Start](#-quick-start)
-- [Installation](#-installation)
-- [Built-in Plugins](#-built-in-plugins)
-- [Configuration](#-configuration)
-- [WASM Plugins](#-wasm-plugins)
-- [LSP Integration](#-lsp-integration)
-- [Project Structure](#-project-structure)
-- [License](#-license)
-
-## 🚀 Core Features
-
-- **🌳 Tree-sitter Parsing**: AST-level analysis for TypeScript (.ts/.tsx) and Rust (.rs), with per-function complexity, body hashing, and export detection.
-- **🔌 8 Built-in Plugins**: Length, complexity, duplication, coupling, naming, dead code, API surface, and layer violation detection.
-- **🧩 WASM Plugin System**: Extend with custom analyzers via WebAssembly Component Model (wasmtime + wit-bindgen), fully sandboxed.
-- **📊 Multi-format Output**: Terminal (human-readable), JSON, LLM context, and SARIF for CI/CD pipelines.
-- **🚦 CI/CD Ready**: `--fail-on hint|warning|error` exit codes + `--diff` for incremental analysis on changed files only.
-- **💡 LSP Server**: Real-time diagnostics and code action suggestions in your editor.
+**Cha** (察, "to examine") is a pluggable code smell detection toolkit. It parses source code at the AST level, runs architectural health checks, and reports findings as terminal output, JSON, LLM context, or SARIF.
 
 ## ⚡ Quick Start
 
 ```bash
-# Analyze current directory
-cha analyze .
+# Analyze current directory (recursive, .gitignore aware)
+cha analyze
 
-# JSON output with error-level exit code
+# Analyze specific path with JSON output
 cha analyze src/ --format json --fail-on error
 
 # Only analyze changed files (git diff)
 cha analyze --diff
 
-# Parse a single file
-cha parse src/main.rs
+# Parse and inspect file structure
+cha parse src/
 ```
 
 ## 📦 Installation
-
-### Build from Source
-
-#### Prerequisites
-- [Rust Toolchain](https://www.rust-lang.org/tools/install) (edition 2024)
-
-#### Steps
 
 ```bash
 git clone https://github.com/W-Mai/Cha.git
@@ -77,7 +49,9 @@ cd Cha
 cargo build --release
 ```
 
-The binaries `cha` and `cha-lsp` will be in `target/release/`.
+Binaries `cha` and `cha-lsp` will be in `target/release/`.
+
+Requires [Rust](https://www.rust-lang.org/tools/install) (edition 2024).
 
 ## 🔍 Built-in Plugins
 
@@ -92,28 +66,35 @@ The binaries `cha` and `cha-lsp` will be in `target/release/`.
 | **ApiSurfaceAnalyzer** | Over-exposed public API (>80% exported) | Warning |
 | **LayerViolationAnalyzer** | Cross-layer dependency violations | Error |
 
+Supported languages: TypeScript (.ts/.tsx), Rust (.rs).
+
 ## ⚙️ Configuration
 
-Create a `.cha.toml` in your project root:
+Create `.cha.toml` in your project root:
 
 ```toml
 [plugins.length]
 enabled = true
-max_method_lines = 30
-max_class_lines = 300
+max_function_lines = 30
+max_class_lines = 200
 
 [plugins.complexity]
-enabled = true
-threshold = 15
+warn_threshold = 10
+error_threshold = 20
+
+[plugins.coupling]
+max_imports = 15
 
 [plugins.layer_violation]
 enabled = true
-layers = ["domain", "application", "infrastructure"]
+layers = "domain:0,service:1,controller:2"
 ```
+
+All plugins are enabled by default. Set `enabled = false` to disable.
 
 ## 🧩 WASM Plugins
 
-Write custom analyzers in any language that compiles to WASM Component Model:
+Extend with custom analyzers via WebAssembly Component Model:
 
 ```bash
 cd examples/wasm-plugin-example
@@ -123,7 +104,7 @@ wasm-tools component new target/wasm32-wasip1/release/example.wasm \
   -o plugin.wasm
 ```
 
-The WIT interface (`wit/plugin.wit`):
+WIT interface (`wit/plugin.wit`):
 
 ```wit
 package cha:plugin@0.1.0;
@@ -136,23 +117,34 @@ world analyzer {
 
 ## 💡 LSP Integration
 
-Run the language server for real-time diagnostics:
-
 ```bash
 cha-lsp
 ```
 
-Provides:
-- Diagnostics on open / change / save
-- Code actions with suggested refactorings
+Provides diagnostics on open/change/save and code action suggestions.
+
+## 🛠️ Development
+
+```bash
+# Run all CI checks locally
+cargo xtask ci
+
+# Individual steps
+cargo xtask build     # Release build
+cargo xtask test      # Unit + property + fixture tests
+cargo xtask lint      # Clippy + fmt
+cargo xtask analyze   # Self-analysis in all formats
+cargo xtask lsp-test  # LSP smoke test
+```
 
 ## 📁 Project Structure
 
 ```
 cha-core/       Core traits, plugin registry, reporters, WASM runtime
-cha-parser/     Tree-sitter parsing layer (TypeScript, Rust)
-cha-cli/        CLI binary (analyze, parse subcommands)
+cha-parser/     Tree-sitter parsing (TypeScript, Rust)
+cha-cli/        CLI binary (analyze, parse)
 cha-lsp/        LSP server binary
+xtask/          CI automation (cargo xtask)
 wit/            WIT interface for WASM plugins
 examples/       Example WASM plugin
 static/         Logo and assets
@@ -160,4 +152,4 @@ static/         Logo and assets
 
 ## 📄 License
 
-This project is open source and available under the **MIT License**.
+MIT License.
