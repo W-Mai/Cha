@@ -22,5 +22,31 @@ jobs:
       - name: Build
         run: cargo build --release
 
-      - name: Self-analyze
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Self-analyze (terminal)
+        run: ./target/release/cha analyze .
+
+      - name: Self-analyze (JSON)
+        run: ./target/release/cha analyze . --format json
+
+      - name: Self-analyze (SARIF)
         run: ./target/release/cha analyze . --format sarif --fail-on warning
+
+      - name: Self-analyze (LLM context)
+        run: ./target/release/cha analyze . --format llm
+
+      - name: Self-analyze (diff mode)
+        run: ./target/release/cha analyze --diff
+
+      - name: Parse sample file
+        run: ./target/release/cha parse cha-cli/src/main.rs
+
+      - name: LSP smoke test
+        run: |
+          MSG='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}'
+          LEN=$(echo -n "$MSG" | wc -c)
+          RESP=$(printf "Content-Length: %d\r\n\r\n%s" "$LEN" "$MSG" | timeout 5 ./target/release/cha-lsp 2>/dev/null)
+          echo "$RESP"
+          echo "$RESP" | grep -q '"id":1'
