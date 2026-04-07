@@ -1,0 +1,9 @@
+[package]
+name = "cha-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cha-core.workspace = true
+clap = { version = "4", features = ["derive"] }
