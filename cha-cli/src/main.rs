@@ -1,7 +1,17 @@
 use std::path::PathBuf;
 
-use cha_core::{AnalysisContext, Config, Finding, PluginRegistry, SourceFile};
-use clap::Parser;
+use cha_core::{
+    AnalysisContext, Config, Finding, JsonReporter, LlmContextReporter, PluginRegistry, Reporter,
+    SourceFile, TerminalReporter,
+};
+use clap::{Parser, ValueEnum};
+
+#[derive(Clone, ValueEnum)]
+enum Format {
+    Terminal,
+    Json,
+    Llm,
+}
 
 #[derive(Parser)]
 #[command(
@@ -14,6 +24,9 @@ enum Cli {
     Analyze {
         /// Files or directories to analyze
         paths: Vec<String>,
+        /// Output format
+        #[arg(long, default_value = "terminal")]
+        format: Format,
     },
     /// Parse source files and show structure
     Parse {
@@ -25,7 +38,7 @@ enum Cli {
 fn main() {
     let cli = Cli::parse();
     match cli {
-        Cli::Analyze { paths } => cmd_analyze(&paths),
+        Cli::Analyze { paths, format } => cmd_analyze(&paths, &format),
         Cli::Parse { paths } => cmd_parse(&paths),
     }
 }
@@ -50,7 +63,7 @@ fn collect_files(paths: &[String]) -> Vec<PathBuf> {
     files
 }
 
-fn cmd_analyze(paths: &[String]) {
+fn cmd_analyze(paths: &[String], format: &Format) {
     let cwd = std::env::current_dir().unwrap_or_default();
     let config = Config::load(&cwd);
     let registry = PluginRegistry::from_config(&config);
@@ -79,30 +92,12 @@ fn cmd_analyze(paths: &[String]) {
         }
     }
 
-    if all_findings.is_empty() {
-        println!("No issues found.");
-    } else {
-        for f in &all_findings {
-            let icon = match f.severity {
-                cha_core::Severity::Error => "✗",
-                cha_core::Severity::Warning => "⚠",
-                cha_core::Severity::Hint => "ℹ",
-            };
-            println!(
-                "{} [{}] {}:{}-{} {}",
-                icon,
-                f.smell_name,
-                f.location.path.display(),
-                f.location.start_line,
-                f.location.end_line,
-                f.message,
-            );
-            if !f.suggested_refactorings.is_empty() {
-                println!("  → suggested: {}", f.suggested_refactorings.join(", "));
-            }
-        }
-        println!("\n{} issue(s) found.", all_findings.len());
-    }
+    let reporter: Box<dyn Reporter> = match format {
+        Format::Terminal => Box::new(TerminalReporter),
+        Format::Json => Box::new(JsonReporter),
+        Format::Llm => Box::new(LlmContextReporter),
+    };
+    println!("{}", reporter.render(&all_findings));
 }
 
 fn cmd_parse(paths: &[String]) {
