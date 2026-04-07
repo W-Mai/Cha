@@ -1,8 +1,9 @@
 use std::path::PathBuf;
+use std::process;
 
 use cha_core::{
     AnalysisContext, Config, Finding, JsonReporter, LlmContextReporter, PluginRegistry, Reporter,
-    SourceFile, TerminalReporter,
+    SarifReporter, Severity, SourceFile, TerminalReporter,
 };
 use clap::{Parser, ValueEnum};
 
@@ -11,6 +12,14 @@ enum Format {
     Terminal,
     Json,
     Llm,
+    Sarif,
+}
+
+#[derive(Clone, ValueEnum, PartialEq, Eq, PartialOrd, Ord)]
+enum FailLevel {
+    Hint,
+    Warning,
+    Error,
 }
 
 #[derive(Parser)]
@@ -27,6 +36,12 @@ enum Cli {
         /// Output format
         #[arg(long, default_value = "terminal")]
         format: Format,
+        /// Exit with code 1 if findings at this severity or above exist
+        #[arg(long)]
+        fail_on: Option<FailLevel>,
+        /// Only analyze files changed in git diff (unstaged)
+        #[arg(long)]
+        diff: bool,
     },
     /// Parse source files and show structure
     Parse {
@@ -38,7 +53,15 @@ enum Cli {
 fn main() {
     let cli = Cli::parse();
     match cli {
-        Cli::Analyze { paths, format } => cmd_analyze(&paths, &format),
+        Cli::Analyze {
+            paths,
+            format,
+            fail_on,
+            diff,
+        } => {
+            let code = cmd_analyze(&paths, &format, fail_on.as_ref(), diff);
+            process::exit(code);
+        }
         Cli::Parse { paths } => cmd_parse(&paths),
     }
 }
@@ -63,11 +86,43 @@ fn collect_files(paths: &[String]) -> Vec<PathBuf> {
     files
 }
 
-fn cmd_analyze(paths: &[String], format: &Format) {
+/// Get changed files from git diff.
+fn git_diff_files() -> Vec<PathBuf> {
+    let output = std::process::Command::new("git")
+        .args(["diff", "--name-only", "--diff-filter=ACMR", "HEAD"])
+        .output();
+    match output {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
+            .lines()
+            .map(PathBuf::from)
+            .collect(),
+        _ => {
+            eprintln!("warning: git diff failed, analyzing all files");
+            vec![]
+        }
+    }
+}
+
+fn cmd_analyze(paths: &[String], format: &Format, fail_on: Option<&FailLevel>, diff: bool) -> i32 {
     let cwd = std::env::current_dir().unwrap_or_default();
     let config = Config::load(&cwd);
     let registry = PluginRegistry::from_config(&config, &cwd);
-    let files = collect_files(paths);
+
+    let files = if diff {
+        let diff_files = git_diff_files();
+        if diff_files.is_empty() && paths.is_empty() {
+            println!("No changed files to analyze.");
+            return 0;
+        }
+        if diff_files.is_empty() {
+            collect_files(paths)
+        } else {
+            diff_files
+        }
+    } else {
+        collect_files(paths)
+    };
+
     let mut all_findings: Vec<Finding> = Vec::new();
 
     for path in &files {
@@ -96,8 +151,23 @@ fn cmd_analyze(paths: &[String], format: &Format) {
         Format::Terminal => Box::new(TerminalReporter),
         Format::Json => Box::new(JsonReporter),
         Format::Llm => Box::new(LlmContextReporter),
+        Format::Sarif => Box::new(SarifReporter),
     };
     println!("{}", reporter.render(&all_findings));
+
+    // Determine exit code
+    if let Some(level) = fail_on {
+        let threshold = match level {
+            FailLevel::Hint => Severity::Hint,
+            FailLevel::Warning => Severity::Warning,
+            FailLevel::Error => Severity::Error,
+        };
+        if all_findings.iter().any(|f| f.severity >= threshold) {
+            return 1;
+        }
+    }
+
+    0
 }
 
 fn cmd_parse(paths: &[String]) {

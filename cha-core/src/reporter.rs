@@ -87,3 +87,66 @@ impl Reporter for LlmContextReporter {
         out
     }
 }
+
+/// SARIF output for GitHub Code Scanning.
+pub struct SarifReporter;
+
+impl Reporter for SarifReporter {
+    fn render(&self, findings: &[Finding]) -> String {
+        let rules: Vec<serde_json::Value> = findings
+            .iter()
+            .map(|f| &f.smell_name)
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .map(|name| {
+                serde_json::json!({
+                    "id": name,
+                    "shortDescription": { "text": name },
+                })
+            })
+            .collect();
+
+        let results: Vec<serde_json::Value> = findings
+            .iter()
+            .map(|f| {
+                serde_json::json!({
+                    "ruleId": f.smell_name,
+                    "level": match f.severity {
+                        crate::Severity::Error => "error",
+                        crate::Severity::Warning => "warning",
+                        crate::Severity::Hint => "note",
+                    },
+                    "message": { "text": f.message },
+                    "locations": [{
+                        "physicalLocation": {
+                            "artifactLocation": {
+                                "uri": f.location.path.to_string_lossy(),
+                            },
+                            "region": {
+                                "startLine": f.location.start_line,
+                                "endLine": f.location.end_line,
+                            }
+                        }
+                    }]
+                })
+            })
+            .collect();
+
+        let sarif = serde_json::json!({
+            "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
+            "version": "2.1.0",
+            "runs": [{
+                "tool": {
+                    "driver": {
+                        "name": "cha",
+                        "version": env!("CARGO_PKG_VERSION"),
+                        "rules": rules,
+                    }
+                },
+                "results": results,
+            }]
+        });
+
+        serde_json::to_string_pretty(&sarif).unwrap_or_default()
+    }
+}
