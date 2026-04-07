@@ -22,7 +22,7 @@ impl PluginRegistry {
 
         register_length(&mut plugins, config);
         register_complexity(&mut plugins, config);
-        register_simple(&mut plugins, config);
+        register_simple_plugins(&mut plugins, config);
         register_layer_violation(&mut plugins, config);
 
         for wp in wasm::load_wasm_plugins(project_dir) {
@@ -37,6 +37,53 @@ impl PluginRegistry {
     pub fn plugins(&self) -> &[Box<dyn Plugin>] {
         &self.plugins
     }
+}
+
+/// Apply a usize config option to a field if present.
+fn apply_usize(config: &Config, plugin: &str, key: &str, target: &mut usize) {
+    if let Some(v) = config.get_usize(plugin, key) {
+        *target = v;
+    }
+}
+
+/// Generic helper: register a plugin only if enabled.
+fn register_if_enabled(
+    plugins: &mut Vec<Box<dyn Plugin>>,
+    config: &Config,
+    name: &str,
+    build: impl FnOnce() -> Box<dyn Plugin>,
+) {
+    if config.is_enabled(name) {
+        plugins.push(build());
+    }
+}
+
+fn register_simple_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) {
+    register_if_enabled(plugins, config, "coupling", || {
+        let mut p = CouplingAnalyzer::default();
+        apply_usize(config, "coupling", "max_imports", &mut p.max_imports);
+        Box::new(p)
+    });
+    register_if_enabled(plugins, config, "naming", || {
+        let mut p = NamingAnalyzer::default();
+        apply_usize(config, "naming", "min_name_length", &mut p.min_name_length);
+        apply_usize(config, "naming", "max_name_length", &mut p.max_name_length);
+        Box::new(p)
+    });
+    register_if_enabled(plugins, config, "duplicate_code", || {
+        Box::new(DuplicateCodeAnalyzer)
+    });
+    register_if_enabled(plugins, config, "dead_code", || Box::new(DeadCodeAnalyzer));
+    register_if_enabled(plugins, config, "api_surface", || {
+        let mut p = ApiSurfaceAnalyzer::default();
+        apply_usize(
+            config,
+            "api_surface",
+            "max_exported_count",
+            &mut p.max_exported_count,
+        );
+        Box::new(p)
+    });
 }
 
 fn register_length(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) {
@@ -71,43 +118,6 @@ fn register_complexity(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) {
         p.error_threshold = v;
     }
     plugins.push(Box::new(p));
-}
-
-fn register_simple(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) {
-    if config.is_enabled("duplicate_code") {
-        plugins.push(Box::new(DuplicateCodeAnalyzer));
-    }
-
-    if config.is_enabled("coupling") {
-        let mut p = CouplingAnalyzer::default();
-        if let Some(v) = config.get_usize("coupling", "max_imports") {
-            p.max_imports = v;
-        }
-        plugins.push(Box::new(p));
-    }
-
-    if config.is_enabled("naming") {
-        let mut p = NamingAnalyzer::default();
-        if let Some(v) = config.get_usize("naming", "min_name_length") {
-            p.min_name_length = v;
-        }
-        if let Some(v) = config.get_usize("naming", "max_name_length") {
-            p.max_name_length = v;
-        }
-        plugins.push(Box::new(p));
-    }
-
-    if config.is_enabled("dead_code") {
-        plugins.push(Box::new(DeadCodeAnalyzer));
-    }
-
-    if config.is_enabled("api_surface") {
-        let mut p = ApiSurfaceAnalyzer::default();
-        if let Some(v) = config.get_usize("api_surface", "max_exported_count") {
-            p.max_exported_count = v;
-        }
-        plugins.push(Box::new(p));
-    }
 }
 
 fn register_layer_violation(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) {

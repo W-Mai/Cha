@@ -11,50 +11,66 @@ impl Plugin for DeadCodeAnalyzer {
 
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let mut findings = Vec::new();
-
-        // Collect all names referenced in the file content
-        let content = &ctx.file.content;
-
-        for f in &ctx.model.functions {
-            if f.is_exported || is_entry_point(&f.name) {
-                continue;
-            }
-            if !is_referenced(content, &f.name, f.start_line, f.end_line) {
-                findings.push(Finding {
-                    smell_name: "dead_code".into(),
-                    category: SmellCategory::Dispensables,
-                    severity: Severity::Hint,
-                    location: Location {
-                        path: ctx.file.path.clone(),
-                        start_line: f.start_line,
-                        end_line: f.end_line,
-                        name: Some(f.name.clone()),
-                    },
-                    message: format!("Function `{}` is not exported and may be unused", f.name),
-                    suggested_refactorings: vec!["Remove dead code".into()],
-                });
-            }
-        }
-
-        for c in &ctx.model.classes {
-            if !c.is_exported && !is_referenced(content, &c.name, c.start_line, c.end_line) {
-                findings.push(Finding {
-                    smell_name: "dead_code".into(),
-                    category: SmellCategory::Dispensables,
-                    severity: Severity::Hint,
-                    location: Location {
-                        path: ctx.file.path.clone(),
-                        start_line: c.start_line,
-                        end_line: c.end_line,
-                        name: Some(c.name.clone()),
-                    },
-                    message: format!("Class `{}` is not exported and may be unused", c.name),
-                    suggested_refactorings: vec!["Remove dead code".into()],
-                });
-            }
-        }
-
+        check_dead_functions(ctx, &mut findings);
+        check_dead_classes(ctx, &mut findings);
         findings
+    }
+}
+
+/// Flag unexported, unreferenced functions as potential dead code.
+fn check_dead_functions(ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
+    for f in &ctx.model.functions {
+        if f.is_exported || is_entry_point(&f.name) {
+            continue;
+        }
+        if !is_referenced(&ctx.file.content, &f.name, f.start_line, f.end_line) {
+            findings.push(make_dead_code_finding(
+                ctx,
+                f.start_line,
+                f.end_line,
+                &f.name,
+                "Function",
+            ));
+        }
+    }
+}
+
+/// Flag unexported, unreferenced classes as potential dead code.
+fn check_dead_classes(ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
+    for c in &ctx.model.classes {
+        if c.is_exported || is_referenced(&ctx.file.content, &c.name, c.start_line, c.end_line) {
+            continue;
+        }
+        findings.push(make_dead_code_finding(
+            ctx,
+            c.start_line,
+            c.end_line,
+            &c.name,
+            "Class",
+        ));
+    }
+}
+
+/// Build a dead code finding for a given symbol.
+fn make_dead_code_finding(
+    ctx: &AnalysisContext,
+    start_line: usize,
+    end_line: usize,
+    name: &str,
+    kind: &str,
+) -> Finding {
+    Finding {
+        smell_name: "dead_code".into(),
+        category: SmellCategory::Dispensables,
+        severity: Severity::Hint,
+        location: Location {
+            path: ctx.file.path.clone(),
+            start_line,
+            end_line,
+            name: Some(name.to_string()),
+        },
+        message: format!("{} `{}` is not exported and may be unused", kind, name),
+        suggested_refactorings: vec!["Remove dead code".into()],
     }
 }
 

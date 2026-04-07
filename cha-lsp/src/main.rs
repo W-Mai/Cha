@@ -17,31 +17,32 @@ impl ChaLsp {
             .to_file_path()
             .unwrap_or_else(|_| PathBuf::from(uri.path()));
         let file = SourceFile::new(path, text.to_string());
-        let model = match cha_parser::parse_file(&file) {
-            Some(m) => m,
-            None => {
-                let client = self.client.clone();
-                let uri = uri.clone();
-                tokio::spawn(async move {
-                    client.publish_diagnostics(uri, vec![], None).await;
-                });
-                return;
-            }
-        };
 
+        let diagnostics = self.collect_diagnostics(&file);
+        self.publish(uri.clone(), diagnostics);
+    }
+
+    // Run all plugins on a single file and convert findings to diagnostics.
+    fn collect_diagnostics(&self, file: &SourceFile) -> Vec<Diagnostic> {
+        let model = match cha_parser::parse_file(file) {
+            Some(m) => m,
+            None => return vec![],
+        };
         let ctx = AnalysisContext {
-            file: &file,
+            file,
             model: &model,
         };
+        self.registry
+            .plugins()
+            .iter()
+            .flat_map(|p| p.analyze(&ctx))
+            .map(|f| finding_to_diagnostic(&f))
+            .collect()
+    }
 
-        let mut findings = Vec::new();
-        for plugin in self.registry.plugins() {
-            findings.extend(plugin.analyze(&ctx));
-        }
-
-        let diagnostics = findings.iter().map(finding_to_diagnostic).collect();
+    // Spawn an async task to publish diagnostics to the client.
+    fn publish(&self, uri: Url, diagnostics: Vec<Diagnostic>) {
         let client = self.client.clone();
-        let uri = uri.clone();
         tokio::spawn(async move {
             client.publish_diagnostics(uri, diagnostics, None).await;
         });

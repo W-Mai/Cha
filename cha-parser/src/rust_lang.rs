@@ -48,31 +48,58 @@ fn collect_nodes(
 ) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        match child.kind() {
-            "function_item" => {
-                if let Some(mut f) = extract_function(child, src) {
-                    f.is_exported = exported || has_pub(child);
-                    functions.push(f);
-                }
-            }
-            "impl_item" => {
-                extract_impl_methods(child, src, functions);
-            }
-            "struct_item" | "enum_item" => {
-                if let Some(mut c) = extract_struct(child, src) {
-                    c.is_exported = has_pub(child);
-                    classes.push(c);
-                }
-            }
-            "use_declaration" => {
-                if let Some(i) = extract_use(child, src) {
-                    imports.push(i);
-                }
-            }
-            _ => {
-                collect_nodes(child, src, false, functions, classes, imports);
+        collect_single_node(child, src, exported, functions, classes, imports);
+    }
+}
+
+// Dispatch a single child node by kind.
+fn collect_single_node(
+    child: Node,
+    src: &[u8],
+    exported: bool,
+    functions: &mut Vec<FunctionInfo>,
+    classes: &mut Vec<ClassInfo>,
+    imports: &mut Vec<ImportInfo>,
+) {
+    match child.kind() {
+        "function_item" => {
+            collect_function_node(child, src, exported, functions);
+        }
+        "impl_item" => {
+            extract_impl_methods(child, src, functions);
+        }
+        "struct_item" | "enum_item" => {
+            collect_struct_node(child, src, classes);
+        }
+        "use_declaration" => {
+            if let Some(i) = extract_use(child, src) {
+                imports.push(i);
             }
         }
+        _ => {
+            collect_nodes(child, src, false, functions, classes, imports);
+        }
+    }
+}
+
+// Extract and push a function item node.
+fn collect_function_node(
+    node: Node,
+    src: &[u8],
+    exported: bool,
+    functions: &mut Vec<FunctionInfo>,
+) {
+    if let Some(mut f) = extract_function(node, src) {
+        f.is_exported = exported || has_pub(node);
+        functions.push(f);
+    }
+}
+
+// Extract and push a struct/enum node.
+fn collect_struct_node(node: Node, src: &[u8], classes: &mut Vec<ClassInfo>) {
+    if let Some(mut c) = extract_struct(node, src) {
+        c.is_exported = has_pub(node);
+        classes.push(c);
     }
 }
 

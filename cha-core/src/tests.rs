@@ -69,33 +69,45 @@ fn arb_source_model() -> impl Strategy<Value = SourceModel> {
 fn arb_finding() -> impl Strategy<Value = Finding> {
     (
         "[a-z_]{3,20}",
-        prop::sample::select(vec![
-            crate::SmellCategory::Bloaters,
-            crate::SmellCategory::OoAbusers,
-            crate::SmellCategory::ChangePreventers,
-            crate::SmellCategory::Dispensables,
-            crate::SmellCategory::Couplers,
-        ]),
-        prop::sample::select(vec![
-            crate::Severity::Hint,
-            crate::Severity::Warning,
-            crate::Severity::Error,
-        ]),
+        arb_smell_category(),
+        arb_severity(),
         ".{1,50}",
     )
         .prop_map(|(smell_name, category, severity, message)| Finding {
             smell_name,
             category,
             severity,
-            location: crate::Location {
-                path: PathBuf::from("test.rs"),
-                start_line: 1,
-                end_line: 10,
-                name: Some("test".into()),
-            },
+            location: default_test_location(),
             message,
             suggested_refactorings: vec!["Extract Method".into()],
         })
+}
+
+fn arb_smell_category() -> impl Strategy<Value = crate::SmellCategory> {
+    prop::sample::select(vec![
+        crate::SmellCategory::Bloaters,
+        crate::SmellCategory::OoAbusers,
+        crate::SmellCategory::ChangePreventers,
+        crate::SmellCategory::Dispensables,
+        crate::SmellCategory::Couplers,
+    ])
+}
+
+fn arb_severity() -> impl Strategy<Value = crate::Severity> {
+    prop::sample::select(vec![
+        crate::Severity::Hint,
+        crate::Severity::Warning,
+        crate::Severity::Error,
+    ])
+}
+
+fn default_test_location() -> crate::Location {
+    crate::Location {
+        path: PathBuf::from("test.rs"),
+        start_line: 1,
+        end_line: 10,
+        name: Some("test".into()),
+    }
 }
 
 // -- Plugin property tests --

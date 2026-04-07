@@ -25,44 +25,49 @@ impl Plugin for LayerViolationAnalyzer {
             return vec![];
         }
 
-        let mut findings = Vec::new();
         let file_path = ctx.file.path.to_string_lossy();
         let file_layer = self.layer_of(&file_path);
 
-        for imp in &ctx.model.imports {
-            let import_layer = self.layer_of(&imp.source);
-            // Lower layer importing from higher layer = violation
-            if let (Some((_, file_level)), Some((imp_name, imp_level))) =
-                (file_layer.as_ref(), import_layer.as_ref())
-                && file_level < imp_level
-            {
-                findings.push(Finding {
-                        smell_name: "layer_violation".into(),
-                        category: SmellCategory::Couplers,
-                        severity: Severity::Error,
-                        location: Location {
-                            path: ctx.file.path.clone(),
-                            start_line: imp.line,
-                            end_line: imp.line,
-                            name: None,
-                        },
-                        message: format!(
-                            "Import `{}` violates layer boundary (importing from layer `{}` into lower layer)",
-                            imp.source, imp_name
-                        ),
-                        suggested_refactorings: vec![
-                            "Move Method".into(),
-                            "Extract Interface".into(),
-                        ],
-                    });
-            }
-        }
-
-        findings
+        ctx.model
+            .imports
+            .iter()
+            .filter_map(|imp| self.check_import(ctx, &file_layer, imp))
+            .collect()
     }
 }
 
 impl LayerViolationAnalyzer {
+    /// Check a single import against the file's layer boundary.
+    fn check_import(
+        &self,
+        ctx: &AnalysisContext,
+        file_layer: &Option<(String, u32)>,
+        imp: &crate::ImportInfo,
+    ) -> Option<Finding> {
+        let import_layer = self.layer_of(&imp.source);
+        let (_, file_level) = file_layer.as_ref()?;
+        let (imp_name, imp_level) = import_layer.as_ref()?;
+        if file_level >= imp_level {
+            return None;
+        }
+        Some(Finding {
+            smell_name: "layer_violation".into(),
+            category: SmellCategory::Couplers,
+            severity: Severity::Error,
+            location: Location {
+                path: ctx.file.path.clone(),
+                start_line: imp.line,
+                end_line: imp.line,
+                name: None,
+            },
+            message: format!(
+                "Import `{}` violates layer boundary (importing from layer `{}` into lower layer)",
+                imp.source, imp_name
+            ),
+            suggested_refactorings: vec!["Move Method".into(), "Extract Interface".into()],
+        })
+    }
+
     fn layer_of(&self, path: &str) -> Option<(String, u32)> {
         self.layers
             .iter()

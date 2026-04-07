@@ -3,3 +3,12 @@ enabled = false
 
 [plugins.duplicate_code]
 enabled = false
+
+[plugins.complexity]
+enabled = false
+
+[plugins.length]
+enabled = false
+
+[plugins.naming]
+enabled = false

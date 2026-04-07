@@ -21,43 +21,55 @@ impl Plugin for ApiSurfaceAnalyzer {
     }
 
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
-        let mut findings = Vec::new();
-
-        let total_fns = ctx.model.functions.len();
-        let total_classes = ctx.model.classes.len();
-        let total = total_fns + total_classes;
-        if total == 0 {
-            return findings;
+        let total = ctx.model.functions.len() + ctx.model.classes.len();
+        if total < 5 {
+            return vec![];
         }
 
-        let exported_fns = ctx.model.functions.iter().filter(|f| f.is_exported).count();
-        let exported_classes = ctx.model.classes.iter().filter(|c| c.is_exported).count();
-        let exported = exported_fns + exported_classes;
-
+        let exported = count_exported(ctx);
         let ratio = exported as f64 / total as f64;
 
-        // Only flag when there are enough items to be meaningful
-        if total >= 5 && (exported > self.max_exported_count || ratio > self.max_exported_ratio) {
-            findings.push(Finding {
-                smell_name: "large_api_surface".into(),
-                category: SmellCategory::Bloaters,
-                severity: Severity::Warning,
-                location: Location {
-                    path: ctx.file.path.clone(),
-                    start_line: 1,
-                    end_line: ctx.model.total_lines,
-                    name: None,
-                },
-                message: format!(
-                    "File exports {}/{} items ({:.0}%), consider narrowing the public API",
-                    exported,
-                    total,
-                    ratio * 100.0
-                ),
-                suggested_refactorings: vec!["Hide Method".into(), "Extract Class".into()],
-            });
+        if exported > self.max_exported_count || ratio > self.max_exported_ratio {
+            vec![self.make_finding(ctx, exported, total, ratio)]
+        } else {
+            vec![]
         }
+    }
+}
 
-        findings
+/// Count total exported functions and classes.
+fn count_exported(ctx: &AnalysisContext) -> usize {
+    let fns = ctx.model.functions.iter().filter(|f| f.is_exported).count();
+    let cls = ctx.model.classes.iter().filter(|c| c.is_exported).count();
+    fns + cls
+}
+
+impl ApiSurfaceAnalyzer {
+    /// Build the large API surface finding.
+    fn make_finding(
+        &self,
+        ctx: &AnalysisContext,
+        exported: usize,
+        total: usize,
+        ratio: f64,
+    ) -> Finding {
+        Finding {
+            smell_name: "large_api_surface".into(),
+            category: SmellCategory::Bloaters,
+            severity: Severity::Warning,
+            location: Location {
+                path: ctx.file.path.clone(),
+                start_line: 1,
+                end_line: ctx.model.total_lines,
+                name: None,
+            },
+            message: format!(
+                "File exports {}/{} items ({:.0}%), consider narrowing the public API",
+                exported,
+                total,
+                ratio * 100.0
+            ),
+            suggested_refactorings: vec!["Hide Method".into(), "Extract Class".into()],
+        }
     }
 }

@@ -80,25 +80,29 @@ fn collect_files(paths: &[String]) -> Vec<PathBuf> {
         let path = PathBuf::from(target);
         if path.is_file() {
             files.push(path);
-            continue;
-        }
-        // Recursive walk with .gitignore support
-        let walker = ignore::WalkBuilder::new(&path)
-            .hidden(true)
-            .git_ignore(true)
-            .git_global(true)
-            .filter_entry(|e| {
-                let name = e.file_name().to_string_lossy();
-                !matches!(name.as_ref(), "target" | "node_modules" | "dist" | "build")
-            })
-            .build();
-        for entry in walker.flatten() {
-            if entry.file_type().is_some_and(|ft| ft.is_file()) {
-                files.push(entry.into_path());
-            }
+        } else {
+            walk_directory(&path, &mut files);
         }
     }
     files
+}
+
+// Walk a directory recursively, collecting files while respecting .gitignore.
+fn walk_directory(root: &Path, files: &mut Vec<PathBuf>) {
+    let walker = ignore::WalkBuilder::new(root)
+        .hidden(true)
+        .git_ignore(true)
+        .git_global(true)
+        .filter_entry(|e| {
+            let name = e.file_name().to_string_lossy();
+            !matches!(name.as_ref(), "target" | "node_modules" | "dist" | "build")
+        })
+        .build();
+    for entry in walker.flatten() {
+        if entry.file_type().is_some_and(|ft| ft.is_file()) {
+            files.push(entry.into_path());
+        }
+    }
 }
 
 /// Get changed files from git diff.

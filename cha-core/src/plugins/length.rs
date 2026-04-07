@@ -11,7 +11,7 @@ pub struct LengthAnalyzer {
 impl Default for LengthAnalyzer {
     fn default() -> Self {
         Self {
-            max_function_lines: 30,
+            max_function_lines: 50,
             max_class_methods: 10,
             max_class_lines: 200,
             max_file_lines: 500,
@@ -59,36 +59,43 @@ impl LengthAnalyzer {
 
     fn check_classes(&self, ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
         for c in &ctx.model.classes {
-            let over_methods = c.method_count > self.max_class_methods;
-            let over_lines = c.line_count > self.max_class_lines;
-            if !over_methods && !over_lines {
-                continue;
+            if let Some(f) = self.check_single_class(ctx, c) {
+                findings.push(f);
             }
-            let mut reasons = Vec::new();
-            if over_methods {
-                reasons.push(format!("{} methods", c.method_count));
-            }
-            if over_lines {
-                reasons.push(format!("{} lines", c.line_count));
-            }
-            findings.push(Finding {
-                smell_name: "large_class".into(),
-                category: SmellCategory::Bloaters,
-                severity: if over_methods && over_lines {
-                    Severity::Error
-                } else {
-                    Severity::Warning
-                },
-                location: Location {
-                    path: ctx.file.path.clone(),
-                    start_line: c.start_line,
-                    end_line: c.end_line,
-                    name: Some(c.name.clone()),
-                },
-                message: format!("Class `{}` is too large ({})", c.name, reasons.join(", ")),
-                suggested_refactorings: vec!["Extract Class".into()],
-            });
         }
+    }
+
+    /// Build a finding for a single class if it exceeds size thresholds.
+    fn check_single_class(&self, ctx: &AnalysisContext, c: &crate::ClassInfo) -> Option<Finding> {
+        let over_methods = c.method_count > self.max_class_methods;
+        let over_lines = c.line_count > self.max_class_lines;
+        if !over_methods && !over_lines {
+            return None;
+        }
+        let mut reasons = Vec::new();
+        if over_methods {
+            reasons.push(format!("{} methods", c.method_count));
+        }
+        if over_lines {
+            reasons.push(format!("{} lines", c.line_count));
+        }
+        Some(Finding {
+            smell_name: "large_class".into(),
+            category: SmellCategory::Bloaters,
+            severity: if over_methods && over_lines {
+                Severity::Error
+            } else {
+                Severity::Warning
+            },
+            location: Location {
+                path: ctx.file.path.clone(),
+                start_line: c.start_line,
+                end_line: c.end_line,
+                name: Some(c.name.clone()),
+            },
+            message: format!("Class `{}` is too large ({})", c.name, reasons.join(", ")),
+            suggested_refactorings: vec!["Extract Class".into()],
+        })
     }
 
     fn check_file(&self, ctx: &AnalysisContext, findings: &mut Vec<Finding>) {

@@ -47,28 +47,9 @@ impl Config {
         let abs_file = std::fs::canonicalize(file_path).unwrap_or(file_path.to_path_buf());
         let abs_root = std::fs::canonicalize(project_root).unwrap_or(project_root.to_path_buf());
         let dir = abs_file.parent().unwrap_or(&abs_root);
-        let mut configs = Vec::new();
 
-        // Collect configs from file's dir up to project root
-        let mut current = dir.to_path_buf();
-        loop {
-            let cfg_path = current.join(".cha.toml");
-            if cfg_path.is_file()
-                && let Ok(content) = std::fs::read_to_string(&cfg_path)
-                && let Ok(cfg) = toml::from_str::<Config>(&content)
-            {
-                configs.push(cfg);
-            }
-            if current == abs_root {
-                break;
-            }
-            match current.parent() {
-                Some(p) if p.starts_with(&abs_root) || p == abs_root => current = p.to_path_buf(),
-                _ => break,
-            }
-        }
-
-        // Merge: last (root) is base, first (closest) wins
+        // Merge: root is base, closest wins
+        let mut configs = collect_configs_upward(dir, &abs_root);
         configs.reverse();
         let mut merged = Config::default();
         for cfg in configs {
@@ -112,4 +93,27 @@ impl Config {
             .as_str()
             .map(|s| s.to_string())
     }
+}
+
+/// Walk from `start_dir` up to `root`, collecting `.cha.toml` configs (closest first).
+fn collect_configs_upward(start_dir: &Path, root: &Path) -> Vec<Config> {
+    let mut configs = Vec::new();
+    let mut current = start_dir.to_path_buf();
+    loop {
+        let cfg_path = current.join(".cha.toml");
+        if cfg_path.is_file()
+            && let Ok(content) = std::fs::read_to_string(&cfg_path)
+            && let Ok(cfg) = toml::from_str::<Config>(&content)
+        {
+            configs.push(cfg);
+        }
+        if current == root {
+            break;
+        }
+        match current.parent() {
+            Some(p) if p.starts_with(root) || p == root => current = p.to_path_buf(),
+            _ => break,
+        }
+    }
+    configs
 }

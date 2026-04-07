@@ -48,35 +48,58 @@ fn collect_nodes(
 ) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        match child.kind() {
-            "export_statement" => {
-                collect_nodes(child, src, true, functions, classes, imports);
-            }
-            "function_declaration" | "method_definition" => {
-                if let Some(mut f) = extract_function(child, src) {
-                    f.is_exported = exported;
-                    functions.push(f);
-                }
-            }
-            "lexical_declaration" | "variable_declaration" => {
-                extract_arrow_functions(child, src, exported, functions);
-                collect_nodes(child, src, exported, functions, classes, imports);
-            }
-            "class_declaration" => {
-                if let Some(mut c) = extract_class(child, src) {
-                    c.is_exported = exported;
-                    classes.push(c);
-                }
-            }
-            "import_statement" => {
-                if let Some(i) = extract_import(child, src) {
-                    imports.push(i);
-                }
-            }
-            _ => {
-                collect_nodes(child, src, false, functions, classes, imports);
+        collect_single_node(child, src, exported, functions, classes, imports);
+    }
+}
+
+// Dispatch a single child node by kind.
+fn collect_single_node(
+    child: Node,
+    src: &[u8],
+    exported: bool,
+    functions: &mut Vec<FunctionInfo>,
+    classes: &mut Vec<ClassInfo>,
+    imports: &mut Vec<ImportInfo>,
+) {
+    match child.kind() {
+        "export_statement" => {
+            collect_nodes(child, src, true, functions, classes, imports);
+        }
+        "function_declaration" | "method_definition" => {
+            collect_function_node(child, src, exported, functions);
+        }
+        "lexical_declaration" | "variable_declaration" => {
+            extract_arrow_functions(child, src, exported, functions);
+            collect_nodes(child, src, exported, functions, classes, imports);
+        }
+        "class_declaration" => collect_class_node(child, src, exported, classes),
+        "import_statement" => {
+            if let Some(i) = extract_import(child, src) {
+                imports.push(i);
             }
         }
+        _ => collect_nodes(child, src, false, functions, classes, imports),
+    }
+}
+
+// Extract and push a function/method node.
+fn collect_function_node(
+    node: Node,
+    src: &[u8],
+    exported: bool,
+    functions: &mut Vec<FunctionInfo>,
+) {
+    if let Some(mut f) = extract_function(node, src) {
+        f.is_exported = exported;
+        functions.push(f);
+    }
+}
+
+// Extract and push a class node.
+fn collect_class_node(node: Node, src: &[u8], exported: bool, classes: &mut Vec<ClassInfo>) {
+    if let Some(mut c) = extract_class(node, src) {
+        c.is_exported = exported;
+        classes.push(c);
     }
 }
 
@@ -124,29 +147,35 @@ fn extract_arrow_functions(
 ) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        if child.kind() == "variable_declarator" {
-            let name = child
-                .child_by_field_name("name")
-                .map(|n| node_text(n, src).to_string());
-            let value = child.child_by_field_name("value");
-            if let (Some(name), Some(value)) = (name, value)
-                && value.kind() == "arrow_function"
-            {
-                let start_line = node.start_position().row + 1;
-                let end_line = node.end_position().row + 1;
-                let body_hash = value.child_by_field_name("body").map(hash_ast_structure);
-                functions.push(FunctionInfo {
-                    name,
-                    start_line,
-                    end_line,
-                    line_count: end_line - start_line + 1,
-                    complexity: count_complexity(value),
-                    body_hash,
-                    is_exported: exported,
-                });
-            }
+        if child.kind() == "variable_declarator"
+            && let Some(f) = try_extract_arrow(child, node, src, exported)
+        {
+            functions.push(f);
         }
     }
+}
+
+// Try to extract an arrow function from a variable declarator.
+fn try_extract_arrow(child: Node, decl: Node, src: &[u8], exported: bool) -> Option<FunctionInfo> {
+    let name = child
+        .child_by_field_name("name")
+        .map(|n| node_text(n, src).to_string())?;
+    let value = child.child_by_field_name("value")?;
+    if value.kind() != "arrow_function" {
+        return None;
+    }
+    let start_line = decl.start_position().row + 1;
+    let end_line = decl.end_position().row + 1;
+    let body_hash = value.child_by_field_name("body").map(hash_ast_structure);
+    Some(FunctionInfo {
+        name,
+        start_line,
+        end_line,
+        line_count: end_line - start_line + 1,
+        complexity: count_complexity(value),
+        body_hash,
+        is_exported: exported,
+    })
 }
 
 fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {

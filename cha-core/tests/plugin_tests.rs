@@ -76,7 +76,7 @@ mod plugin_tests {
 
     #[test]
     fn length_long_method_triggers() {
-        let model = make_model(vec![func("big", 31, 1, false)], vec![], vec![], 31);
+        let model = make_model(vec![func("big", 51, 1, false)], vec![], vec![], 51);
         let findings = analyze(&LengthAnalyzer::default(), &model);
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].smell_name, "long_method");
@@ -85,14 +85,14 @@ mod plugin_tests {
 
     #[test]
     fn length_at_threshold_no_trigger() {
-        let model = make_model(vec![func("ok", 30, 1, false)], vec![], vec![], 30);
+        let model = make_model(vec![func("ok", 50, 1, false)], vec![], vec![], 50);
         let findings = analyze(&LengthAnalyzer::default(), &model);
         assert!(findings.is_empty());
     }
 
     #[test]
     fn length_double_threshold_error() {
-        let model = make_model(vec![func("huge", 61, 1, false)], vec![], vec![], 61);
+        let model = make_model(vec![func("huge", 101, 1, false)], vec![], vec![], 101);
         let findings = analyze(&LengthAnalyzer::default(), &model);
         assert_eq!(findings[0].severity, Severity::Error);
     }
@@ -138,7 +138,7 @@ mod plugin_tests {
     #[test]
     fn duplicate_triggers() {
         let model = make_model(
-            vec![func_with_hash("a", 5, 42), func_with_hash("b", 5, 42)],
+            vec![func_with_hash("a", 15, 42), func_with_hash("b", 15, 42)],
             vec![],
             vec![],
             10,
@@ -151,7 +151,7 @@ mod plugin_tests {
     #[test]
     fn duplicate_different_hash_no_trigger() {
         let model = make_model(
-            vec![func_with_hash("a", 5, 42), func_with_hash("b", 5, 99)],
+            vec![func_with_hash("a", 15, 42), func_with_hash("b", 15, 99)],
             vec![],
             vec![],
             10,

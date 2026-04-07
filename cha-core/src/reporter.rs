@@ -60,32 +60,37 @@ impl Reporter for LlmContextReporter {
         }
         let mut out = String::from("# Code Smell Analysis\n\n");
         for (i, f) in findings.iter().enumerate() {
-            out.push_str(&format!("## Issue {}\n\n", i + 1));
-            out.push_str(&format!("- **Smell**: {}\n", f.smell_name));
-            out.push_str(&format!("- **Category**: {:?}\n", f.category));
-            out.push_str(&format!("- **Severity**: {:?}\n", f.severity));
-            out.push_str(&format!(
-                "- **Location**: {}:{}-{}",
-                f.location.path.display(),
-                f.location.start_line,
-                f.location.end_line,
-            ));
-            if let Some(name) = &f.location.name {
-                out.push_str(&format!(" (`{}`)", name));
-            }
-            out.push('\n');
-            out.push_str(&format!("- **Problem**: {}\n", f.message));
-            if !f.suggested_refactorings.is_empty() {
-                out.push_str("- **Suggested refactorings**:\n");
-                for r in &f.suggested_refactorings {
-                    out.push_str(&format!("  - {}\n", r));
-                }
-            }
-            out.push('\n');
+            render_llm_issue(&mut out, i, f);
         }
         out.push_str("Please apply the suggested refactorings to improve code quality.\n");
         out
     }
+}
+
+/// Render a single finding as an LLM-readable markdown section.
+fn render_llm_issue(out: &mut String, index: usize, f: &Finding) {
+    out.push_str(&format!("## Issue {}\n\n", index + 1));
+    out.push_str(&format!("- **Smell**: {}\n", f.smell_name));
+    out.push_str(&format!("- **Category**: {:?}\n", f.category));
+    out.push_str(&format!("- **Severity**: {:?}\n", f.severity));
+    out.push_str(&format!(
+        "- **Location**: {}:{}-{}",
+        f.location.path.display(),
+        f.location.start_line,
+        f.location.end_line,
+    ));
+    if let Some(name) = &f.location.name {
+        out.push_str(&format!(" (`{}`)", name));
+    }
+    out.push('\n');
+    out.push_str(&format!("- **Problem**: {}\n", f.message));
+    if !f.suggested_refactorings.is_empty() {
+        out.push_str("- **Suggested refactorings**:\n");
+        for r in &f.suggested_refactorings {
+            out.push_str(&format!("  - {}\n", r));
+        }
+    }
+    out.push('\n');
 }
 
 /// SARIF output for GitHub Code Scanning.
@@ -93,45 +98,8 @@ pub struct SarifReporter;
 
 impl Reporter for SarifReporter {
     fn render(&self, findings: &[Finding]) -> String {
-        let rules: Vec<serde_json::Value> = findings
-            .iter()
-            .map(|f| &f.smell_name)
-            .collect::<std::collections::BTreeSet<_>>()
-            .into_iter()
-            .map(|name| {
-                serde_json::json!({
-                    "id": name,
-                    "shortDescription": { "text": name },
-                })
-            })
-            .collect();
-
-        let results: Vec<serde_json::Value> = findings
-            .iter()
-            .map(|f| {
-                serde_json::json!({
-                    "ruleId": f.smell_name,
-                    "level": match f.severity {
-                        crate::Severity::Error => "error",
-                        crate::Severity::Warning => "warning",
-                        crate::Severity::Hint => "note",
-                    },
-                    "message": { "text": f.message },
-                    "locations": [{
-                        "physicalLocation": {
-                            "artifactLocation": {
-                                "uri": f.location.path.to_string_lossy(),
-                            },
-                            "region": {
-                                "startLine": f.location.start_line,
-                                "endLine": f.location.end_line,
-                            }
-                        }
-                    }]
-                })
-            })
-            .collect();
-
+        let rules = build_sarif_rules(findings);
+        let results = build_sarif_results(findings);
         let sarif = serde_json::json!({
             "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
             "version": "2.1.0",
@@ -146,7 +114,51 @@ impl Reporter for SarifReporter {
                 "results": results,
             }]
         });
-
         serde_json::to_string_pretty(&sarif).unwrap_or_default()
     }
+}
+
+/// Collect unique rule descriptors from findings.
+fn build_sarif_rules(findings: &[Finding]) -> Vec<serde_json::Value> {
+    findings
+        .iter()
+        .map(|f| &f.smell_name)
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .map(|name| {
+            serde_json::json!({
+                "id": name,
+                "shortDescription": { "text": name },
+            })
+        })
+        .collect()
+}
+
+/// Convert findings into SARIF result entries.
+fn build_sarif_results(findings: &[Finding]) -> Vec<serde_json::Value> {
+    findings
+        .iter()
+        .map(|f| {
+            serde_json::json!({
+                "ruleId": f.smell_name,
+                "level": match f.severity {
+                    crate::Severity::Error => "error",
+                    crate::Severity::Warning => "warning",
+                    crate::Severity::Hint => "note",
+                },
+                "message": { "text": f.message },
+                "locations": [{
+                    "physicalLocation": {
+                        "artifactLocation": {
+                            "uri": f.location.path.to_string_lossy(),
+                        },
+                        "region": {
+                            "startLine": f.location.start_line,
+                            "endLine": f.location.end_line,
+                        }
+                    }
+                }]
+            })
+        })
+        .collect()
 }

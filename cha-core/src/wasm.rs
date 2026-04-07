@@ -98,41 +98,43 @@ fn to_wit_input(ctx: &AnalysisContext) -> wit::AnalysisInput {
         content: ctx.file.content.clone(),
         language: ctx.model.language.clone(),
         total_lines: ctx.model.total_lines as u32,
-        functions: ctx
-            .model
-            .functions
-            .iter()
-            .map(|f| wit::FunctionInfo {
-                name: f.name.clone(),
-                start_line: f.start_line as u32,
-                end_line: f.end_line as u32,
-                line_count: f.line_count as u32,
-                complexity: f.complexity as u32,
-            })
-            .collect(),
-        classes: ctx
-            .model
-            .classes
-            .iter()
-            .map(|c| wit::ClassInfo {
-                name: c.name.clone(),
-                start_line: c.start_line as u32,
-                end_line: c.end_line as u32,
-                method_count: c.method_count as u32,
-                line_count: c.line_count as u32,
-            })
-            .collect(),
-        imports: ctx
-            .model
-            .imports
-            .iter()
-            .map(|i| wit::ImportInfo {
-                source: i.source.clone(),
-                line: i.line as u32,
-            })
-            .collect(),
+        functions: convert_functions(&ctx.model.functions),
+        classes: convert_classes(&ctx.model.classes),
+        imports: convert_imports(&ctx.model.imports),
         options: vec![],
     }
+}
+
+/// Generic slice converter to avoid duplicate map-collect patterns.
+fn convert_slice<T, U>(items: &[T], f: impl Fn(&T) -> U) -> Vec<U> {
+    items.iter().map(f).collect()
+}
+
+fn convert_functions(funcs: &[crate::model::FunctionInfo]) -> Vec<wit::FunctionInfo> {
+    convert_slice(funcs, |f| wit::FunctionInfo {
+        name: f.name.clone(),
+        start_line: f.start_line as u32,
+        end_line: f.end_line as u32,
+        line_count: f.line_count as u32,
+        complexity: f.complexity as u32,
+    })
+}
+
+fn convert_classes(classes: &[crate::model::ClassInfo]) -> Vec<wit::ClassInfo> {
+    convert_slice(classes, |c| wit::ClassInfo {
+        name: c.name.clone(),
+        start_line: c.start_line as u32,
+        end_line: c.end_line as u32,
+        method_count: c.method_count as u32,
+        line_count: c.line_count as u32,
+    })
+}
+
+fn convert_imports(imports: &[crate::model::ImportInfo]) -> Vec<wit::ImportInfo> {
+    convert_slice(imports, |i| wit::ImportInfo {
+        source: i.source.clone(),
+        line: i.line as u32,
+    })
 }
 
 fn from_wit_finding(f: wit::Finding) -> Finding {
@@ -178,29 +180,41 @@ pub fn load_wasm_plugins(project_dir: &Path) -> Vec<Box<dyn Plugin>> {
     let global_plugins = home_dir().join(".cha").join("plugins");
 
     for dir in [&project_plugins, &global_plugins] {
-        if let Ok(entries) = std::fs::read_dir(dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.extension().is_some_and(|e| e == "wasm") {
-                    let filename = path.file_name().unwrap().to_string_lossy().to_string();
-                    if seen.contains_key(&filename) {
-                        continue;
-                    }
-                    match WasmPlugin::load(&path) {
-                        Ok(p) => {
-                            seen.insert(filename, true);
-                            plugins.push(Box::new(p));
-                        }
-                        Err(e) => {
-                            eprintln!("failed to load wasm plugin {}: {}", path.display(), e);
-                        }
-                    }
-                }
-            }
-        }
+        load_plugins_from_dir(dir, &mut seen, &mut plugins);
     }
 
     plugins
+}
+
+/// Load .wasm plugins from a single directory, skipping duplicates by filename.
+fn load_plugins_from_dir(
+    dir: &Path,
+    seen: &mut HashMap<String, bool>,
+    plugins: &mut Vec<Box<dyn Plugin>>,
+) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().is_none_or(|e| e != "wasm") {
+            continue;
+        }
+        let filename = path.file_name().unwrap().to_string_lossy().to_string();
+        if seen.contains_key(&filename) {
+            continue;
+        }
+        match WasmPlugin::load(&path) {
+            Ok(p) => {
+                seen.insert(filename, true);
+                plugins.push(Box::new(p));
+            }
+            Err(e) => {
+                eprintln!("failed to load wasm plugin {}: {}", path.display(), e);
+            }
+        }
+    }
 }
 
 fn home_dir() -> PathBuf {

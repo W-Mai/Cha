@@ -22,7 +22,14 @@ impl Plugin for NamingAnalyzer {
 
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let mut findings = Vec::new();
+        self.check_functions(ctx, &mut findings);
+        self.check_classes(ctx, &mut findings);
+        findings
+    }
+}
 
+impl NamingAnalyzer {
+    fn check_functions(&self, ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
         for f in &ctx.model.functions {
             if let Some(finding) = check_name(
                 &f.name,
@@ -36,26 +43,14 @@ impl Plugin for NamingAnalyzer {
                 findings.push(finding);
             }
         }
+    }
 
+    fn check_classes(&self, ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
         for c in &ctx.model.classes {
-            // Classes should be PascalCase
-            if !c.name.is_empty() && c.name.chars().next().is_some_and(|ch| ch.is_lowercase()) {
-                findings.push(Finding {
-                    smell_name: "naming_convention".into(),
-                    category: SmellCategory::Bloaters,
-                    severity: Severity::Hint,
-                    location: Location {
-                        path: ctx.file.path.clone(),
-                        start_line: c.start_line,
-                        end_line: c.end_line,
-                        name: Some(c.name.clone()),
-                    },
-                    message: format!("Class `{}` should use PascalCase", c.name),
-                    suggested_refactorings: vec!["Rename Method".into()],
-                });
+            if let Some(f) = check_pascal_case(c, &ctx.file.path) {
+                findings.push(f);
             }
-
-            if let Some(finding) = check_name(
+            if let Some(f) = check_name(
                 &c.name,
                 "Class",
                 &ctx.file.path,
@@ -64,12 +59,30 @@ impl Plugin for NamingAnalyzer {
                 self.min_name_length,
                 self.max_name_length,
             ) {
-                findings.push(finding);
+                findings.push(f);
             }
         }
-
-        findings
     }
+}
+
+/// Check if a class name violates PascalCase convention.
+fn check_pascal_case(c: &crate::ClassInfo, path: &std::path::Path) -> Option<Finding> {
+    if c.name.is_empty() || c.name.chars().next().is_some_and(|ch| ch.is_uppercase()) {
+        return None;
+    }
+    Some(Finding {
+        smell_name: "naming_convention".into(),
+        category: SmellCategory::Bloaters,
+        severity: Severity::Hint,
+        location: Location {
+            path: path.to_path_buf(),
+            start_line: c.start_line,
+            end_line: c.end_line,
+            name: Some(c.name.clone()),
+        },
+        message: format!("Class `{}` should use PascalCase", c.name),
+        suggested_refactorings: vec!["Rename Method".into()],
+    })
 }
 
 fn check_name(
@@ -81,47 +94,33 @@ fn check_name(
     min_len: usize,
     max_len: usize,
 ) -> Option<Finding> {
-    if name.len() < min_len {
-        Some(Finding {
-            smell_name: "naming_too_short".into(),
-            category: SmellCategory::Bloaters,
-            severity: Severity::Warning,
-            location: Location {
-                path: path.to_path_buf(),
-                start_line,
-                end_line,
-                name: Some(name.to_string()),
-            },
-            message: format!(
-                "{} `{}` name is too short ({} chars, min: {})",
-                kind,
-                name,
-                name.len(),
-                min_len
-            ),
-            suggested_refactorings: vec!["Rename Method".into()],
-        })
+    let (smell, severity, qualifier, limit) = if name.len() < min_len {
+        ("naming_too_short", Severity::Warning, "short", min_len)
     } else if name.len() > max_len {
-        Some(Finding {
-            smell_name: "naming_too_long".into(),
-            category: SmellCategory::Bloaters,
-            severity: Severity::Hint,
-            location: Location {
-                path: path.to_path_buf(),
-                start_line,
-                end_line,
-                name: Some(name.to_string()),
-            },
-            message: format!(
-                "{} `{}` name is too long ({} chars, max: {})",
-                kind,
-                name,
-                name.len(),
-                max_len
-            ),
-            suggested_refactorings: vec!["Rename Method".into()],
-        })
+        ("naming_too_long", Severity::Hint, "long", max_len)
     } else {
-        None
-    }
+        return None;
+    };
+    let bound_label = if qualifier == "short" { "min" } else { "max" };
+    Some(Finding {
+        smell_name: smell.into(),
+        category: SmellCategory::Bloaters,
+        severity,
+        location: Location {
+            path: path.to_path_buf(),
+            start_line,
+            end_line,
+            name: Some(name.to_string()),
+        },
+        message: format!(
+            "{} `{}` name is too {} ({} chars, {}: {})",
+            kind,
+            name,
+            qualifier,
+            name.len(),
+            bound_label,
+            limit
+        ),
+        suggested_refactorings: vec!["Rename Method".into()],
+    })
 }

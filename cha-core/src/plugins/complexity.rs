@@ -21,36 +21,42 @@ impl Plugin for ComplexityAnalyzer {
     }
 
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
-        let mut findings = Vec::new();
+        ctx.model
+            .functions
+            .iter()
+            .filter_map(|f| self.check_function(ctx, f))
+            .collect()
+    }
+}
 
-        for f in &ctx.model.functions {
-            if f.complexity >= self.warn_threshold {
-                findings.push(Finding {
-                    smell_name: "high_complexity".into(),
-                    category: SmellCategory::Bloaters,
-                    severity: if f.complexity >= self.error_threshold {
-                        Severity::Error
-                    } else {
-                        Severity::Warning
-                    },
-                    location: Location {
-                        path: ctx.file.path.clone(),
-                        start_line: f.start_line,
-                        end_line: f.end_line,
-                        name: Some(f.name.clone()),
-                    },
-                    message: format!(
-                        "Function `{}` has complexity {} (threshold: {})",
-                        f.name, f.complexity, self.warn_threshold
-                    ),
-                    suggested_refactorings: vec![
-                        "Extract Method".into(),
-                        "Replace Conditional with Polymorphism".into(),
-                    ],
-                });
-            }
+impl ComplexityAnalyzer {
+    /// Build a finding for a single function if its complexity exceeds the threshold.
+    fn check_function(&self, ctx: &AnalysisContext, f: &crate::FunctionInfo) -> Option<Finding> {
+        if f.complexity < self.warn_threshold {
+            return None;
         }
-
-        findings
+        Some(Finding {
+            smell_name: "high_complexity".into(),
+            category: SmellCategory::Bloaters,
+            severity: if f.complexity >= self.error_threshold {
+                Severity::Error
+            } else {
+                Severity::Warning
+            },
+            location: Location {
+                path: ctx.file.path.clone(),
+                start_line: f.start_line,
+                end_line: f.end_line,
+                name: Some(f.name.clone()),
+            },
+            message: format!(
+                "Function `{}` has complexity {} (threshold: {})",
+                f.name, f.complexity, self.warn_threshold
+            ),
+            suggested_refactorings: vec![
+                "Extract Method".into(),
+                "Replace Conditional with Polymorphism".into(),
+            ],
+        })
     }
 }
