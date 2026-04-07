@@ -36,7 +36,8 @@ impl Plugin for ApiSurfaceAnalyzer {
 
         let ratio = exported as f64 / total as f64;
 
-        if exported > self.max_exported_count || ratio > self.max_exported_ratio {
+        // Only flag when there are enough items to be meaningful
+        if total >= 5 && (exported > self.max_exported_count || ratio > self.max_exported_ratio) {
             findings.push(Finding {
                 smell_name: "large_api_surface".into(),
                 category: SmellCategory::Bloaters,

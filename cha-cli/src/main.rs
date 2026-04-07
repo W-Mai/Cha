@@ -107,13 +107,21 @@ fn cmd_analyze(paths: &[String], format: &Format, fail_on: Option<&FailLevel>, d
     let cwd = std::env::current_dir().unwrap_or_default();
     let config = Config::load(&cwd);
     let registry = PluginRegistry::from_config(&config, &cwd);
+    let files = resolve_files(paths, diff);
 
-    let files = if diff {
+    if files.is_empty() {
+        println!("No files to analyze.");
+        return 0;
+    }
+
+    let all_findings = run_analysis(&files, &registry);
+    print_report(&all_findings, format);
+    exit_code(&all_findings, fail_on)
+}
+
+fn resolve_files(paths: &[String], diff: bool) -> Vec<PathBuf> {
+    if diff {
         let diff_files = git_diff_files();
-        if diff_files.is_empty() && paths.is_empty() {
-            println!("No changed files to analyze.");
-            return 0;
-        }
         if diff_files.is_empty() {
             collect_files(paths)
         } else {
@@ -121,11 +129,12 @@ fn cmd_analyze(paths: &[String], format: &Format, fail_on: Option<&FailLevel>, d
         }
     } else {
         collect_files(paths)
-    };
+    }
+}
 
-    let mut all_findings: Vec<Finding> = Vec::new();
-
-    for path in &files {
+fn run_analysis(files: &[PathBuf], registry: &PluginRegistry) -> Vec<Finding> {
+    let mut all_findings = Vec::new();
+    for path in files {
         let content = match std::fs::read_to_string(path) {
             Ok(c) => c,
             Err(e) => {
@@ -146,27 +155,30 @@ fn cmd_analyze(paths: &[String], format: &Format, fail_on: Option<&FailLevel>, d
             all_findings.extend(plugin.analyze(&ctx));
         }
     }
+    all_findings
+}
 
+fn print_report(findings: &[Finding], format: &Format) {
     let reporter: Box<dyn Reporter> = match format {
         Format::Terminal => Box::new(TerminalReporter),
         Format::Json => Box::new(JsonReporter),
         Format::Llm => Box::new(LlmContextReporter),
         Format::Sarif => Box::new(SarifReporter),
     };
-    println!("{}", reporter.render(&all_findings));
+    println!("{}", reporter.render(findings));
+}
 
-    // Determine exit code
+fn exit_code(findings: &[Finding], fail_on: Option<&FailLevel>) -> i32 {
     if let Some(level) = fail_on {
         let threshold = match level {
             FailLevel::Hint => Severity::Hint,
             FailLevel::Warning => Severity::Warning,
             FailLevel::Error => Severity::Error,
         };
-        if all_findings.iter().any(|f| f.severity >= threshold) {
+        if findings.iter().any(|f| f.severity >= threshold) {
             return 1;
         }
     }
-
     0
 }
 

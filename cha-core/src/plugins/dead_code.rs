@@ -16,7 +16,10 @@ impl Plugin for DeadCodeAnalyzer {
         let content = &ctx.file.content;
 
         for f in &ctx.model.functions {
-            if !f.is_exported && !is_referenced(content, &f.name, f.start_line, f.end_line) {
+            if f.is_exported || is_entry_point(&f.name) {
+                continue;
+            }
+            if !is_referenced(content, &f.name, f.start_line, f.end_line) {
                 findings.push(Finding {
                     smell_name: "dead_code".into(),
                     category: SmellCategory::Dispensables,
@@ -67,4 +70,9 @@ fn is_referenced(content: &str, name: &str, def_start: usize, def_end: usize) ->
         }
     }
     false
+}
+
+/// Names that are entry points or framework callbacks, not dead code.
+fn is_entry_point(name: &str) -> bool {
+    matches!(name, "main" | "new" | "default" | "drop" | "fmt")
 }

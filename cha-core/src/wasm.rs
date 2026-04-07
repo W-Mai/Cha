@@ -80,72 +80,74 @@ impl Plugin for WasmPlugin {
 
             let mut store = Store::new(&self.engine, new_host_state());
             let instance = Analyzer::instantiate(&mut store, &self.component, &linker)?;
-
-            let input = wit::AnalysisInput {
-                path: ctx.file.path.to_string_lossy().into(),
-                content: ctx.file.content.clone(),
-                language: ctx.model.language.clone(),
-                total_lines: ctx.model.total_lines as u32,
-                functions: ctx
-                    .model
-                    .functions
-                    .iter()
-                    .map(|f| wit::FunctionInfo {
-                        name: f.name.clone(),
-                        start_line: f.start_line as u32,
-                        end_line: f.end_line as u32,
-                        line_count: f.line_count as u32,
-                        complexity: f.complexity as u32,
-                    })
-                    .collect(),
-                classes: ctx
-                    .model
-                    .classes
-                    .iter()
-                    .map(|c| wit::ClassInfo {
-                        name: c.name.clone(),
-                        start_line: c.start_line as u32,
-                        end_line: c.end_line as u32,
-                        method_count: c.method_count as u32,
-                        line_count: c.line_count as u32,
-                    })
-                    .collect(),
-                imports: ctx
-                    .model
-                    .imports
-                    .iter()
-                    .map(|i| wit::ImportInfo {
-                        source: i.source.clone(),
-                        line: i.line as u32,
-                    })
-                    .collect(),
-                options: vec![],
-            };
-
+            let input = to_wit_input(ctx);
             let results = instance.call_analyze(&mut store, &input)?;
-
-            Ok(results
-                .into_iter()
-                .map(|f| Finding {
-                    smell_name: f.smell_name,
-                    category: convert_category(f.category),
-                    severity: convert_severity(f.severity),
-                    location: Location {
-                        path: PathBuf::from(&f.location.path),
-                        start_line: f.location.start_line as usize,
-                        end_line: f.location.end_line as usize,
-                        name: f.location.name,
-                    },
-                    message: f.message,
-                    suggested_refactorings: f.suggested_refactorings,
-                })
-                .collect())
+            Ok(results.into_iter().map(from_wit_finding).collect())
         })();
 
         result.unwrap_or_else(|e| {
             eprintln!("wasm plugin error: {}", e);
             vec![]
         })
+    }
+}
+
+fn to_wit_input(ctx: &AnalysisContext) -> wit::AnalysisInput {
+    wit::AnalysisInput {
+        path: ctx.file.path.to_string_lossy().into(),
+        content: ctx.file.content.clone(),
+        language: ctx.model.language.clone(),
+        total_lines: ctx.model.total_lines as u32,
+        functions: ctx
+            .model
+            .functions
+            .iter()
+            .map(|f| wit::FunctionInfo {
+                name: f.name.clone(),
+                start_line: f.start_line as u32,
+                end_line: f.end_line as u32,
+                line_count: f.line_count as u32,
+                complexity: f.complexity as u32,
+            })
+            .collect(),
+        classes: ctx
+            .model
+            .classes
+            .iter()
+            .map(|c| wit::ClassInfo {
+                name: c.name.clone(),
+                start_line: c.start_line as u32,
+                end_line: c.end_line as u32,
+                method_count: c.method_count as u32,
+                line_count: c.line_count as u32,
+            })
+            .collect(),
+        imports: ctx
+            .model
+            .imports
+            .iter()
+            .map(|i| wit::ImportInfo {
+                source: i.source.clone(),
+                line: i.line as u32,
+            })
+            .collect(),
+        options: vec![],
+    }
+}
+
+fn from_wit_finding(f: wit::Finding) -> Finding {
+    Finding {
+        smell_name: f.smell_name,
+        category: convert_category(f.category),
+        severity: convert_severity(f.severity),
+        location: Location {
+            path: PathBuf::from(&f.location.path),
+            start_line: f.location.start_line as usize,
+            end_line: f.location.end_line as usize,
+            name: f.location.name,
+        },
+        message: f.message,
+        suggested_refactorings: f.suggested_refactorings,
     }
 }
 
