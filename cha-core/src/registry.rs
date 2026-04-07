@@ -1,7 +1,10 @@
+use std::path::Path;
+
 use crate::{
     Plugin,
     config::Config,
     plugins::{ComplexityAnalyzer, LengthAnalyzer},
+    wasm,
 };
 
 /// Manages plugin registration and lifecycle.
@@ -11,7 +14,8 @@ pub struct PluginRegistry {
 
 impl PluginRegistry {
     /// Build registry from config, applying thresholds.
-    pub fn from_config(config: &Config) -> Self {
+    /// `project_dir` is used to scan for WASM plugins.
+    pub fn from_config(config: &Config, project_dir: &Path) -> Self {
         let mut plugins: Vec<Box<dyn Plugin>> = Vec::new();
 
         if config.is_enabled("length") {
@@ -40,6 +44,14 @@ impl PluginRegistry {
                 p.error_threshold = v;
             }
             plugins.push(Box::new(p));
+        }
+
+        // Load WASM plugins
+        let wasm_plugins = wasm::load_wasm_plugins(project_dir);
+        for wp in wasm_plugins {
+            if config.is_enabled(wp.name()) {
+                plugins.push(wp);
+            }
         }
 
         Self { plugins }

@@ -5,6 +5,7 @@ pub mod plugins;
 mod registry;
 pub mod reporter;
 mod source;
+pub mod wasm;
 
 pub use config::Config;
 pub use model::*;

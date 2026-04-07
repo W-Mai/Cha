@@ -1,0 +1,85 @@
+package cha:plugin@0.1.0;
+
+/// Data types shared between host and guest.
+interface types {
+    /// Severity level.
+    enum severity {
+        hint,
+        warning,
+        error,
+    }
+
+    /// Smell category.
+    enum smell-category {
+        bloaters,
+        oo-abusers,
+        change-preventers,
+        dispensables,
+        couplers,
+    }
+
+    /// Source location.
+    record location {
+        path: string,
+        start-line: u32,
+        end-line: u32,
+        name: option<string>,
+    }
+
+    /// A single finding.
+    record finding {
+        smell-name: string,
+        category: smell-category,
+        severity: severity,
+        location: location,
+        message: string,
+        suggested-refactorings: list<string>,
+    }
+
+    /// Function info from parsed source.
+    record function-info {
+        name: string,
+        start-line: u32,
+        end-line: u32,
+        line-count: u32,
+        complexity: u32,
+    }
+
+    /// Class info from parsed source.
+    record class-info {
+        name: string,
+        start-line: u32,
+        end-line: u32,
+        method-count: u32,
+        line-count: u32,
+    }
+
+    /// Import info.
+    record import-info {
+        source: string,
+        line: u32,
+    }
+
+    /// Full analysis context passed to the plugin.
+    record analysis-input {
+        path: string,
+        content: string,
+        language: string,
+        total-lines: u32,
+        functions: list<function-info>,
+        classes: list<class-info>,
+        imports: list<import-info>,
+        options: list<tuple<string, string>>,
+    }
+}
+
+/// The world that WASM plugins must implement.
+world analyzer {
+    use types.{analysis-input, finding};
+
+    /// Return the plugin name.
+    export name: func() -> string;
+
+    /// Run analysis and return findings.
+    export analyze: func(input: analysis-input) -> list<finding>;
+}

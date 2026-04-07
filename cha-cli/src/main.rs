@@ -66,7 +66,7 @@ fn collect_files(paths: &[String]) -> Vec<PathBuf> {
 fn cmd_analyze(paths: &[String], format: &Format) {
     let cwd = std::env::current_dir().unwrap_or_default();
     let config = Config::load(&cwd);
-    let registry = PluginRegistry::from_config(&config);
+    let registry = PluginRegistry::from_config(&config, &cwd);
     let files = collect_files(paths);
     let mut all_findings: Vec<Finding> = Vec::new();
 
