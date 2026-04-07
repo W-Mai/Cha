@@ -1,0 +1,12 @@
+[package]
+name = "cha-lsp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cha-core.workspace = true
+cha-parser = { path = "../cha-parser" }
+serde_json.workspace = true
+tokio = { version = "1", features = ["full"] }
+tower-lsp = "0.20"
