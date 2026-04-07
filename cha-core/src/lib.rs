@@ -13,3 +13,6 @@ pub use plugin::*;
 pub use registry::PluginRegistry;
 pub use reporter::{JsonReporter, LlmContextReporter, Reporter, SarifReporter, TerminalReporter};
 pub use source::*;
+
+#[cfg(test)]
+mod tests;

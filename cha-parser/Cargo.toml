@@ -9,3 +9,6 @@ cha-core.workspace = true
 tree-sitter.workspace = true
 tree-sitter-typescript = "0.23"
 tree-sitter-rust = "0.24"
+
+[dev-dependencies]
+proptest = "1"
