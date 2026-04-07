@@ -5,6 +5,8 @@ pub struct FunctionInfo {
     pub start_line: usize,
     pub end_line: usize,
     pub line_count: usize,
+    /// Cyclomatic complexity (1 + number of branch points).
+    pub complexity: usize,
 }
 
 /// Extracted class/struct info from AST.

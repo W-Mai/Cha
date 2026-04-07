@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use cha_core::plugins::LengthAnalyzer;
+use cha_core::plugins::{ComplexityAnalyzer, LengthAnalyzer};
 use cha_core::{AnalysisContext, Finding, Plugin, SourceFile};
 use clap::Parser;
 
@@ -52,7 +52,10 @@ fn collect_files(paths: &[String]) -> Vec<PathBuf> {
 }
 
 fn cmd_analyze(paths: &[String]) {
-    let plugins: Vec<Box<dyn Plugin>> = vec![Box::new(LengthAnalyzer::default())];
+    let plugins: Vec<Box<dyn Plugin>> = vec![
+        Box::new(LengthAnalyzer::default()),
+        Box::new(ComplexityAnalyzer::default()),
+    ];
     let files = collect_files(paths);
     let mut all_findings: Vec<Finding> = Vec::new();
 

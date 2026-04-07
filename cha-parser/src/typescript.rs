@@ -87,6 +87,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         start_line,
         end_line,
         line_count: end_line - start_line + 1,
+        complexity: count_complexity(node),
     })
 }
 
@@ -108,6 +109,7 @@ fn extract_arrow_functions(node: Node, src: &[u8], functions: &mut Vec<FunctionI
                     start_line,
                     end_line,
                     line_count: end_line - start_line + 1,
+                    complexity: count_complexity(value),
                 });
             }
         }
@@ -136,6 +138,38 @@ fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
         method_count,
         line_count: end_line - start_line + 1,
     })
+}
+
+/// Count cyclomatic complexity by walking branch nodes.
+/// Base complexity is 1, each branch point adds 1.
+fn count_complexity(node: Node) -> usize {
+    let mut complexity = 1;
+    walk_complexity(node, &mut complexity);
+    complexity
+}
+
+fn walk_complexity(node: Node, count: &mut usize) {
+    match node.kind() {
+        "if_statement" | "else_clause" | "for_statement" | "for_in_statement"
+        | "while_statement" | "do_statement" | "switch_case" | "catch_clause"
+        | "ternary_expression" => {
+            *count += 1;
+        }
+        "binary_expression" => {
+            // Count && and || as branch points
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if child.kind() == "&&" || child.kind() == "||" {
+                    *count += 1;
+                }
+            }
+        }
+        _ => {}
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        walk_complexity(child, count);
+    }
 }
 
 fn extract_import(node: Node, src: &[u8]) -> Option<ImportInfo> {
