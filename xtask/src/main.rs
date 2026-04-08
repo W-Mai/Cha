@@ -56,14 +56,15 @@ fn cmd_lint() -> Result {
 }
 
 fn cmd_analyze() -> Result {
-    // Self-analyze using the just-built binary
     let cha = cha_binary();
-    run_cmd(&cha, &["analyze", ".", "--format", "terminal"])?;
-    run_cmd(&cha, &["analyze", ".", "--format", "json"])?;
+    // Gate check first — fail fast on warnings
     run_cmd(
         &cha,
         &["analyze", ".", "--format", "sarif", "--fail-on", "warning"],
     )?;
+    // Remaining format smoke tests
+    run_cmd(&cha, &["analyze", ".", "--format", "terminal"])?;
+    run_cmd(&cha, &["analyze", ".", "--format", "json"])?;
     run_cmd(&cha, &["analyze", ".", "--format", "llm"])?;
     run_cmd(&cha, &["analyze", "--diff"])
 }
