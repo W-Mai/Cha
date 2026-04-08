@@ -57,6 +57,17 @@ enum Cli {
     Init,
     /// Print JSON Schema for the analysis output format
     Schema,
+    /// Auto-fix simple issues (naming conventions)
+    Fix {
+        /// Files or directories to fix (defaults to current directory)
+        paths: Vec<String>,
+        /// Only fix files changed in git diff (unstaged)
+        #[arg(long)]
+        diff: bool,
+        /// Dry run — show what would be changed without modifying files
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 fn main() {
@@ -75,6 +86,11 @@ fn main() {
         Cli::Parse { paths } => cmd_parse(&paths),
         Cli::Init => cmd_init(),
         Cli::Schema => println!("{}", cha_core::findings_json_schema()),
+        Cli::Fix {
+            paths,
+            diff,
+            dry_run,
+        } => cmd_fix(&paths, diff, dry_run),
     }
 }
 
@@ -284,4 +300,64 @@ fn cmd_init() {
     std::fs::write(path, include_str!("../../static/default.cha.toml"))
         .expect("failed to write .cha.toml");
     println!("Created .cha.toml");
+}
+
+fn cmd_fix(paths: &[String], diff: bool, dry_run: bool) {
+    let files = resolve_files(paths, diff);
+    if files.is_empty() {
+        println!("No files to fix.");
+        return;
+    }
+    let project_root = std::env::current_dir().unwrap_or_default();
+    let filter = vec!["naming".to_string()];
+    let findings = run_analysis(&files, &project_root, &filter);
+
+    let fixable: Vec<&Finding> = findings
+        .iter()
+        .filter(|f| f.smell_name == "naming_convention")
+        .collect();
+
+    if fixable.is_empty() {
+        println!("Nothing to fix.");
+        return;
+    }
+
+    let fixed: usize = fixable.iter().filter_map(|f| apply_fix(f, dry_run)).count();
+    let label = if dry_run {
+        "would be applied"
+    } else {
+        "applied"
+    };
+    println!("{fixed} fix(es) {label}.");
+}
+
+/// Apply a single naming convention fix. Returns Some(()) if applied.
+fn apply_fix(finding: &Finding, dry_run: bool) -> Option<()> {
+    let name = finding.location.name.as_ref()?;
+    let new_name = to_pascal_case(name);
+    if new_name == *name {
+        return None;
+    }
+    let path = &finding.location.path;
+    let content = std::fs::read_to_string(path).ok()?;
+    let replaced = content.replace(name.as_str(), &new_name);
+    if replaced == content {
+        return None;
+    }
+    if dry_run {
+        println!("  {name} → {new_name} in {}", path.display());
+    } else {
+        std::fs::write(path, &replaced).ok()?;
+        println!("  Fixed: {name} → {new_name} in {}", path.display());
+    }
+    Some(())
+}
+
+/// Convert a name to PascalCase by uppercasing the first character.
+fn to_pascal_case(name: &str) -> String {
+    let mut chars = name.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(c) => c.to_uppercase().to_string() + chars.as_str(),
+    }
 }
