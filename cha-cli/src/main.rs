@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::process;
 
+mod diff;
+
 use cha_core::{
     AnalysisContext, Config, Finding, JsonReporter, LlmContextReporter, PluginRegistry, Reporter,
     SarifReporter, Severity, SourceFile, TerminalReporter,
@@ -166,6 +168,11 @@ fn cmd_analyze(
     }
 
     let all_findings = run_analysis(&files, &cwd, plugin_filter);
+    let all_findings = if diff {
+        diff::filter_by_diff(all_findings, &diff::git_diff_ranges())
+    } else {
+        all_findings
+    };
     print_report(&all_findings, format);
     exit_code(&all_findings, fail_on)
 }
