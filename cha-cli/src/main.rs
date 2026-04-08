@@ -43,6 +43,9 @@ enum Cli {
         /// Only analyze files changed in git diff (unstaged)
         #[arg(long)]
         diff: bool,
+        /// Only run specific plugins (comma-separated names)
+        #[arg(long, value_delimiter = ',')]
+        plugin: Vec<String>,
     },
     /// Parse source files and show structure
     Parse {
@@ -59,8 +62,9 @@ fn main() {
             format,
             fail_on,
             diff,
+            plugin,
         } => {
-            let code = cmd_analyze(&paths, &format, fail_on.as_ref(), diff);
+            let code = cmd_analyze(&paths, &format, fail_on.as_ref(), diff, &plugin);
             process::exit(code);
         }
         Cli::Parse { paths } => cmd_parse(&paths),
@@ -122,7 +126,13 @@ fn git_diff_files() -> Vec<PathBuf> {
     }
 }
 
-fn cmd_analyze(paths: &[String], format: &Format, fail_on: Option<&FailLevel>, diff: bool) -> i32 {
+fn cmd_analyze(
+    paths: &[String],
+    format: &Format,
+    fail_on: Option<&FailLevel>,
+    diff: bool,
+    plugin_filter: &[String],
+) -> i32 {
     let cwd = std::env::current_dir().unwrap_or_default();
     let files = resolve_files(paths, diff);
 
@@ -131,7 +141,7 @@ fn cmd_analyze(paths: &[String], format: &Format, fail_on: Option<&FailLevel>, d
         return 0;
     }
 
-    let all_findings = run_analysis(&files, &cwd);
+    let all_findings = run_analysis(&files, &cwd, plugin_filter);
     print_report(&all_findings, format);
     exit_code(&all_findings, fail_on)
 }
@@ -150,7 +160,7 @@ fn resolve_files(paths: &[String], diff: bool) -> Vec<PathBuf> {
 }
 
 /// Analyze files in parallel using rayon, with per-file config inheritance.
-fn run_analysis(files: &[PathBuf], project_root: &Path) -> Vec<Finding> {
+fn run_analysis(files: &[PathBuf], project_root: &Path, plugin_filter: &[String]) -> Vec<Finding> {
     files
         .par_iter()
         .flat_map(|path| {
@@ -172,6 +182,7 @@ fn run_analysis(files: &[PathBuf], project_root: &Path) -> Vec<Finding> {
             registry
                 .plugins()
                 .iter()
+                .filter(|p| plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == p.name()))
                 .flat_map(|p| p.analyze(&ctx))
                 .collect::<Vec<_>>()
         })
