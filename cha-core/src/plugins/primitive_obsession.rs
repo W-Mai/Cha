@@ -1,0 +1,66 @@
+use crate::{AnalysisContext, Finding, Location, Plugin, Severity, SmellCategory};
+
+const PRIMITIVE_TYPES: &[&str] = &[
+    "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64", "u128", "usize", "f32",
+    "f64", "bool", "char", "String", "&str", "string", "number", "boolean", "any",
+];
+
+/// Detect functions where most parameters are primitive types.
+pub struct PrimitiveObsessionAnalyzer {
+    pub min_params: usize,
+    pub primitive_ratio: f64,
+}
+
+impl Default for PrimitiveObsessionAnalyzer {
+    fn default() -> Self {
+        Self {
+            min_params: 3,
+            primitive_ratio: 0.8,
+        }
+    }
+}
+
+impl Plugin for PrimitiveObsessionAnalyzer {
+    fn name(&self) -> &str {
+        "primitive_obsession"
+    }
+
+    fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
+        ctx.model
+            .functions
+            .iter()
+            .filter(|f| {
+                let total = f.parameter_types.len();
+                if total < self.min_params {
+                    return false;
+                }
+                let prim_count = f.parameter_types.iter().filter(|t| is_primitive(t)).count();
+                (prim_count as f64 / total as f64) >= self.primitive_ratio
+            })
+            .map(|f| Finding {
+                smell_name: "primitive_obsession".into(),
+                category: SmellCategory::Bloaters,
+                severity: Severity::Hint,
+                location: Location {
+                    path: ctx.file.path.clone(),
+                    start_line: f.start_line,
+                    end_line: f.end_line,
+                    name: Some(f.name.clone()),
+                },
+                message: format!(
+                    "Function `{}` uses mostly primitive parameter types",
+                    f.name
+                ),
+                suggested_refactorings: vec![
+                    "Replace Data Value with Object".into(),
+                    "Replace Type Code with Class".into(),
+                ],
+            })
+            .collect()
+    }
+}
+
+fn is_primitive(ty: &str) -> bool {
+    let trimmed = ty.trim_start_matches('&').trim();
+    PRIMITIVE_TYPES.contains(&trimmed)
+}

@@ -1,0 +1,42 @@
+use crate::{AnalysisContext, Finding, Location, Plugin, Severity, SmellCategory};
+
+/// Detect deep method chain calls (e.g. a.b().c().d()).
+pub struct MessageChainAnalyzer {
+    pub max_depth: usize,
+}
+
+impl Default for MessageChainAnalyzer {
+    fn default() -> Self {
+        Self { max_depth: 3 }
+    }
+}
+
+impl Plugin for MessageChainAnalyzer {
+    fn name(&self) -> &str {
+        "message_chain"
+    }
+
+    fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
+        ctx.model
+            .functions
+            .iter()
+            .filter(|f| f.chain_depth > self.max_depth)
+            .map(|f| Finding {
+                smell_name: "message_chain".into(),
+                category: SmellCategory::Couplers,
+                severity: Severity::Warning,
+                location: Location {
+                    path: ctx.file.path.clone(),
+                    start_line: f.start_line,
+                    end_line: f.end_line,
+                    name: Some(f.name.clone()),
+                },
+                message: format!(
+                    "Function `{}` has chain depth {} (threshold: {})",
+                    f.name, f.chain_depth, self.max_depth
+                ),
+                suggested_refactorings: vec!["Hide Delegate".into()],
+            })
+            .collect()
+    }
+}

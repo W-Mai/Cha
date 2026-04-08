@@ -12,3 +12,9 @@ enabled = false
 
 [plugins.naming]
 enabled = false
+
+[plugins.message_chain]
+enabled = false
+
+[plugins.long_parameter_list]
+enabled = false

@@ -1,0 +1,45 @@
+use crate::{AnalysisContext, Finding, Location, Plugin, Severity, SmellCategory};
+
+/// Detect functions with too many parameters.
+pub struct LongParameterListAnalyzer {
+    pub max_params: usize,
+}
+
+impl Default for LongParameterListAnalyzer {
+    fn default() -> Self {
+        Self { max_params: 5 }
+    }
+}
+
+impl Plugin for LongParameterListAnalyzer {
+    fn name(&self) -> &str {
+        "long_parameter_list"
+    }
+
+    fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
+        ctx.model
+            .functions
+            .iter()
+            .filter(|f| f.parameter_count > self.max_params)
+            .map(|f| Finding {
+                smell_name: "long_parameter_list".into(),
+                category: SmellCategory::Bloaters,
+                severity: Severity::Warning,
+                location: Location {
+                    path: ctx.file.path.clone(),
+                    start_line: f.start_line,
+                    end_line: f.end_line,
+                    name: Some(f.name.clone()),
+                },
+                message: format!(
+                    "Function `{}` has {} parameters (threshold: {})",
+                    f.name, f.parameter_count, self.max_params
+                ),
+                suggested_refactorings: vec![
+                    "Introduce Parameter Object".into(),
+                    "Preserve Whole Object".into(),
+                ],
+            })
+            .collect()
+    }
+}

@@ -4,8 +4,10 @@ use crate::{
     Plugin,
     config::Config,
     plugins::{
-        ApiSurfaceAnalyzer, ComplexityAnalyzer, CouplingAnalyzer, DeadCodeAnalyzer,
-        DuplicateCodeAnalyzer, LayerViolationAnalyzer, LengthAnalyzer, NamingAnalyzer,
+        ApiSurfaceAnalyzer, ComplexityAnalyzer, CouplingAnalyzer, DataClumpsAnalyzer,
+        DeadCodeAnalyzer, DuplicateCodeAnalyzer, FeatureEnvyAnalyzer, LayerViolationAnalyzer,
+        LengthAnalyzer, LongParameterListAnalyzer, MessageChainAnalyzer, MiddleManAnalyzer,
+        NamingAnalyzer, PrimitiveObsessionAnalyzer, SwitchStatementAnalyzer,
     },
     wasm,
 };
@@ -59,6 +61,11 @@ fn register_if_enabled(
 }
 
 fn register_simple_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) {
+    register_classic_plugins(plugins, config);
+    register_smell_plugins(plugins, config);
+}
+
+fn register_classic_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) {
     register_if_enabled(plugins, config, "coupling", || {
         let mut p = CouplingAnalyzer::default();
         apply_usize(config, "coupling", "max_imports", &mut p.max_imports);
@@ -83,6 +90,41 @@ fn register_simple_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) 
             &mut p.max_exported_count,
         );
         Box::new(p)
+    });
+}
+
+fn register_smell_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) {
+    register_if_enabled(plugins, config, "long_parameter_list", || {
+        let mut p = LongParameterListAnalyzer::default();
+        apply_usize(
+            config,
+            "long_parameter_list",
+            "max_params",
+            &mut p.max_params,
+        );
+        Box::new(p)
+    });
+    register_if_enabled(plugins, config, "switch_statement", || {
+        let mut p = SwitchStatementAnalyzer::default();
+        apply_usize(config, "switch_statement", "max_arms", &mut p.max_arms);
+        Box::new(p)
+    });
+    register_if_enabled(plugins, config, "message_chain", || {
+        let mut p = MessageChainAnalyzer::default();
+        apply_usize(config, "message_chain", "max_depth", &mut p.max_depth);
+        Box::new(p)
+    });
+    register_if_enabled(plugins, config, "primitive_obsession", || {
+        Box::new(PrimitiveObsessionAnalyzer::default())
+    });
+    register_if_enabled(plugins, config, "data_clumps", || {
+        Box::new(DataClumpsAnalyzer::default())
+    });
+    register_if_enabled(plugins, config, "feature_envy", || {
+        Box::new(FeatureEnvyAnalyzer::default())
+    });
+    register_if_enabled(plugins, config, "middle_man", || {
+        Box::new(MiddleManAnalyzer::default())
     });
 }
 

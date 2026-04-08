@@ -22,87 +22,69 @@ impl LanguageParser for RustParser {
         let root = tree.root_node();
         let src = file.content.as_bytes();
 
-        let mut functions = Vec::new();
-        let mut classes = Vec::new();
-        let mut imports = Vec::new();
+        let mut col = Collector {
+            functions: Vec::new(),
+            classes: Vec::new(),
+            imports: Vec::new(),
+        };
 
-        collect_nodes(root, src, false, &mut functions, &mut classes, &mut imports);
+        collect_nodes(root, src, false, &mut col);
 
         Some(SourceModel {
             language: "rust".into(),
             total_lines: file.line_count(),
-            functions,
-            classes,
-            imports,
+            functions: col.functions,
+            classes: col.classes,
+            imports: col.imports,
         })
     }
 }
 
-fn collect_nodes(
-    node: Node,
-    src: &[u8],
-    exported: bool,
-    functions: &mut Vec<FunctionInfo>,
-    classes: &mut Vec<ClassInfo>,
-    imports: &mut Vec<ImportInfo>,
-) {
+/// Accumulator for collected AST items.
+struct Collector {
+    functions: Vec<FunctionInfo>,
+    classes: Vec<ClassInfo>,
+    imports: Vec<ImportInfo>,
+}
+
+fn collect_nodes(node: Node, src: &[u8], exported: bool, col: &mut Collector) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        collect_single_node(child, src, exported, functions, classes, imports);
+        collect_single_node(child, src, exported, col);
     }
 }
 
-// Dispatch a single child node by kind.
-fn collect_single_node(
-    child: Node,
-    src: &[u8],
-    exported: bool,
-    functions: &mut Vec<FunctionInfo>,
-    classes: &mut Vec<ClassInfo>,
-    imports: &mut Vec<ImportInfo>,
-) {
+fn collect_single_node(child: Node, src: &[u8], exported: bool, col: &mut Collector) {
     match child.kind() {
-        "function_item" => {
-            collect_function_node(child, src, exported, functions);
-        }
-        "impl_item" => {
-            extract_impl_methods(child, src, functions);
-        }
-        "struct_item" | "enum_item" => {
-            collect_struct_node(child, src, classes);
-        }
-        "use_declaration" => {
-            if let Some(i) = extract_use(child, src) {
-                imports.push(i);
-            }
-        }
-        _ => {
-            collect_nodes(child, src, false, functions, classes, imports);
-        }
+        "function_item" => push_function(child, src, exported, col),
+        "impl_item" => extract_impl_methods(child, src, &mut col.functions),
+        "struct_item" | "enum_item" => push_struct(child, src, col),
+        "use_declaration" => push_import(child, src, col),
+        _ => collect_nodes(child, src, false, col),
+    }
+}
+
+fn push_function(node: Node, src: &[u8], exported: bool, col: &mut Collector) {
+    if let Some(mut f) = extract_function(node, src) {
+        f.is_exported = exported || has_pub(node);
+        col.functions.push(f);
+    }
+}
+
+fn push_struct(node: Node, src: &[u8], col: &mut Collector) {
+    if let Some(mut c) = extract_struct(node, src) {
+        c.is_exported = has_pub(node);
+        col.classes.push(c);
+    }
+}
+
+fn push_import(node: Node, src: &[u8], col: &mut Collector) {
+    if let Some(i) = extract_use(node, src) {
+        col.imports.push(i);
     }
 }
 
 // Extract and push a function item node.
-fn collect_function_node(
-    node: Node,
-    src: &[u8],
-    exported: bool,
-    functions: &mut Vec<FunctionInfo>,
-) {
-    if let Some(mut f) = extract_function(node, src) {
-        f.is_exported = exported || has_pub(node);
-        functions.push(f);
-    }
-}
-
-// Extract and push a struct/enum node.
-fn collect_struct_node(node: Node, src: &[u8], classes: &mut Vec<ClassInfo>) {
-    if let Some(mut c) = extract_struct(node, src) {
-        c.is_exported = has_pub(node);
-        classes.push(c);
-    }
-}
-
 fn node_text<'a>(node: Node, src: &'a [u8]) -> &'a str {
     node.utf8_text(src).unwrap_or("")
 }
@@ -256,7 +238,7 @@ fn max_chain_depth(node: Node) -> usize {
 }
 
 fn walk_chain_depth(node: Node, max: &mut usize) {
-    if node.kind() == "call_expression" || node.kind() == "field_expression" {
+    if node.kind() == "field_expression" {
         let depth = measure_chain(node);
         if depth > *max {
             *max = depth;
@@ -268,15 +250,13 @@ fn walk_chain_depth(node: Node, max: &mut usize) {
     }
 }
 
+/// Count consecutive field accesses (a.b.c.d), skipping method calls.
 fn measure_chain(node: Node) -> usize {
     let mut depth = 0;
     let mut current = node;
-    while current.kind() == "field_expression" || current.kind() == "call_expression" {
+    while current.kind() == "field_expression" {
         depth += 1;
-        if let Some(obj) = current
-            .child_by_field_name("value")
-            .or(current.child_by_field_name("function"))
-        {
+        if let Some(obj) = current.child_by_field_name("value") {
             current = obj;
         } else {
             break;
@@ -324,28 +304,37 @@ fn walk_external_refs(node: Node, src: &[u8], refs: &mut Vec<String>) {
     }
 }
 
-fn check_delegating(body: Node, src: &[u8]) -> bool {
+/// Extract the single statement from a block body, if exactly one exists.
+fn single_stmt(body: Node) -> Option<Node> {
     let mut cursor = body.walk();
     let stmts: Vec<_> = body
         .children(&mut cursor)
         .filter(|c| c.kind() != "{" && c.kind() != "}")
         .collect();
-    if stmts.len() != 1 {
-        return false;
-    }
-    let stmt = stmts[0];
-    let expr = if stmt.kind() == "expression_statement" {
-        stmt.child(0).unwrap_or(stmt)
-    } else {
-        stmt
-    };
-    expr.kind() == "call_expression"
-        && expr.child_by_field_name("function").is_some_and(|func| {
+    (stmts.len() == 1).then(|| stmts[0])
+}
+
+/// Check if a node is a method call on an external object (not self).
+fn is_external_call(node: Node, src: &[u8]) -> bool {
+    node.kind() == "call_expression"
+        && node.child_by_field_name("function").is_some_and(|func| {
             func.kind() == "field_expression"
                 && func
                     .child_by_field_name("value")
                     .is_some_and(|obj| node_text(obj, src) != "self")
         })
+}
+
+fn check_delegating(body: Node, src: &[u8]) -> bool {
+    let Some(stmt) = single_stmt(body) else {
+        return false;
+    };
+    let expr = if stmt.kind() == "expression_statement" {
+        stmt.child(0).unwrap_or(stmt)
+    } else {
+        stmt
+    };
+    is_external_call(expr, src)
 }
 
 fn extract_use(node: Node, src: &[u8]) -> Option<ImportInfo> {

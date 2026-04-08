@@ -31,15 +31,14 @@ impl Plugin for NamingAnalyzer {
 impl NamingAnalyzer {
     fn check_functions(&self, ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
         for f in &ctx.model.functions {
-            if let Some(finding) = check_name(
-                &f.name,
-                "Function",
-                &ctx.file.path,
-                f.start_line,
-                f.end_line,
-                self.min_name_length,
-                self.max_name_length,
-            ) {
+            let check = NameCheck {
+                name: &f.name,
+                kind: "Function",
+                path: &ctx.file.path,
+                start_line: f.start_line,
+                end_line: f.end_line,
+            };
+            if let Some(finding) = check_name(&check, self.min_name_length, self.max_name_length) {
                 findings.push(finding);
             }
         }
@@ -50,15 +49,14 @@ impl NamingAnalyzer {
             if let Some(f) = check_pascal_case(c, &ctx.file.path) {
                 findings.push(f);
             }
-            if let Some(f) = check_name(
-                &c.name,
-                "Class",
-                &ctx.file.path,
-                c.start_line,
-                c.end_line,
-                self.min_name_length,
-                self.max_name_length,
-            ) {
+            let check = NameCheck {
+                name: &c.name,
+                kind: "Class",
+                path: &ctx.file.path,
+                start_line: c.start_line,
+                end_line: c.end_line,
+            };
+            if let Some(f) = check_name(&check, self.min_name_length, self.max_name_length) {
                 findings.push(f);
             }
         }
@@ -85,18 +83,18 @@ fn check_pascal_case(c: &crate::ClassInfo, path: &std::path::Path) -> Option<Fin
     })
 }
 
-fn check_name(
-    name: &str,
-    kind: &str,
-    path: &std::path::Path,
+struct NameCheck<'a> {
+    name: &'a str,
+    kind: &'a str,
+    path: &'a std::path::Path,
     start_line: usize,
     end_line: usize,
-    min_len: usize,
-    max_len: usize,
-) -> Option<Finding> {
-    let (smell, severity, qualifier, limit) = if name.len() < min_len {
+}
+
+fn check_name(check: &NameCheck, min_len: usize, max_len: usize) -> Option<Finding> {
+    let (smell, severity, qualifier, limit) = if check.name.len() < min_len {
         ("naming_too_short", Severity::Warning, "short", min_len)
-    } else if name.len() > max_len {
+    } else if check.name.len() > max_len {
         ("naming_too_long", Severity::Hint, "long", max_len)
     } else {
         return None;
@@ -107,17 +105,17 @@ fn check_name(
         category: SmellCategory::Bloaters,
         severity,
         location: Location {
-            path: path.to_path_buf(),
-            start_line,
-            end_line,
-            name: Some(name.to_string()),
+            path: check.path.to_path_buf(),
+            start_line: check.start_line,
+            end_line: check.end_line,
+            name: Some(check.name.to_string()),
         },
         message: format!(
             "{} `{}` name is too {} ({} chars, {}: {})",
-            kind,
-            name,
+            check.kind,
+            check.name,
             qualifier,
-            name.len(),
+            check.name.len(),
             bound_label,
             limit
         ),
