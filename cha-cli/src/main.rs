@@ -6,6 +6,7 @@ use cha_core::{
     SarifReporter, Severity, SourceFile, TerminalReporter,
 };
 use clap::{Parser, ValueEnum};
+use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 
 #[derive(Clone, ValueEnum)]
@@ -167,10 +168,23 @@ fn resolve_files(paths: &[String], diff: bool) -> Vec<PathBuf> {
 
 /// Analyze files in parallel using rayon, with per-file config inheritance.
 fn run_analysis(files: &[PathBuf], project_root: &Path, plugin_filter: &[String]) -> Vec<Finding> {
-    files
+    let pb = ProgressBar::new(files.len() as u64);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{spinner:.green} [{bar:40.cyan/blue}] {pos}/{len} {msg}")
+            .unwrap()
+            .progress_chars("█▓░"),
+    );
+    let results: Vec<Finding> = files
         .par_iter()
-        .flat_map(|path| analyze_file(path, project_root, plugin_filter))
-        .collect()
+        .flat_map(|path| {
+            let findings = analyze_file(path, project_root, plugin_filter);
+            pb.inc(1);
+            findings
+        })
+        .collect();
+    pb.finish_and_clear();
+    results
 }
 
 fn analyze_file(path: &Path, project_root: &Path, plugin_filter: &[String]) -> Vec<Finding> {
