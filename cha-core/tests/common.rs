@@ -37,6 +37,8 @@ pub fn func(name: &str, lines: usize, complexity: usize, exported: bool) -> Func
         switch_arms: 0,
         external_refs: vec![],
         is_delegating: false,
+        comment_lines: 0,
+        referenced_fields: vec![],
     }
 }
 
@@ -55,6 +57,8 @@ pub fn func_with_hash(name: &str, lines: usize, hash: u64) -> FunctionInfo {
         switch_arms: 0,
         external_refs: vec![],
         is_delegating: false,
+        comment_lines: 0,
+        referenced_fields: vec![],
     }
 }
 
@@ -67,6 +71,12 @@ pub fn class(name: &str, methods: usize, lines: usize, exported: bool) -> ClassI
         line_count: lines,
         is_exported: exported,
         delegating_method_count: 0,
+        field_count: 0,
+        field_names: vec![],
+        has_behavior: false,
+        is_interface: false,
+        parent_name: None,
+        override_count: 0,
     }
 }
 

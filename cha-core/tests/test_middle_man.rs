@@ -14,6 +14,12 @@ fn middle_man_triggers() {
         line_count: 10,
         is_exported: false,
         delegating_method_count: 3,
+        field_count: 0,
+        field_names: vec![],
+        has_behavior: false,
+        is_interface: false,
+        parent_name: None,
+        override_count: 0,
     };
     let model = make_model(vec![], vec![c], vec![], 10);
     let findings = analyze(&MiddleManAnalyzer::default(), &model);
@@ -31,6 +37,12 @@ fn middle_man_below_ratio() {
         line_count: 10,
         is_exported: false,
         delegating_method_count: 1,
+        field_count: 0,
+        field_names: vec![],
+        has_behavior: false,
+        is_interface: false,
+        parent_name: None,
+        override_count: 0,
     };
     let model = make_model(vec![], vec![c], vec![], 10);
     let findings = analyze(&MiddleManAnalyzer::default(), &model);
@@ -47,6 +59,12 @@ fn middle_man_too_few_methods() {
         line_count: 5,
         is_exported: false,
         delegating_method_count: 2,
+        field_count: 0,
+        field_names: vec![],
+        has_behavior: false,
+        is_interface: false,
+        parent_name: None,
+        override_count: 0,
     };
     let model = make_model(vec![], vec![c], vec![], 5);
     let findings = analyze(&MiddleManAnalyzer::default(), &model);

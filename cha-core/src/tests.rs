@@ -30,6 +30,8 @@ fn arb_function_info() -> impl Strategy<Value = FunctionInfo> {
                 switch_arms: 0,
                 external_refs: vec![],
                 is_delegating: false,
+                comment_lines: 0,
+                referenced_fields: vec![],
             },
         )
 }
@@ -50,6 +52,12 @@ fn arb_class_info() -> impl Strategy<Value = ClassInfo> {
             line_count: lines,
             is_exported: exported,
             delegating_method_count: 0,
+            field_count: 0,
+            field_names: vec![],
+            has_behavior: false,
+            is_interface: false,
+            parent_name: None,
+            override_count: 0,
         })
 }
 
