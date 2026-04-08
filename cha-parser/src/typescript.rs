@@ -310,11 +310,21 @@ fn collect_external_refs(node: Node, src: &[u8]) -> Vec<String> {
     refs
 }
 
+fn member_chain_root(node: Node) -> Node {
+    let mut current = node;
+    while current.kind() == "member_expression" {
+        match current.child_by_field_name("object") {
+            Some(child) => current = child,
+            None => break,
+        }
+    }
+    current
+}
+
 fn walk_external_refs(node: Node, src: &[u8], refs: &mut Vec<String>) {
-    if node.kind() == "member_expression"
-        && let Some(obj) = node.child_by_field_name("object")
-    {
-        let text = node_text(obj, src);
+    if node.kind() == "member_expression" {
+        let root = member_chain_root(node);
+        let text = node_text(root, src);
         if text != "this" && text != "self" && !text.is_empty() {
             refs.push(text.to_string());
         }

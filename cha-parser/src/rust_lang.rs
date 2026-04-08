@@ -316,11 +316,23 @@ fn collect_external_refs(node: Node, src: &[u8]) -> Vec<String> {
     refs
 }
 
+/// Walk a field_expression chain to its root identifier.
+fn field_chain_root(node: Node) -> Node {
+    let mut current = node;
+    while current.kind() == "field_expression" {
+        match current.child_by_field_name("value") {
+            Some(child) => current = child,
+            None => break,
+        }
+    }
+    current
+}
+
 fn walk_external_refs(node: Node, src: &[u8], refs: &mut Vec<String>) {
-    if node.kind() == "field_expression"
-        && let Some(obj) = node.child_by_field_name("value")
-    {
-        let text = node_text(obj, src);
+    if node.kind() == "field_expression" {
+        // Walk to the root object of the chain (a.b.c → a)
+        let root = field_chain_root(node);
+        let text = node_text(root, src);
         if text != "self" && !text.is_empty() {
             refs.push(text.to_string());
         }
