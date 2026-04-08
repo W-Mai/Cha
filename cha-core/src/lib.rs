@@ -14,5 +14,11 @@ pub use registry::PluginRegistry;
 pub use reporter::{JsonReporter, LlmContextReporter, Reporter, SarifReporter, TerminalReporter};
 pub use source::*;
 
+/// Generate JSON Schema for the analysis output (list of findings).
+pub fn findings_json_schema() -> String {
+    let schema = schemars::schema_for!(Vec<Finding>);
+    serde_json::to_string_pretty(&schema).unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests;

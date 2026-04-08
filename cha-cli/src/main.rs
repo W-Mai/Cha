@@ -54,6 +54,8 @@ enum Cli {
     },
     /// Generate a default .cha.toml configuration file
     Init,
+    /// Print JSON Schema for the analysis output format
+    Schema,
 }
 
 fn main() {
@@ -71,6 +73,7 @@ fn main() {
         }
         Cli::Parse { paths } => cmd_parse(&paths),
         Cli::Init => cmd_init(),
+        Cli::Schema => println!("{}", cha_core::findings_json_schema()),
     }
 }
 

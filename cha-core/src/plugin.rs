@@ -1,10 +1,13 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use crate::{SourceFile, SourceModel};
 
 /// Severity level for a finding.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
     Hint,
@@ -13,7 +16,7 @@ pub enum Severity {
 }
 
 /// Smell category from refactoring literature.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SmellCategory {
     Bloaters,
@@ -24,7 +27,7 @@ pub enum SmellCategory {
 }
 
 /// Source location of a finding.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Location {
     pub path: PathBuf,
     pub start_line: usize,
@@ -33,7 +36,7 @@ pub struct Location {
 }
 
 /// A single analysis finding.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Finding {
     pub smell_name: String,
     pub category: SmellCategory,
