@@ -46,6 +46,9 @@ enum Cli {
         /// Only analyze files changed in git diff (unstaged)
         #[arg(long)]
         diff: bool,
+        /// Read unified diff from stdin, analyze only changed files/lines
+        #[arg(long)]
+        stdin_diff: bool,
         /// Only run specific plugins (comma-separated names)
         #[arg(long, value_delimiter = ',')]
         plugin: Vec<String>,
@@ -80,9 +83,10 @@ fn main() {
             format,
             fail_on,
             diff,
+            stdin_diff,
             plugin,
         } => {
-            let code = cmd_analyze(&paths, &format, fail_on.as_ref(), diff, &plugin);
+            let code = cmd_analyze(&paths, &format, fail_on.as_ref(), diff, stdin_diff, &plugin);
             process::exit(code);
         }
         Cli::Parse { paths } => cmd_parse(&paths),
@@ -156,22 +160,40 @@ fn cmd_analyze(
     format: &Format,
     fail_on: Option<&FailLevel>,
     diff: bool,
+    stdin_diff: bool,
     plugin_filter: &[String],
 ) -> i32 {
     let cwd = std::env::current_dir().unwrap_or_default();
     let root_config = Config::load(&cwd);
-    let files = filter_excluded(resolve_files(paths, diff), &root_config.exclude, &cwd);
 
+    // Determine diff map and file list based on mode
+    let (files, diff_map) = if stdin_diff {
+        let input = read_stdin();
+        let dm = diff::parse_unified_diff(&input);
+        let files: Vec<PathBuf> = dm.keys().map(|p| cwd.join(p)).collect();
+        (files, Some(dm))
+    } else if diff {
+        let dm = diff::git_diff_ranges();
+        let files = if dm.is_empty() {
+            collect_files(paths)
+        } else {
+            dm.keys().map(|p| cwd.join(p)).collect()
+        };
+        (files, Some(dm))
+    } else {
+        (resolve_files(paths, false), None)
+    };
+
+    let files = filter_excluded(files, &root_config.exclude, &cwd);
     if files.is_empty() {
         println!("No files to analyze.");
         return 0;
     }
 
     let all_findings = run_analysis(&files, &cwd, plugin_filter);
-    let all_findings = if diff {
-        diff::filter_by_diff(all_findings, &diff::git_diff_ranges())
-    } else {
-        all_findings
+    let all_findings = match diff_map {
+        Some(ref dm) => diff::filter_by_diff(all_findings, dm),
+        None => all_findings,
     };
     print_report(&all_findings, format);
     exit_code(&all_findings, fail_on)
@@ -194,6 +216,16 @@ fn filter_excluded(files: Vec<PathBuf>, patterns: &[String], root: &Path) -> Vec
             !matchers.iter().any(|m| m.matches(&s))
         })
         .collect()
+}
+
+/// Read all of stdin into a string.
+fn read_stdin() -> String {
+    use std::io::Read;
+    let mut buf = String::new();
+    std::io::stdin()
+        .read_to_string(&mut buf)
+        .unwrap_or_default();
+    buf
 }
 
 fn resolve_files(paths: &[String], diff: bool) -> Vec<PathBuf> {
