@@ -55,16 +55,23 @@ Requires [Rust](https://www.rust-lang.org/tools/install) (edition 2024).
 
 ## 🔍 Built-in Plugins
 
-| Plugin | Detects | Severity |
-|--------|---------|----------|
-| **LengthAnalyzer** | Long methods, large classes, large files | Warning |
-| **ComplexityAnalyzer** | High cyclomatic complexity | Warning/Error |
-| **DuplicateCodeAnalyzer** | Structural duplication via AST hash | Warning |
-| **CouplingAnalyzer** | Excessive imports / dependencies | Warning |
-| **NamingAnalyzer** | Too-short names, convention violations | Hint |
-| **DeadCodeAnalyzer** | Unexported / unreferenced code | Hint |
-| **ApiSurfaceAnalyzer** | Over-exposed public API (>80% exported) | Warning |
-| **LayerViolationAnalyzer** | Cross-layer dependency violations | Error |
+| Plugin | Detects | Category | Severity |
+|--------|---------|----------|----------|
+| **LengthAnalyzer** | Long methods (>50 lines), large classes, large files | Bloaters | Warning |
+| **ComplexityAnalyzer** | High cyclomatic complexity | Bloaters | Warning/Error |
+| **DuplicateCodeAnalyzer** | Structural duplication via AST hash (>10 lines) | Dispensables | Warning |
+| **CouplingAnalyzer** | Excessive imports / dependencies | Couplers | Warning |
+| **NamingAnalyzer** | Too-short names, convention violations | Bloaters | Hint/Warning |
+| **DeadCodeAnalyzer** | Unexported / unreferenced code | Dispensables | Hint |
+| **ApiSurfaceAnalyzer** | Over-exposed public API (>80% exported) | Couplers | Warning |
+| **LayerViolationAnalyzer** | Cross-layer dependency violations | Change Preventers | Error |
+| **LongParameterListAnalyzer** | Functions with >5 parameters | Bloaters | Warning |
+| **SwitchStatementAnalyzer** | Excessive switch/match arms (>8) | OO Abusers | Warning |
+| **MessageChainAnalyzer** | Deep field access chains (a.b.c.d) | Couplers | Warning |
+| **PrimitiveObsessionAnalyzer** | Functions with mostly primitive parameter types | Bloaters | Hint |
+| **DataClumpsAnalyzer** | Repeated parameter type signatures across functions | Bloaters | Hint |
+| **FeatureEnvyAnalyzer** | Methods that reference external objects more than their own | Couplers | Hint |
+| **MiddleManAnalyzer** | Classes where most methods only delegate | Couplers | Hint |
 
 Supported languages: TypeScript (.ts/.tsx), Rust (.rs).
 
