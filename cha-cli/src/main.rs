@@ -166,29 +166,31 @@ fn resolve_files(paths: &[String], diff: bool) -> Vec<PathBuf> {
 fn run_analysis(files: &[PathBuf], project_root: &Path, plugin_filter: &[String]) -> Vec<Finding> {
     files
         .par_iter()
-        .flat_map(|path| {
-            let content = match std::fs::read_to_string(path) {
-                Ok(c) => c,
-                Err(_) => return vec![],
-            };
-            let file = SourceFile::new(path.clone(), content);
-            let model = match cha_parser::parse_file(&file) {
-                Some(m) => m,
-                None => return vec![],
-            };
-            let config = Config::load_for_file(path, project_root);
-            let registry = PluginRegistry::from_config(&config, project_root);
-            let ctx = AnalysisContext {
-                file: &file,
-                model: &model,
-            };
-            registry
-                .plugins()
-                .iter()
-                .filter(|p| plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == p.name()))
-                .flat_map(|p| p.analyze(&ctx))
-                .collect::<Vec<_>>()
-        })
+        .flat_map(|path| analyze_file(path, project_root, plugin_filter))
+        .collect()
+}
+
+fn analyze_file(path: &Path, project_root: &Path, plugin_filter: &[String]) -> Vec<Finding> {
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return vec![],
+    };
+    let file = SourceFile::new(path.to_path_buf(), content);
+    let model = match cha_parser::parse_file(&file) {
+        Some(m) => m,
+        None => return vec![],
+    };
+    let config = Config::load_for_file(path, project_root);
+    let registry = PluginRegistry::from_config(&config, project_root);
+    let ctx = AnalysisContext {
+        file: &file,
+        model: &model,
+    };
+    registry
+        .plugins()
+        .iter()
+        .filter(|p| plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == p.name()))
+        .flat_map(|p| p.analyze(&ctx))
         .collect()
 }
 

@@ -37,8 +37,14 @@ cha analyze src/ --format json --fail-on error
 # Only analyze changed files (git diff)
 cha analyze --diff
 
+# Run specific plugins only
+cha analyze --plugin complexity,naming
+
 # Parse and inspect file structure
 cha parse src/
+
+# Generate default config
+cha init
 ```
 
 ## 📦 Installation

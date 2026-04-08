@@ -15,26 +15,7 @@ impl Reporter for TerminalReporter {
         }
         let mut out = String::new();
         for f in findings {
-            let icon = match f.severity {
-                crate::Severity::Error => "✗",
-                crate::Severity::Warning => "⚠",
-                crate::Severity::Hint => "ℹ",
-            };
-            out.push_str(&format!(
-                "{} [{}] {}:{}-{} {}\n",
-                icon,
-                f.smell_name,
-                f.location.path.display(),
-                f.location.start_line,
-                f.location.end_line,
-                f.message,
-            ));
-            if !f.suggested_refactorings.is_empty() {
-                out.push_str(&format!(
-                    "  → suggested: {}\n",
-                    f.suggested_refactorings.join(", ")
-                ));
-            }
+            render_terminal_finding(&mut out, f);
         }
         let errors = findings
             .iter()
@@ -44,10 +25,7 @@ impl Reporter for TerminalReporter {
             .iter()
             .filter(|f| f.severity == crate::Severity::Warning)
             .count();
-        let hints = findings
-            .iter()
-            .filter(|f| f.severity == crate::Severity::Hint)
-            .count();
+        let hints = findings.len() - errors - warnings;
         out.push_str(&format!(
             "\n{} issue(s) found ({} error, {} warning, {} hint).",
             findings.len(),
@@ -56,6 +34,32 @@ impl Reporter for TerminalReporter {
             hints
         ));
         out
+    }
+}
+
+fn severity_icon(s: &crate::Severity) -> &'static str {
+    match s {
+        crate::Severity::Error => "✗",
+        crate::Severity::Warning => "⚠",
+        crate::Severity::Hint => "ℹ",
+    }
+}
+
+fn render_terminal_finding(out: &mut String, f: &Finding) {
+    out.push_str(&format!(
+        "{} [{}] {}:{}-{} {}\n",
+        severity_icon(&f.severity),
+        f.smell_name,
+        f.location.path.display(),
+        f.location.start_line,
+        f.location.end_line,
+        f.message,
+    ));
+    if !f.suggested_refactorings.is_empty() {
+        out.push_str(&format!(
+            "  → suggested: {}\n",
+            f.suggested_refactorings.join(", ")
+        ));
     }
 }
 

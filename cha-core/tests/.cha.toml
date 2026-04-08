@@ -9,3 +9,6 @@ enabled = false
 
 [plugins.long_parameter_list]
 enabled = false
+
+[plugins.length]
+max_file_lines = 1000
