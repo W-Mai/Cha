@@ -87,6 +87,15 @@ Requires [Rust](https://www.rust-lang.org/tools/install) (edition 2024).
 | **DataClumpsAnalyzer** | Repeated parameter type signatures across functions | Bloaters | Hint |
 | **FeatureEnvyAnalyzer** | Methods that reference external objects more than their own | Couplers | Hint |
 | **MiddleManAnalyzer** | Classes where most methods only delegate | Couplers | Hint |
+| **CommentsAnalyzer** | Functions with >30% comment lines | Dispensables | Hint |
+| **LazyClassAnalyzer** | Classes with ≤1 method and very few lines | Dispensables | Hint |
+| **DataClassAnalyzer** | Classes with only fields and accessors, no behavior | Dispensables | Hint |
+| **TemporaryFieldAnalyzer** | Fields used in only a few methods | OO Abusers | Hint |
+| **SpeculativeGeneralityAnalyzer** | Interfaces/traits with ≤1 implementation | Dispensables | Hint |
+| **RefusedBequestAnalyzer** | Subclasses that override most parent methods | OO Abusers | Hint |
+| **ShotgunSurgeryAnalyzer** | Files that always change together (git log) | Change Preventers | Hint |
+| **DivergentChangeAnalyzer** | Files changed for many distinct reasons (git log) | Change Preventers | Hint |
+| **InappropriateIntimacyAnalyzer** | Bidirectional imports between files | Couplers | Warning |
 
 Supported languages: TypeScript (.ts/.tsx), Rust (.rs).
 
