@@ -75,6 +75,18 @@ enum Cli {
     },
 }
 
+impl DiffMode {
+    fn from_flags(diff: bool, stdin_diff: bool) -> Self {
+        if stdin_diff {
+            Self::Stdin
+        } else if diff {
+            Self::Git
+        } else {
+            Self::None
+        }
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
     match cli {
@@ -86,7 +98,8 @@ fn main() {
             stdin_diff,
             plugin,
         } => {
-            let code = cmd_analyze(&paths, &format, fail_on.as_ref(), diff, stdin_diff, &plugin);
+            let mode = DiffMode::from_flags(diff, stdin_diff);
+            let code = cmd_analyze(&paths, &format, fail_on.as_ref(), mode, &plugin);
             process::exit(code);
         }
         Cli::Parse { paths } => cmd_parse(&paths),
@@ -155,36 +168,25 @@ fn git_diff_files() -> Vec<PathBuf> {
     }
 }
 
+/// How to handle diff-based filtering.
+enum DiffMode {
+    None,
+    Git,
+    Stdin,
+}
+
 fn cmd_analyze(
     paths: &[String],
     format: &Format,
     fail_on: Option<&FailLevel>,
-    diff: bool,
-    stdin_diff: bool,
+    diff_mode: DiffMode,
     plugin_filter: &[String],
 ) -> i32 {
     let cwd = std::env::current_dir().unwrap_or_default();
     let root_config = Config::load(&cwd);
-
-    // Determine diff map and file list based on mode
-    let (files, diff_map) = if stdin_diff {
-        let input = read_stdin();
-        let dm = diff::parse_unified_diff(&input);
-        let files: Vec<PathBuf> = dm.keys().map(|p| cwd.join(p)).collect();
-        (files, Some(dm))
-    } else if diff {
-        let dm = diff::git_diff_ranges();
-        let files = if dm.is_empty() {
-            collect_files(paths)
-        } else {
-            dm.keys().map(|p| cwd.join(p)).collect()
-        };
-        (files, Some(dm))
-    } else {
-        (resolve_files(paths, false), None)
-    };
-
+    let (files, diff_map) = resolve_diff_files(paths, &diff_mode, &cwd);
     let files = filter_excluded(files, &root_config.exclude, &cwd);
+
     if files.is_empty() {
         println!("No files to analyze.");
         return 0;
@@ -197,6 +199,31 @@ fn cmd_analyze(
     };
     print_report(&all_findings, format);
     exit_code(&all_findings, fail_on)
+}
+
+/// Resolve file list and optional diff map based on diff mode.
+fn resolve_diff_files(
+    paths: &[String],
+    mode: &DiffMode,
+    cwd: &Path,
+) -> (Vec<PathBuf>, Option<diff::DiffMap>) {
+    match mode {
+        DiffMode::Stdin => {
+            let dm = diff::parse_unified_diff(&read_stdin());
+            let files = dm.keys().map(|p| cwd.join(p)).collect();
+            (files, Some(dm))
+        }
+        DiffMode::Git => {
+            let dm = diff::git_diff_ranges();
+            let files = if dm.is_empty() {
+                collect_files(paths)
+            } else {
+                dm.keys().map(|p| cwd.join(p)).collect()
+            };
+            (files, Some(dm))
+        }
+        DiffMode::None => (resolve_files(paths, false), None),
+    }
 }
 
 /// Filter out files matching exclude glob patterns from config.

@@ -37,6 +37,9 @@ cha analyze src/ --format json --fail-on error
 # Only analyze changed files (git diff)
 cha analyze --diff
 
+# Analyze changes from piped diff (e.g. PR review)
+gh pr diff | cha analyze --stdin-diff --fail-on warning
+
 # Run specific plugins only
 cha analyze --plugin complexity,naming
 
