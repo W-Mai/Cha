@@ -117,6 +117,12 @@ fn convert_functions(funcs: &[crate::model::FunctionInfo]) -> Vec<wit::FunctionI
         end_line: f.end_line as u32,
         line_count: f.line_count as u32,
         complexity: f.complexity as u32,
+        parameter_count: f.parameter_count as u32,
+        parameter_types: f.parameter_types.clone(),
+        chain_depth: f.chain_depth as u32,
+        switch_arms: f.switch_arms as u32,
+        external_refs: f.external_refs.clone(),
+        is_delegating: f.is_delegating,
     })
 }
 
@@ -127,6 +133,7 @@ fn convert_classes(classes: &[crate::model::ClassInfo]) -> Vec<wit::ClassInfo> {
         end_line: c.end_line as u32,
         method_count: c.method_count as u32,
         line_count: c.line_count as u32,
+        delegating_method_count: c.delegating_method_count as u32,
     })
 }
 

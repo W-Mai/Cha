@@ -43,6 +43,12 @@ interface types {
         end-line: u32,
         line-count: u32,
         complexity: u32,
+        parameter-count: u32,
+        parameter-types: list<string>,
+        chain-depth: u32,
+        switch-arms: u32,
+        external-refs: list<string>,
+        is-delegating: bool,
     }
 
     /// Class info from parsed source.
@@ -52,6 +58,7 @@ interface types {
         end-line: u32,
         method-count: u32,
         line-count: u32,
+        delegating-method-count: u32,
     }
 
     /// Import info.
