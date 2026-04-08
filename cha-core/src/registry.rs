@@ -4,10 +4,13 @@ use crate::{
     Plugin,
     config::Config,
     plugins::{
-        ApiSurfaceAnalyzer, ComplexityAnalyzer, CouplingAnalyzer, DataClumpsAnalyzer,
-        DeadCodeAnalyzer, DuplicateCodeAnalyzer, FeatureEnvyAnalyzer, LayerViolationAnalyzer,
-        LengthAnalyzer, LongParameterListAnalyzer, MessageChainAnalyzer, MiddleManAnalyzer,
-        NamingAnalyzer, PrimitiveObsessionAnalyzer, SwitchStatementAnalyzer,
+        ApiSurfaceAnalyzer, CommentsAnalyzer, ComplexityAnalyzer, CouplingAnalyzer,
+        DataClassAnalyzer, DataClumpsAnalyzer, DeadCodeAnalyzer, DivergentChangeAnalyzer,
+        DuplicateCodeAnalyzer, FeatureEnvyAnalyzer, InappropriateIntimacyAnalyzer,
+        LayerViolationAnalyzer, LazyClassAnalyzer, LengthAnalyzer, LongParameterListAnalyzer,
+        MessageChainAnalyzer, MiddleManAnalyzer, NamingAnalyzer, PrimitiveObsessionAnalyzer,
+        RefusedBequestAnalyzer, ShotgunSurgeryAnalyzer, SpeculativeGeneralityAnalyzer,
+        SwitchStatementAnalyzer, TemporaryFieldAnalyzer,
     },
     wasm,
 };
@@ -125,6 +128,41 @@ fn register_smell_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) {
     });
     register_if_enabled(plugins, config, "middle_man", || {
         Box::new(MiddleManAnalyzer::default())
+    });
+    register_extended_smell_plugins(plugins, config);
+}
+
+fn register_extended_smell_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) {
+    register_if_enabled(plugins, config, "comments", || {
+        Box::new(CommentsAnalyzer::default())
+    });
+    register_if_enabled(plugins, config, "lazy_class", || {
+        Box::new(LazyClassAnalyzer::default())
+    });
+    register_if_enabled(plugins, config, "data_class", || {
+        Box::new(DataClassAnalyzer::default())
+    });
+    register_if_enabled(plugins, config, "temporary_field", || {
+        Box::new(TemporaryFieldAnalyzer::default())
+    });
+    register_if_enabled(plugins, config, "speculative_generality", || {
+        Box::new(SpeculativeGeneralityAnalyzer)
+    });
+    register_change_preventer_plugins(plugins, config);
+}
+
+fn register_change_preventer_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) {
+    register_if_enabled(plugins, config, "refused_bequest", || {
+        Box::new(RefusedBequestAnalyzer::default())
+    });
+    register_if_enabled(plugins, config, "shotgun_surgery", || {
+        Box::new(ShotgunSurgeryAnalyzer::default())
+    });
+    register_if_enabled(plugins, config, "divergent_change", || {
+        Box::new(DivergentChangeAnalyzer::default())
+    });
+    register_if_enabled(plugins, config, "inappropriate_intimacy", || {
+        Box::new(InappropriateIntimacyAnalyzer)
     });
 }
 

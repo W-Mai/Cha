@@ -2,3 +2,6 @@ exclude = ["*/tests/fixtures/*"]
 
 [plugins.api_surface]
 enabled = false
+
+[plugins.length]
+max_file_lines = 600

@@ -23,6 +23,10 @@ pub struct FunctionInfo {
     pub is_delegating: bool,
     /// Sorted parameter type names (for Data Clumps / Primitive Obsession).
     pub parameter_types: Vec<String>,
+    /// Number of comment lines in the function body.
+    pub comment_lines: usize,
+    /// Field names referenced in this function body (for Temporary Field).
+    pub referenced_fields: Vec<String>,
 }
 
 /// Extracted class/struct info from AST.
@@ -37,6 +41,18 @@ pub struct ClassInfo {
     pub is_exported: bool,
     /// Number of methods that only delegate to another object.
     pub delegating_method_count: usize,
+    /// Number of fields/properties.
+    pub field_count: usize,
+    /// Field names declared in this class.
+    pub field_names: Vec<String>,
+    /// Whether the class has non-accessor methods (business logic).
+    pub has_behavior: bool,
+    /// Whether this is an interface or abstract class.
+    pub is_interface: bool,
+    /// Parent class/trait name (for Refused Bequest).
+    pub parent_name: Option<String>,
+    /// Number of overridden methods (for Refused Bequest).
+    pub override_count: usize,
 }
 
 /// Extracted import info.

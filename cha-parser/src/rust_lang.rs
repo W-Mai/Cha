@@ -71,7 +71,7 @@ impl<'a> ParseContext<'a> {
         match child.kind() {
             "function_item" => self.push_function(child, exported),
             "impl_item" => self.extract_impl_methods(child),
-            "struct_item" | "enum_item" => self.push_struct(child),
+            "struct_item" | "enum_item" | "trait_item" => self.push_struct(child),
             "use_declaration" => self.push_import(child),
             _ => self.collect_nodes(child, false),
         }
@@ -98,36 +98,51 @@ impl<'a> ParseContext<'a> {
     }
 
     fn extract_impl_methods(&mut self, node: Node) {
-        let body = match node.child_by_field_name("body") {
-            Some(b) => b,
-            None => return,
+        let Some(body) = node.child_by_field_name("body") else {
+            return;
         };
         let impl_name = node
             .child_by_field_name("type")
             .map(|t| node_text(t, self.src).to_string());
+        let trait_name = node
+            .child_by_field_name("trait")
+            .map(|t| node_text(t, self.src).to_string());
 
-        let mut method_count = 0;
-        let mut delegating_count = 0;
+        let (methods, delegating, has_behavior) = self.scan_impl_body(body);
+
+        if let Some(name) = &impl_name
+            && let Some(class) = self.col.classes.iter_mut().find(|c| &c.name == name)
+        {
+            class.method_count += methods;
+            class.delegating_method_count += delegating;
+            class.has_behavior |= has_behavior;
+            if let Some(t) = &trait_name {
+                class.parent_name = Some(t.clone());
+            }
+        }
+    }
+
+    fn scan_impl_body(&mut self, body: Node) -> (usize, usize, bool) {
+        let mut methods = 0;
+        let mut delegating = 0;
+        let mut has_behavior = false;
         let mut cursor = body.walk();
         for child in body.children(&mut cursor) {
             if child.kind() == "function_item"
                 && let Some(mut f) = extract_function(child, self.src)
             {
                 f.is_exported = has_pub(child);
-                method_count += 1;
+                methods += 1;
                 if f.is_delegating {
-                    delegating_count += 1;
+                    delegating += 1;
+                }
+                if f.line_count > 3 {
+                    has_behavior = true;
                 }
                 self.col.functions.push(f);
             }
         }
-
-        if let Some(ref name) = impl_name
-            && let Some(class) = self.col.classes.iter_mut().find(|c| &c.name == name)
-        {
-            class.method_count += method_count;
-            class.delegating_method_count += delegating_count;
-        }
+        (methods, delegating, has_behavior)
     }
 }
 
@@ -213,6 +228,8 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         switch_arms,
         external_refs,
         is_delegating,
+        comment_lines: count_comment_lines(node, src),
+        referenced_fields: collect_field_refs(body, src),
     })
 }
 
@@ -221,6 +238,8 @@ fn extract_struct(node: Node, src: &[u8]) -> Option<ClassInfo> {
     let name = node_text(name_node, src).to_string();
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
+    let (field_count, field_names) = extract_fields(node, src);
+    let is_interface = node.kind() == "trait_item";
     Some(ClassInfo {
         name,
         start_line,
@@ -229,6 +248,12 @@ fn extract_struct(node: Node, src: &[u8]) -> Option<ClassInfo> {
         line_count: end_line - start_line + 1,
         is_exported: false,
         delegating_method_count: 0,
+        field_count,
+        field_names,
+        has_behavior: false,
+        is_interface,
+        parent_name: None,
+        override_count: 0,
     })
 }
 
@@ -400,4 +425,73 @@ fn extract_use(node: Node, src: &[u8]) -> Option<ImportInfo> {
         source,
         line: node.start_position().row + 1,
     })
+}
+
+/// Count comment lines inside a function node.
+fn count_comment_lines(node: Node, src: &[u8]) -> usize {
+    let mut count = 0;
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == "line_comment" || child.kind() == "block_comment" {
+            count += child.end_position().row - child.start_position().row + 1;
+        }
+    }
+    // Also recurse into body
+    if let Some(body) = node.child_by_field_name("body") {
+        count += count_comment_lines_recursive(body, src);
+    }
+    count
+}
+
+fn count_comment_lines_recursive(node: Node, _src: &[u8]) -> usize {
+    let mut count = 0;
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == "line_comment" || child.kind() == "block_comment" {
+            count += child.end_position().row - child.start_position().row + 1;
+        } else if child.child_count() > 0 {
+            count += count_comment_lines_recursive(child, _src);
+        }
+    }
+    count
+}
+
+/// Collect field references (self.xxx) from a function body.
+fn collect_field_refs(body: Option<Node>, src: &[u8]) -> Vec<String> {
+    let Some(body) = body else { return vec![] };
+    let mut refs = Vec::new();
+    collect_self_fields(body, src, &mut refs);
+    refs.sort();
+    refs.dedup();
+    refs
+}
+
+fn collect_self_fields(node: Node, src: &[u8], refs: &mut Vec<String>) {
+    if node.kind() == "field_expression"
+        && let Some(obj) = node.child_by_field_name("value")
+        && node_text(obj, src) == "self"
+        && let Some(field) = node.child_by_field_name("field")
+    {
+        refs.push(node_text(field, src).to_string());
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_self_fields(child, src, refs);
+    }
+}
+
+/// Extract field names from a struct body.
+fn extract_fields(node: Node, src: &[u8]) -> (usize, Vec<String>) {
+    let mut names = Vec::new();
+    if let Some(body) = node.child_by_field_name("body") {
+        let mut cursor = body.walk();
+        for child in body.children(&mut cursor) {
+            if child.kind() == "field_declaration"
+                && let Some(name_node) = child.child_by_field_name("name")
+            {
+                names.push(node_text(name_node, src).to_string());
+            }
+        }
+    }
+    (names.len(), names)
 }

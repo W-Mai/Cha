@@ -150,6 +150,8 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         switch_arms,
         external_refs,
         is_delegating,
+        comment_lines: count_comment_lines(node),
+        referenced_fields: collect_this_fields(body, src),
     })
 }
 
@@ -198,6 +200,8 @@ fn try_extract_arrow(child: Node, decl: Node, src: &[u8], exported: bool) -> Opt
             .map(|b| collect_external_refs(b, src))
             .unwrap_or_default(),
         is_delegating: body.map(|b| check_delegating(b, src)).unwrap_or(false),
+        comment_lines: count_comment_lines(value),
+        referenced_fields: collect_this_fields(body, src),
     })
 }
 
@@ -206,31 +210,65 @@ fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
     let name = node_text(name_node, src).to_string();
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
-
     let body = node.child_by_field_name("body")?;
-    let mut method_count = 0;
-    let mut delegating_method_count = 0;
-    let mut cursor = body.walk();
-    for child in body.children(&mut cursor) {
-        if child.kind() == "method_definition" {
-            method_count += 1;
-            if let Some(method_body) = child.child_by_field_name("body")
-                && check_delegating(method_body, src)
-            {
-                delegating_method_count += 1;
-            }
-        }
-    }
+    let (methods, delegating, fields, has_behavior) = scan_class_body(body, src);
+    let is_interface =
+        node.kind() == "interface_declaration" || node.kind() == "abstract_class_declaration";
 
     Some(ClassInfo {
         name,
         start_line,
         end_line,
-        method_count,
+        method_count: methods,
         line_count: end_line - start_line + 1,
         is_exported: false,
-        delegating_method_count,
+        delegating_method_count: delegating,
+        field_count: fields.len(),
+        field_names: fields,
+        has_behavior,
+        is_interface,
+        parent_name: extract_parent_name(node, src),
+        override_count: 0,
     })
+}
+
+/// Scan class body and return (method_count, delegating_count, field_names, has_behavior).
+fn scan_class_body(body: Node, src: &[u8]) -> (usize, usize, Vec<String>, bool) {
+    let mut methods = 0;
+    let mut delegating = 0;
+    let mut fields = Vec::new();
+    let mut has_behavior = false;
+    let mut cursor = body.walk();
+    for child in body.children(&mut cursor) {
+        match child.kind() {
+            "method_definition" => {
+                let (is_behavior, is_delegating) = classify_method(child, src);
+                methods += 1;
+                has_behavior |= is_behavior;
+                delegating += usize::from(is_delegating);
+            }
+            "public_field_definition" | "property_definition" => {
+                if let Some(n) = child.child_by_field_name("name") {
+                    fields.push(node_text(n, src).to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+    (methods, delegating, fields, has_behavior)
+}
+
+/// Classify a method: returns (is_behavior, is_delegating).
+fn classify_method(node: Node, src: &[u8]) -> (bool, bool) {
+    let mname = node
+        .child_by_field_name("name")
+        .map(|n| node_text(n, src))
+        .unwrap_or("");
+    let is_behavior = !is_accessor_name(mname) && mname != "constructor";
+    let is_delegating = node
+        .child_by_field_name("body")
+        .is_some_and(|b| check_delegating(b, src));
+    (is_behavior, is_delegating)
 }
 
 fn count_parameters(node: Node) -> usize {
@@ -419,6 +457,72 @@ fn extract_import(node: Node, src: &[u8]) -> Option<ImportInfo> {
                 source,
                 line: node.start_position().row + 1,
             });
+        }
+    }
+    None
+}
+
+/// Count comment lines inside a node (recursive).
+fn count_comment_lines(node: Node) -> usize {
+    let mut count = 0;
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == "comment" {
+            count += child.end_position().row - child.start_position().row + 1;
+        } else if child.child_count() > 0 {
+            count += count_comment_lines(child);
+        }
+    }
+    count
+}
+
+/// Collect `this.xxx` field references from a function body.
+fn collect_this_fields(body: Option<Node>, src: &[u8]) -> Vec<String> {
+    let Some(body) = body else { return vec![] };
+    let mut refs = Vec::new();
+    collect_this_refs(body, src, &mut refs);
+    refs.sort();
+    refs.dedup();
+    refs
+}
+
+fn collect_this_refs(node: Node, src: &[u8], refs: &mut Vec<String>) {
+    if node.kind() == "member_expression"
+        && let Some(obj) = node.child_by_field_name("object")
+        && node_text(obj, src) == "this"
+        && let Some(prop) = node.child_by_field_name("property")
+    {
+        refs.push(node_text(prop, src).to_string());
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_this_refs(child, src, refs);
+    }
+}
+
+/// Check if a method name looks like a getter/setter.
+fn is_accessor_name(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    lower.starts_with("get") || lower.starts_with("set") || lower.starts_with("is")
+}
+
+/// Extract parent class name from `extends` clause.
+fn extract_parent_name(node: Node, src: &[u8]) -> Option<String> {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == "class_heritage" {
+            let mut inner = child.walk();
+            for c in child.children(&mut inner) {
+                if c.kind() == "extends_clause" {
+                    // First identifier child is the parent name
+                    let mut ec = c.walk();
+                    for e in c.children(&mut ec) {
+                        if e.kind() == "identifier" || e.kind() == "type_identifier" {
+                            return Some(node_text(e, src).to_string());
+                        }
+                    }
+                }
+            }
         }
     }
     None
