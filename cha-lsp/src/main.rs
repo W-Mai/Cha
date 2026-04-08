@@ -129,49 +129,13 @@ impl LanguageServer for ChaLsp {
     }
 
     async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
-        let mut actions = Vec::new();
         let uri = &params.text_document.uri;
         let docs = self.docs.read().await;
         let doc_text = docs.get(uri);
 
-        for diag in &params.context.diagnostics {
-            if diag.source.as_deref() != Some("cha") {
-                continue;
-            }
-
-            // Generate Extract Method edit for long_method diagnostics
-            if let Some(text) = doc_text
-                && diag.code == Some(NumberOrString::String("long_method".into()))
-                && let Some(action) = build_extract_method(uri, &diag.range, text)
-            {
-                actions.push(CodeActionOrCommand::CodeAction(action));
-            }
-
-            // Keep existing suggestion-based actions
-            if let Some(data) = &diag.data
-                && let Ok(suggestions) = serde_json::from_value::<Vec<String>>(data.clone())
-            {
-                for suggestion in suggestions {
-                    actions.push(CodeActionOrCommand::CodeAction(CodeAction {
-                        title: format!("Refactor: {}", suggestion),
-                        kind: Some(CodeActionKind::QUICKFIX),
-                        diagnostics: Some(vec![diag.clone()]),
-                        ..Default::default()
-                    }));
-                }
-            }
-        }
-
-        // Offer Extract Method for any user selection spanning 3+ lines
-        if let Some(text) = doc_text {
-            let sel = &params.range;
-            let line_span = sel.end.line.saturating_sub(sel.start.line);
-            if line_span >= 3
-                && let Some(action) = build_extract_method(uri, sel, text)
-            {
-                actions.push(CodeActionOrCommand::CodeAction(action));
-            }
-        }
+        let mut actions = Vec::new();
+        collect_diagnostic_actions(&mut actions, uri, &params.context.diagnostics, doc_text);
+        collect_selection_actions(&mut actions, uri, &params.range, doc_text);
 
         Ok(if actions.is_empty() {
             None
@@ -185,8 +149,58 @@ impl LanguageServer for ChaLsp {
     }
 }
 
-/// Build an Extract Method code action that replaces the selected range
-/// with a function call and appends the extracted function after the range.
+/// Build code actions from cha diagnostics.
+fn collect_diagnostic_actions(
+    actions: &mut Vec<CodeActionOrCommand>,
+    uri: &Url,
+    diagnostics: &[Diagnostic],
+    doc_text: Option<&String>,
+) {
+    for diag in diagnostics {
+        if diag.source.as_deref() != Some("cha") {
+            continue;
+        }
+        // Extract Method for long_method
+        if let Some(text) = doc_text
+            && diag.code == Some(NumberOrString::String("long_method".into()))
+            && let Some(action) = build_extract_method(uri, &diag.range, text)
+        {
+            actions.push(CodeActionOrCommand::CodeAction(action));
+        }
+        // Suggestion-based quick fixes
+        if let Some(data) = &diag.data
+            && let Ok(suggestions) = serde_json::from_value::<Vec<String>>(data.clone())
+        {
+            for suggestion in suggestions {
+                actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                    title: format!("Refactor: {}", suggestion),
+                    kind: Some(CodeActionKind::QUICKFIX),
+                    diagnostics: Some(vec![diag.clone()]),
+                    ..Default::default()
+                }));
+            }
+        }
+    }
+}
+
+/// Offer Extract Method for user selections spanning 3+ lines.
+fn collect_selection_actions(
+    actions: &mut Vec<CodeActionOrCommand>,
+    uri: &Url,
+    range: &Range,
+    doc_text: Option<&String>,
+) {
+    if let Some(text) = doc_text {
+        let line_span = range.end.line.saturating_sub(range.start.line);
+        if line_span >= 3
+            && let Some(action) = build_extract_method(uri, range, text)
+        {
+            actions.push(CodeActionOrCommand::CodeAction(action));
+        }
+    }
+}
+
+/// Build an Extract Method code action.
 fn build_extract_method(uri: &Url, range: &Range, text: &str) -> Option<CodeAction> {
     let lines: Vec<&str> = text.lines().collect();
     let start = range.start.line as usize;
@@ -195,14 +209,32 @@ fn build_extract_method(uri: &Url, range: &Range, text: &str) -> Option<CodeActi
         return None;
     }
 
-    let selected: Vec<&str> = lines[start..end].to_vec();
+    let selected = &lines[start..end];
+    let edits = build_extract_edits(uri, range, selected, end);
+
+    Some(CodeAction {
+        title: "Extract Method".into(),
+        kind: Some(CodeActionKind::REFACTOR_EXTRACT),
+        edit: Some(WorkspaceEdit {
+            changes: Some(edits),
+            ..Default::default()
+        }),
+        ..Default::default()
+    })
+}
+
+fn build_extract_edits(
+    uri: &Url,
+    range: &Range,
+    selected: &[&str],
+    end: usize,
+) -> HashMap<Url, Vec<TextEdit>> {
     let indent = selected
         .first()
         .map(|l| l.len() - l.trim_start().len())
         .unwrap_or(0);
-    let indent_str: String = " ".repeat(indent);
-
     let fn_name = "extracted";
+
     let body = selected
         .iter()
         .map(|l| {
@@ -215,44 +247,31 @@ fn build_extract_method(uri: &Url, range: &Range, text: &str) -> Option<CodeActi
         .collect::<Vec<_>>()
         .join("\n");
 
+    let call = format!("{}{fn_name}();\n", " ".repeat(indent));
     let new_fn = format!("\nfn {fn_name}() {{\n{body}\n}}\n");
-    let call = format!("{indent_str}{fn_name}();\n");
+    let end_col = selected.last().map(|l| l.len() as u32).unwrap_or(0);
 
     let mut changes = HashMap::new();
     changes.insert(
         uri.clone(),
         vec![
-            // Replace selected lines with function call
             TextEdit {
                 range: Range {
                     start: Position::new(range.start.line, 0),
-                    end: Position::new(
-                        range.end.line,
-                        lines.get(end - 1).map(|l| l.len() as u32).unwrap_or(0),
-                    ),
+                    end: Position::new(range.end.line, end_col),
                 },
                 new_text: call,
             },
-            // Append extracted function after the containing function
             TextEdit {
                 range: Range {
-                    start: Position::new(range.end.line + 1, 0),
-                    end: Position::new(range.end.line + 1, 0),
+                    start: Position::new(end as u32, 0),
+                    end: Position::new(end as u32, 0),
                 },
                 new_text: new_fn,
             },
         ],
     );
-
-    Some(CodeAction {
-        title: "Extract Method".into(),
-        kind: Some(CodeActionKind::REFACTOR_EXTRACT),
-        edit: Some(WorkspaceEdit {
-            changes: Some(changes),
-            ..Default::default()
-        }),
-        ..Default::default()
-    })
+    changes
 }
 
 #[tokio::main]
