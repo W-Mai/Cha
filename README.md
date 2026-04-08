@@ -92,6 +92,9 @@ Supported languages: TypeScript (.ts/.tsx), Rust (.rs).
 Create `.cha.toml` in your project root:
 
 ```toml
+# Exclude paths from analysis (glob patterns)
+exclude = ["*/tests/fixtures/*", "vendor/*"]
+
 [plugins.length]
 enabled = true
 max_function_lines = 30
