@@ -7,6 +7,9 @@ use std::path::Path;
 pub struct Config {
     #[serde(default)]
     pub plugins: HashMap<String, PluginConfig>,
+    /// Glob patterns for paths to exclude from analysis.
+    #[serde(default)]
+    pub exclude: Vec<String>,
 }
 
 /// Per-plugin config section.
@@ -67,6 +70,7 @@ impl Config {
                 entry.options.insert(k, v);
             }
         }
+        self.exclude.extend(other.exclude);
     }
 
     /// Check if a plugin is enabled (default: true if not mentioned).

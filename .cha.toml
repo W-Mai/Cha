@@ -1,2 +1,4 @@
+exclude = ["*/tests/fixtures/*"]
+
 [plugins.api_surface]
 enabled = false

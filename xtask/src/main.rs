@@ -57,12 +57,12 @@ fn cmd_lint() -> Result {
 
 fn cmd_analyze() -> Result {
     let cha = cha_binary();
-    // Gate check first — fail fast on warnings
-    run_cmd(
-        &cha,
-        &["analyze", ".", "--format", "sarif", "--fail-on", "warning"],
-    )?;
-    // Remaining format smoke tests
+    let src_dirs = ["cha-core", "cha-parser", "cha-cli/src", "cha-lsp", "xtask"];
+    // Gate check on source dirs only (excludes test fixtures with intentional smells)
+    let mut args = vec!["analyze", "--format", "sarif", "--fail-on", "warning"];
+    args.extend_from_slice(&src_dirs);
+    run_cmd(&cha, &args)?;
+    // Remaining format smoke tests on full project
     run_cmd(&cha, &["analyze", ".", "--format", "terminal"])?;
     run_cmd(&cha, &["analyze", ".", "--format", "json"])?;
     run_cmd(&cha, &["analyze", ".", "--format", "llm"])?;

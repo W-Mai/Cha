@@ -157,7 +157,8 @@ fn cmd_analyze(
     plugin_filter: &[String],
 ) -> i32 {
     let cwd = std::env::current_dir().unwrap_or_default();
-    let files = resolve_files(paths, diff);
+    let root_config = Config::load(&cwd);
+    let files = filter_excluded(resolve_files(paths, diff), &root_config.exclude, &cwd);
 
     if files.is_empty() {
         println!("No files to analyze.");
@@ -167,6 +168,25 @@ fn cmd_analyze(
     let all_findings = run_analysis(&files, &cwd, plugin_filter);
     print_report(&all_findings, format);
     exit_code(&all_findings, fail_on)
+}
+
+/// Filter out files matching exclude glob patterns from config.
+fn filter_excluded(files: Vec<PathBuf>, patterns: &[String], root: &Path) -> Vec<PathBuf> {
+    if patterns.is_empty() {
+        return files;
+    }
+    let matchers: Vec<glob::Pattern> = patterns
+        .iter()
+        .filter_map(|p| glob::Pattern::new(p).ok())
+        .collect();
+    files
+        .into_iter()
+        .filter(|f| {
+            let rel = f.strip_prefix(root).unwrap_or(f);
+            let s = rel.to_string_lossy();
+            !matchers.iter().any(|m| m.matches(&s))
+        })
+        .collect()
 }
 
 fn resolve_files(paths: &[String], diff: bool) -> Vec<PathBuf> {
