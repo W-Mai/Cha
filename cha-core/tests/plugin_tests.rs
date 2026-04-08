@@ -336,4 +336,245 @@ mod plugin_tests {
         let findings = analyze(&LayerViolationAnalyzer::default(), &model);
         assert!(findings.is_empty());
     }
+
+    // -- LongParameterListAnalyzer --
+
+    #[test]
+    fn long_param_list_triggers() {
+        let mut f = func("many_params", 10, 1, false);
+        f.parameter_count = 6;
+        let model = make_model(vec![f], vec![], vec![], 10);
+        let findings = analyze(&LongParameterListAnalyzer::default(), &model);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].smell_name, "long_parameter_list");
+    }
+
+    #[test]
+    fn long_param_list_at_threshold() {
+        let mut f = func("ok", 10, 1, false);
+        f.parameter_count = 5;
+        let model = make_model(vec![f], vec![], vec![], 10);
+        let findings = analyze(&LongParameterListAnalyzer::default(), &model);
+        assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn long_param_list_below() {
+        let mut f = func("few", 10, 1, false);
+        f.parameter_count = 2;
+        let model = make_model(vec![f], vec![], vec![], 10);
+        let findings = analyze(&LongParameterListAnalyzer::default(), &model);
+        assert!(findings.is_empty());
+    }
+
+    // -- SwitchStatementAnalyzer --
+
+    #[test]
+    fn switch_statement_triggers() {
+        let mut f = func("big_match", 20, 1, false);
+        f.switch_arms = 9;
+        let model = make_model(vec![f], vec![], vec![], 20);
+        let findings = analyze(&SwitchStatementAnalyzer::default(), &model);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].smell_name, "switch_statement");
+    }
+
+    #[test]
+    fn switch_statement_at_threshold() {
+        let mut f = func("ok_match", 20, 1, false);
+        f.switch_arms = 8;
+        let model = make_model(vec![f], vec![], vec![], 20);
+        let findings = analyze(&SwitchStatementAnalyzer::default(), &model);
+        assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn switch_statement_no_arms() {
+        let model = make_model(vec![func("plain", 10, 1, false)], vec![], vec![], 10);
+        let findings = analyze(&SwitchStatementAnalyzer::default(), &model);
+        assert!(findings.is_empty());
+    }
+
+    // -- MessageChainAnalyzer --
+
+    #[test]
+    fn message_chain_triggers() {
+        let mut f = func("deep", 10, 1, false);
+        f.chain_depth = 4;
+        let model = make_model(vec![f], vec![], vec![], 10);
+        let findings = analyze(&MessageChainAnalyzer::default(), &model);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].smell_name, "message_chain");
+    }
+
+    #[test]
+    fn message_chain_at_threshold() {
+        let mut f = func("ok", 10, 1, false);
+        f.chain_depth = 3;
+        let model = make_model(vec![f], vec![], vec![], 10);
+        let findings = analyze(&MessageChainAnalyzer::default(), &model);
+        assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn message_chain_shallow() {
+        let mut f = func("shallow", 10, 1, false);
+        f.chain_depth = 1;
+        let model = make_model(vec![f], vec![], vec![], 10);
+        let findings = analyze(&MessageChainAnalyzer::default(), &model);
+        assert!(findings.is_empty());
+    }
+
+    // -- PrimitiveObsessionAnalyzer --
+
+    #[test]
+    fn primitive_obsession_triggers() {
+        let mut f = func("prim", 10, 1, false);
+        f.parameter_types = vec!["i32".into(), "String".into(), "bool".into()];
+        let model = make_model(vec![f], vec![], vec![], 10);
+        let findings = analyze(&PrimitiveObsessionAnalyzer::default(), &model);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].smell_name, "primitive_obsession");
+    }
+
+    #[test]
+    fn primitive_obsession_mixed_types() {
+        let mut f = func("mixed", 10, 1, false);
+        f.parameter_types = vec!["i32".into(), "MyStruct".into(), "bool".into()];
+        let model = make_model(vec![f], vec![], vec![], 10);
+        let findings = analyze(&PrimitiveObsessionAnalyzer::default(), &model);
+        assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn primitive_obsession_too_few_params() {
+        let mut f = func("few", 10, 1, false);
+        f.parameter_types = vec!["i32".into(), "bool".into()];
+        let model = make_model(vec![f], vec![], vec![], 10);
+        let findings = analyze(&PrimitiveObsessionAnalyzer::default(), &model);
+        assert!(findings.is_empty());
+    }
+
+    // -- DataClumpsAnalyzer --
+
+    #[test]
+    fn data_clumps_triggers() {
+        let sig = vec!["String".into(), "i32".into(), "bool".into()];
+        let mk = |name| {
+            let mut f = func(name, 10, 1, false);
+            f.parameter_types = sig.clone();
+            f
+        };
+        let model = make_model(vec![mk("a"), mk("b"), mk("c")], vec![], vec![], 30);
+        let findings = analyze(&DataClumpsAnalyzer::default(), &model);
+        assert_eq!(findings.len(), 3);
+        assert_eq!(findings[0].smell_name, "data_clumps");
+    }
+
+    #[test]
+    fn data_clumps_different_sigs() {
+        let mut f1 = func("a", 10, 1, false);
+        f1.parameter_types = vec!["i32".into(), "bool".into(), "String".into()];
+        let mut f2 = func("b", 10, 1, false);
+        f2.parameter_types = vec!["f64".into(), "Vec".into(), "Option".into()];
+        let mut f3 = func("c", 10, 1, false);
+        f3.parameter_types = vec!["u8".into(), "u16".into(), "u32".into()];
+        let model = make_model(vec![f1, f2, f3], vec![], vec![], 30);
+        let findings = analyze(&DataClumpsAnalyzer::default(), &model);
+        assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn data_clumps_below_min_occurrences() {
+        let sig = vec!["i32".into(), "bool".into(), "String".into()];
+        let mk = |name| {
+            let mut f = func(name, 10, 1, false);
+            f.parameter_types = sig.clone();
+            f
+        };
+        let model = make_model(vec![mk("a"), mk("b")], vec![], vec![], 20);
+        let findings = analyze(&DataClumpsAnalyzer::default(), &model);
+        assert!(findings.is_empty());
+    }
+
+    // -- FeatureEnvyAnalyzer --
+
+    #[test]
+    fn feature_envy_triggers() {
+        let mut f = func("envious", 10, 1, false);
+        f.external_refs = vec!["db".into(), "db".into(), "db".into()];
+        let model = make_model(vec![f], vec![], vec![], 10);
+        let findings = analyze(&FeatureEnvyAnalyzer::default(), &model);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].smell_name, "feature_envy");
+    }
+
+    #[test]
+    fn feature_envy_spread_refs() {
+        let mut f = func("spread", 10, 1, false);
+        f.external_refs = vec!["a".into(), "b".into(), "c".into()];
+        let model = make_model(vec![f], vec![], vec![], 10);
+        let findings = analyze(&FeatureEnvyAnalyzer::default(), &model);
+        assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn feature_envy_too_few_refs() {
+        let mut f = func("few", 10, 1, false);
+        f.external_refs = vec!["db".into(), "db".into()];
+        let model = make_model(vec![f], vec![], vec![], 10);
+        let findings = analyze(&FeatureEnvyAnalyzer::default(), &model);
+        assert!(findings.is_empty());
+    }
+
+    // -- MiddleManAnalyzer --
+
+    #[test]
+    fn middle_man_triggers() {
+        let c = ClassInfo {
+            name: "Proxy".into(),
+            start_line: 1,
+            end_line: 10,
+            method_count: 4,
+            line_count: 10,
+            is_exported: false,
+            delegating_method_count: 3,
+        };
+        let model = make_model(vec![], vec![c], vec![], 10);
+        let findings = analyze(&MiddleManAnalyzer::default(), &model);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].smell_name, "middle_man");
+    }
+
+    #[test]
+    fn middle_man_below_ratio() {
+        let c = ClassInfo {
+            name: "Mixed".into(),
+            start_line: 1,
+            end_line: 10,
+            method_count: 4,
+            line_count: 10,
+            is_exported: false,
+            delegating_method_count: 1,
+        };
+        let model = make_model(vec![], vec![c], vec![], 10);
+        let findings = analyze(&MiddleManAnalyzer::default(), &model);
+        assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn middle_man_too_few_methods() {
+        let c = ClassInfo {
+            name: "Tiny".into(),
+            start_line: 1,
+            end_line: 5,
+            method_count: 2,
+            line_count: 5,
+            is_exported: false,
+            delegating_method_count: 2,
+        };
+        let model = make_model(vec![], vec![c], vec![], 5);
+        let findings = analyze(&MiddleManAnalyzer::default(), &model);
+        assert!(findings.is_empty());
+    }
 }
