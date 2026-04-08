@@ -45,6 +45,9 @@ cha parse src/
 
 # Generate default config
 cha init
+
+# Print JSON Schema for output format
+cha schema
 ```
 
 ## 📦 Installation
