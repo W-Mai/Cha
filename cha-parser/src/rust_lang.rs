@@ -243,11 +243,19 @@ fn extract_param_types(node: Node, src: &[u8]) -> Vec<String> {
         if child.kind() == "parameter"
             && let Some(ty) = child.child_by_field_name("type")
         {
-            types.push(node_text(ty, src).to_string());
+            types.push(normalize_type(node_text(ty, src)));
         }
     }
     types.sort();
     types
+}
+
+/// Strip reference/lifetime wrappers to get the canonical type name.
+fn normalize_type(raw: &str) -> String {
+    raw.trim_start_matches('&')
+        .trim_start_matches("mut ")
+        .trim()
+        .to_string()
 }
 
 fn max_chain_depth(node: Node) -> usize {

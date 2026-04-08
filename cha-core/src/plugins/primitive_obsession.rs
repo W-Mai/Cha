@@ -61,6 +61,8 @@ impl Plugin for PrimitiveObsessionAnalyzer {
 }
 
 fn is_primitive(ty: &str) -> bool {
-    let trimmed = ty.trim_start_matches('&').trim();
-    PRIMITIVE_TYPES.contains(&trimmed)
+    let base = ty.trim_start_matches('&').trim_start_matches("mut ").trim();
+    // Strip generic parameters: Vec<String> → Vec
+    let base = base.split('<').next().unwrap_or(base);
+    PRIMITIVE_TYPES.contains(&base)
 }
