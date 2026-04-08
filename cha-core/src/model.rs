@@ -11,6 +11,18 @@ pub struct FunctionInfo {
     pub body_hash: Option<u64>,
     /// Whether this function is exported (pub/export).
     pub is_exported: bool,
+    /// Number of parameters.
+    pub parameter_count: usize,
+    /// Names of external identifiers referenced in the body (for Feature Envy).
+    pub external_refs: Vec<String>,
+    /// Max method chain depth in the body (for Message Chains).
+    pub chain_depth: usize,
+    /// Number of switch/match arms (for Switch Statements).
+    pub switch_arms: usize,
+    /// Whether this function only delegates to another object's method (for Middle Man).
+    pub is_delegating: bool,
+    /// Sorted parameter type names (for Data Clumps / Primitive Obsession).
+    pub parameter_types: Vec<String>,
 }
 
 /// Extracted class/struct info from AST.
@@ -23,6 +35,8 @@ pub struct ClassInfo {
     pub line_count: usize,
     /// Whether this class is exported.
     pub is_exported: bool,
+    /// Number of methods that only delegate to another object.
+    pub delegating_method_count: usize,
 }
 
 /// Extracted import info.

@@ -24,6 +24,12 @@ fn arb_function_info() -> impl Strategy<Value = FunctionInfo> {
                 complexity,
                 body_hash: hash,
                 is_exported: exported,
+                parameter_count: 0,
+                parameter_types: vec![],
+                chain_depth: 0,
+                switch_arms: 0,
+                external_refs: vec![],
+                is_delegating: false,
             },
         )
 }
@@ -43,6 +49,7 @@ fn arb_class_info() -> impl Strategy<Value = ClassInfo> {
             method_count: methods,
             line_count: lines,
             is_exported: exported,
+            delegating_method_count: 0,
         })
 }
 

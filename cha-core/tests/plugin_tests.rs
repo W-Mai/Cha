@@ -33,6 +33,12 @@ mod plugin_tests {
             complexity,
             body_hash: Some(lines as u64),
             is_exported: exported,
+            parameter_count: 0,
+            parameter_types: vec![],
+            chain_depth: 0,
+            switch_arms: 0,
+            external_refs: vec![],
+            is_delegating: false,
         }
     }
 
@@ -45,6 +51,12 @@ mod plugin_tests {
             complexity: 1,
             body_hash: Some(hash),
             is_exported: false,
+            parameter_count: 0,
+            parameter_types: vec![],
+            chain_depth: 0,
+            switch_arms: 0,
+            external_refs: vec![],
+            is_delegating: false,
         }
     }
 
@@ -56,6 +68,7 @@ mod plugin_tests {
             method_count: methods,
             line_count: lines,
             is_exported: exported,
+            delegating_method_count: 0,
         }
     }
 
