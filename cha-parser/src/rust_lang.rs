@@ -57,7 +57,7 @@ fn collect_nodes(node: Node, src: &[u8], exported: bool, col: &mut Collector) {
 fn collect_single_node(child: Node, src: &[u8], exported: bool, col: &mut Collector) {
     match child.kind() {
         "function_item" => push_function(child, src, exported, col),
-        "impl_item" => extract_impl_methods(child, src, &mut col.functions),
+        "impl_item" => extract_impl_methods(child, src, col),
         "struct_item" | "enum_item" => push_struct(child, src, col),
         "use_declaration" => push_import(child, src, col),
         _ => collect_nodes(child, src, false, col),
@@ -169,19 +169,38 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
     })
 }
 
-fn extract_impl_methods(node: Node, src: &[u8], functions: &mut Vec<FunctionInfo>) {
+fn extract_impl_methods(node: Node, src: &[u8], col: &mut Collector) {
     let body = match node.child_by_field_name("body") {
         Some(b) => b,
         None => return,
     };
+    // Resolve the struct name this impl belongs to
+    let impl_name = node
+        .child_by_field_name("type")
+        .map(|t| node_text(t, src).to_string());
+
+    let mut method_count = 0;
+    let mut delegating_count = 0;
     let mut cursor = body.walk();
     for child in body.children(&mut cursor) {
         if child.kind() == "function_item"
             && let Some(mut f) = extract_function(child, src)
         {
             f.is_exported = has_pub(child);
-            functions.push(f);
+            method_count += 1;
+            if f.is_delegating {
+                delegating_count += 1;
+            }
+            col.functions.push(f);
         }
+    }
+
+    // Update the matching ClassInfo with method stats
+    if let Some(ref name) = impl_name
+        && let Some(class) = col.classes.iter_mut().find(|c| &c.name == name)
+    {
+        class.method_count += method_count;
+        class.delegating_method_count += delegating_count;
     }
 }
 
@@ -329,10 +348,10 @@ fn check_delegating(body: Node, src: &[u8]) -> bool {
     let Some(stmt) = single_stmt(body) else {
         return false;
     };
-    let expr = if stmt.kind() == "expression_statement" {
-        stmt.child(0).unwrap_or(stmt)
-    } else {
-        stmt
+    let expr = match stmt.kind() {
+        "expression_statement" => stmt.child(0).unwrap_or(stmt),
+        "return_expression" => stmt.child(1).unwrap_or(stmt),
+        _ => stmt,
     };
     is_external_call(expr, src)
 }

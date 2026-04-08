@@ -195,10 +195,16 @@ fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
 
     let body = node.child_by_field_name("body")?;
     let mut method_count = 0;
+    let mut delegating_method_count = 0;
     let mut cursor = body.walk();
     for child in body.children(&mut cursor) {
         if child.kind() == "method_definition" {
             method_count += 1;
+            if let Some(method_body) = child.child_by_field_name("body")
+                && check_delegating(method_body, src)
+            {
+                delegating_method_count += 1;
+            }
         }
     }
 
@@ -209,7 +215,7 @@ fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
         method_count,
         line_count: end_line - start_line + 1,
         is_exported: false,
-        delegating_method_count: 0,
+        delegating_method_count,
     })
 }
 
@@ -342,10 +348,10 @@ fn check_delegating(body: Node, src: &[u8]) -> bool {
     let Some(stmt) = single_stmt(body) else {
         return false;
     };
-    let expr = if stmt.kind() == "return_statement" || stmt.kind() == "expression_statement" {
-        stmt.child(0).unwrap_or(stmt)
-    } else {
-        stmt
+    let expr = match stmt.kind() {
+        "return_statement" => stmt.child(1).unwrap_or(stmt),
+        "expression_statement" => stmt.child(0).unwrap_or(stmt),
+        _ => stmt,
     };
     is_external_call(expr, src)
 }
