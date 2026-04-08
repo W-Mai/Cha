@@ -291,3 +291,91 @@ async fn main() {
 
     Server::new(stdin, stdout, socket).serve(service).await;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_uri() -> Url {
+        Url::parse("file:///test.ts").unwrap()
+    }
+
+    #[test]
+    fn extract_method_basic() {
+        let text =
+            "fn main() {\n    let a = 1;\n    let b = 2;\n    let c = 3;\n    let d = 4;\n}\n";
+        let range = Range {
+            start: Position::new(1, 0),
+            end: Position::new(4, 0),
+        };
+        let action = build_extract_method(&test_uri(), &range, text).unwrap();
+        assert_eq!(action.title, "Extract Method");
+        assert_eq!(action.kind, Some(CodeActionKind::REFACTOR_EXTRACT));
+        let edit = action.edit.unwrap();
+        let changes = edit.changes.unwrap();
+        let edits = &changes[&test_uri()];
+        assert_eq!(edits.len(), 2);
+        assert!(edits[0].new_text.contains("extracted();"));
+        assert!(edits[1].new_text.contains("fn extracted()"));
+    }
+
+    #[test]
+    fn extract_method_preserves_indent() {
+        let text = "fn f() {\n        let a = 1;\n        let b = 2;\n        let c = 3;\n}\n";
+        let range = Range {
+            start: Position::new(1, 0),
+            end: Position::new(3, 0),
+        };
+        let action = build_extract_method(&test_uri(), &range, text).unwrap();
+        let edits = &action.edit.unwrap().changes.unwrap()[&test_uri()];
+        // Call should preserve 8-space indent
+        assert!(edits[0].new_text.starts_with("        extracted();"));
+    }
+
+    #[test]
+    fn extract_method_returns_none_for_empty_range() {
+        let text = "fn f() {}\n";
+        let range = Range {
+            start: Position::new(0, 0),
+            end: Position::new(0, 0),
+        };
+        assert!(build_extract_method(&test_uri(), &range, text).is_none());
+    }
+
+    #[test]
+    fn extract_method_returns_none_for_out_of_bounds() {
+        let text = "line1\n";
+        let range = Range {
+            start: Position::new(5, 0),
+            end: Position::new(10, 0),
+        };
+        assert!(build_extract_method(&test_uri(), &range, text).is_none());
+    }
+
+    #[test]
+    fn selection_actions_skip_short_selections() {
+        let text = "a\nb\n".to_string();
+        let mut actions = Vec::new();
+        let range = Range {
+            start: Position::new(0, 0),
+            end: Position::new(1, 0),
+        };
+        collect_selection_actions(&mut actions, &test_uri(), &range, Some(&text));
+        assert!(
+            actions.is_empty(),
+            "2-line selection should not trigger extract"
+        );
+    }
+
+    #[test]
+    fn selection_actions_trigger_for_3_plus_lines() {
+        let text = "a\nb\nc\nd\n".to_string();
+        let mut actions = Vec::new();
+        let range = Range {
+            start: Position::new(0, 0),
+            end: Position::new(3, 0),
+        };
+        collect_selection_actions(&mut actions, &test_uri(), &range, Some(&text));
+        assert_eq!(actions.len(), 1);
+    }
+}
