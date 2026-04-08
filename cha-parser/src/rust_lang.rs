@@ -22,20 +22,15 @@ impl LanguageParser for RustParser {
         let root = tree.root_node();
         let src = file.content.as_bytes();
 
-        let mut col = Collector {
-            functions: Vec::new(),
-            classes: Vec::new(),
-            imports: Vec::new(),
-        };
-
-        collect_nodes(root, src, false, &mut col);
+        let mut ctx = ParseContext::new(src);
+        ctx.collect_nodes(root, false);
 
         Some(SourceModel {
             language: "rust".into(),
             total_lines: file.line_count(),
-            functions: col.functions,
-            classes: col.classes,
-            imports: col.imports,
+            functions: ctx.col.functions,
+            classes: ctx.col.classes,
+            imports: ctx.col.imports,
         })
     }
 }
@@ -47,40 +42,92 @@ struct Collector {
     imports: Vec<ImportInfo>,
 }
 
-fn collect_nodes(node: Node, src: &[u8], exported: bool, col: &mut Collector) {
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        collect_single_node(child, src, exported, col);
-    }
+/// Bundles source bytes and collector to eliminate repeated parameter passing.
+struct ParseContext<'a> {
+    src: &'a [u8],
+    col: Collector,
 }
 
-fn collect_single_node(child: Node, src: &[u8], exported: bool, col: &mut Collector) {
-    match child.kind() {
-        "function_item" => push_function(child, src, exported, col),
-        "impl_item" => extract_impl_methods(child, src, col),
-        "struct_item" | "enum_item" => push_struct(child, src, col),
-        "use_declaration" => push_import(child, src, col),
-        _ => collect_nodes(child, src, false, col),
+impl<'a> ParseContext<'a> {
+    fn new(src: &'a [u8]) -> Self {
+        Self {
+            src,
+            col: Collector {
+                functions: Vec::new(),
+                classes: Vec::new(),
+                imports: Vec::new(),
+            },
+        }
     }
-}
 
-fn push_function(node: Node, src: &[u8], exported: bool, col: &mut Collector) {
-    if let Some(mut f) = extract_function(node, src) {
-        f.is_exported = exported || has_pub(node);
-        col.functions.push(f);
+    fn collect_nodes(&mut self, node: Node, exported: bool) {
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            self.collect_single_node(child, exported);
+        }
     }
-}
 
-fn push_struct(node: Node, src: &[u8], col: &mut Collector) {
-    if let Some(mut c) = extract_struct(node, src) {
-        c.is_exported = has_pub(node);
-        col.classes.push(c);
+    fn collect_single_node(&mut self, child: Node, exported: bool) {
+        match child.kind() {
+            "function_item" => self.push_function(child, exported),
+            "impl_item" => self.extract_impl_methods(child),
+            "struct_item" | "enum_item" => self.push_struct(child),
+            "use_declaration" => self.push_import(child),
+            _ => self.collect_nodes(child, false),
+        }
     }
-}
 
-fn push_import(node: Node, src: &[u8], col: &mut Collector) {
-    if let Some(i) = extract_use(node, src) {
-        col.imports.push(i);
+    fn push_function(&mut self, node: Node, exported: bool) {
+        if let Some(mut f) = extract_function(node, self.src) {
+            f.is_exported = exported || has_pub(node);
+            self.col.functions.push(f);
+        }
+    }
+
+    fn push_struct(&mut self, node: Node) {
+        if let Some(mut c) = extract_struct(node, self.src) {
+            c.is_exported = has_pub(node);
+            self.col.classes.push(c);
+        }
+    }
+
+    fn push_import(&mut self, node: Node) {
+        if let Some(i) = extract_use(node, self.src) {
+            self.col.imports.push(i);
+        }
+    }
+
+    fn extract_impl_methods(&mut self, node: Node) {
+        let body = match node.child_by_field_name("body") {
+            Some(b) => b,
+            None => return,
+        };
+        let impl_name = node
+            .child_by_field_name("type")
+            .map(|t| node_text(t, self.src).to_string());
+
+        let mut method_count = 0;
+        let mut delegating_count = 0;
+        let mut cursor = body.walk();
+        for child in body.children(&mut cursor) {
+            if child.kind() == "function_item"
+                && let Some(mut f) = extract_function(child, self.src)
+            {
+                f.is_exported = has_pub(child);
+                method_count += 1;
+                if f.is_delegating {
+                    delegating_count += 1;
+                }
+                self.col.functions.push(f);
+            }
+        }
+
+        if let Some(ref name) = impl_name
+            && let Some(class) = self.col.classes.iter_mut().find(|c| &c.name == name)
+        {
+            class.method_count += method_count;
+            class.delegating_method_count += delegating_count;
+        }
     }
 }
 
@@ -167,41 +214,6 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         external_refs,
         is_delegating,
     })
-}
-
-fn extract_impl_methods(node: Node, src: &[u8], col: &mut Collector) {
-    let body = match node.child_by_field_name("body") {
-        Some(b) => b,
-        None => return,
-    };
-    // Resolve the struct name this impl belongs to
-    let impl_name = node
-        .child_by_field_name("type")
-        .map(|t| node_text(t, src).to_string());
-
-    let mut method_count = 0;
-    let mut delegating_count = 0;
-    let mut cursor = body.walk();
-    for child in body.children(&mut cursor) {
-        if child.kind() == "function_item"
-            && let Some(mut f) = extract_function(child, src)
-        {
-            f.is_exported = has_pub(child);
-            method_count += 1;
-            if f.is_delegating {
-                delegating_count += 1;
-            }
-            col.functions.push(f);
-        }
-    }
-
-    // Update the matching ClassInfo with method stats
-    if let Some(ref name) = impl_name
-        && let Some(class) = col.classes.iter_mut().find(|c| &c.name == name)
-    {
-        class.method_count += method_count;
-        class.delegating_method_count += delegating_count;
-    }
 }
 
 fn extract_struct(node: Node, src: &[u8]) -> Option<ClassInfo> {

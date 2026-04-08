@@ -22,20 +22,15 @@ impl LanguageParser for TypeScriptParser {
         let root = tree.root_node();
         let src = file.content.as_bytes();
 
-        let mut col = Collector {
-            functions: Vec::new(),
-            classes: Vec::new(),
-            imports: Vec::new(),
-        };
-
-        collect_nodes(root, src, false, &mut col);
+        let mut ctx = ParseContext::new(src);
+        ctx.collect_nodes(root, false);
 
         Some(SourceModel {
             language: "typescript".into(),
             total_lines: file.line_count(),
-            functions: col.functions,
-            classes: col.classes,
-            imports: col.imports,
+            functions: ctx.col.functions,
+            classes: ctx.col.classes,
+            imports: ctx.col.imports,
         })
     }
 }
@@ -47,44 +42,63 @@ struct Collector {
     imports: Vec<ImportInfo>,
 }
 
-fn collect_nodes(node: Node, src: &[u8], exported: bool, col: &mut Collector) {
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        collect_single_node(child, src, exported, col);
-    }
+/// Bundles source bytes and collector to eliminate repeated parameter passing.
+struct ParseContext<'a> {
+    src: &'a [u8],
+    col: Collector,
 }
 
-fn collect_single_node(child: Node, src: &[u8], exported: bool, col: &mut Collector) {
-    match child.kind() {
-        "export_statement" => collect_nodes(child, src, true, col),
-        "function_declaration" | "method_definition" => push_function(child, src, exported, col),
-        "lexical_declaration" | "variable_declaration" => {
-            extract_arrow_functions(child, src, exported, &mut col.functions);
-            collect_nodes(child, src, exported, col);
+impl<'a> ParseContext<'a> {
+    fn new(src: &'a [u8]) -> Self {
+        Self {
+            src,
+            col: Collector {
+                functions: Vec::new(),
+                classes: Vec::new(),
+                imports: Vec::new(),
+            },
         }
-        "class_declaration" => push_class(child, src, exported, col),
-        "import_statement" => push_import(child, src, col),
-        _ => collect_nodes(child, src, false, col),
     }
-}
 
-fn push_function(node: Node, src: &[u8], exported: bool, col: &mut Collector) {
-    if let Some(mut f) = extract_function(node, src) {
-        f.is_exported = exported;
-        col.functions.push(f);
+    fn collect_nodes(&mut self, node: Node, exported: bool) {
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            self.collect_single_node(child, exported);
+        }
     }
-}
 
-fn push_class(node: Node, src: &[u8], exported: bool, col: &mut Collector) {
-    if let Some(mut c) = extract_class(node, src) {
-        c.is_exported = exported;
-        col.classes.push(c);
+    fn collect_single_node(&mut self, child: Node, exported: bool) {
+        match child.kind() {
+            "export_statement" => self.collect_nodes(child, true),
+            "function_declaration" | "method_definition" => self.push_function(child, exported),
+            "lexical_declaration" | "variable_declaration" => {
+                extract_arrow_functions(child, self.src, exported, &mut self.col.functions);
+                self.collect_nodes(child, exported);
+            }
+            "class_declaration" => self.push_class(child, exported),
+            "import_statement" => self.push_import(child),
+            _ => self.collect_nodes(child, false),
+        }
     }
-}
 
-fn push_import(node: Node, src: &[u8], col: &mut Collector) {
-    if let Some(i) = extract_import(node, src) {
-        col.imports.push(i);
+    fn push_function(&mut self, node: Node, exported: bool) {
+        if let Some(mut f) = extract_function(node, self.src) {
+            f.is_exported = exported;
+            self.col.functions.push(f);
+        }
+    }
+
+    fn push_class(&mut self, node: Node, exported: bool) {
+        if let Some(mut c) = extract_class(node, self.src) {
+            c.is_exported = exported;
+            self.col.classes.push(c);
+        }
+    }
+
+    fn push_import(&mut self, node: Node) {
+        if let Some(i) = extract_import(node, self.src) {
+            self.col.imports.push(i);
+        }
     }
 }
 
