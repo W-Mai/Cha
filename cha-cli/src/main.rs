@@ -52,6 +52,8 @@ enum Cli {
         /// Files or directories to parse (defaults to current directory)
         paths: Vec<String>,
     },
+    /// Generate a default .cha.toml configuration file
+    Init,
 }
 
 fn main() {
@@ -68,6 +70,7 @@ fn main() {
             process::exit(code);
         }
         Cli::Parse { paths } => cmd_parse(&paths),
+        Cli::Init => cmd_init(),
     }
 }
 
@@ -251,4 +254,15 @@ fn print_model(path: &str, model: &cha_parser::SourceModel) {
     for i in &model.imports {
         println!("    - {} (L{})", i.source, i.line);
     }
+}
+
+fn cmd_init() {
+    let path = Path::new(".cha.toml");
+    if path.exists() {
+        eprintln!(".cha.toml already exists");
+        process::exit(1);
+    }
+    std::fs::write(path, include_str!("../../static/default.cha.toml"))
+        .expect("failed to write .cha.toml");
+    println!("Created .cha.toml");
 }

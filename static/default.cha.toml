@@ -1,0 +1,25 @@
+# Cha configuration — https://github.com/W-Mai/Cha
+# All plugins are enabled by default. Set enabled = false to disable.
+
+[plugins.length]
+max_function_lines = 50
+max_class_lines = 200
+
+[plugins.complexity]
+warn_threshold = 10
+error_threshold = 20
+
+[plugins.coupling]
+max_imports = 15
+
+[plugins.long_parameter_list]
+max_params = 5
+
+[plugins.switch_statement]
+max_arms = 8
+
+[plugins.message_chain]
+max_depth = 3
+
+# [plugins.layer_violation]
+# layers = "domain:0,service:1,controller:2"
