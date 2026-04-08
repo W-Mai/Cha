@@ -313,6 +313,7 @@ dependencies = [
  "ignore",
  "indicatif",
  "rayon",
+ "serde_json",
 ]
 
 [[package]]

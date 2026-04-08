@@ -48,6 +48,9 @@ cha init
 
 # Print JSON Schema for output format
 cha schema
+
+# Auto-fix naming convention violations
+cha fix src/ --dry-run
 ```
 
 ## 📦 Installation
