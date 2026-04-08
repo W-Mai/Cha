@@ -36,7 +36,25 @@ impl Reporter for TerminalReporter {
                 ));
             }
         }
-        out.push_str(&format!("\n{} issue(s) found.", findings.len()));
+        let errors = findings
+            .iter()
+            .filter(|f| f.severity == crate::Severity::Error)
+            .count();
+        let warnings = findings
+            .iter()
+            .filter(|f| f.severity == crate::Severity::Warning)
+            .count();
+        let hints = findings
+            .iter()
+            .filter(|f| f.severity == crate::Severity::Hint)
+            .count();
+        out.push_str(&format!(
+            "\n{} issue(s) found ({} error, {} warning, {} hint).",
+            findings.len(),
+            errors,
+            warnings,
+            hints
+        ));
         out
     }
 }
