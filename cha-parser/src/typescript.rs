@@ -217,9 +217,11 @@ fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body")?;
-    let (methods, delegating, fields, has_behavior) = scan_class_body(body, src);
+    let (methods, delegating, fields, has_behavior, cb_fields) = scan_class_body(body, src);
     let is_interface =
         node.kind() == "interface_declaration" || node.kind() == "abstract_class_declaration";
+    let has_listener_field = !cb_fields.is_empty();
+    let has_notify_method = has_iterate_and_call_ts(body, src, &cb_fields);
 
     Some(ClassInfo {
         name,
@@ -236,16 +238,17 @@ fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
         parent_name: extract_parent_name(node, src),
         override_count: 0,
         self_call_count: 0,
-        has_listener_field: check_listener_field(body, src),
-        has_notify_method: check_notify_method(body, src),
+        has_listener_field,
+        has_notify_method,
     })
 }
 
-/// Scan class body and return (method_count, delegating_count, field_names, has_behavior).
-fn scan_class_body(body: Node, src: &[u8]) -> (usize, usize, Vec<String>, bool) {
+/// Scan class body and return (method_count, delegating_count, field_names, has_behavior, callback_fields).
+fn scan_class_body(body: Node, src: &[u8]) -> (usize, usize, Vec<String>, bool, Vec<String>) {
     let mut methods = 0;
     let mut delegating = 0;
     let mut fields = Vec::new();
+    let mut callback_fields = Vec::new();
     let mut has_behavior = false;
     let mut cursor = body.walk();
     for child in body.children(&mut cursor) {
@@ -258,13 +261,17 @@ fn scan_class_body(body: Node, src: &[u8]) -> (usize, usize, Vec<String>, bool) 
             }
             "public_field_definition" | "property_definition" => {
                 if let Some(n) = child.child_by_field_name("name") {
-                    fields.push(node_text(n, src).to_string());
+                    let name = node_text(n, src).to_string();
+                    if is_callback_collection_type_ts(child, src) {
+                        callback_fields.push(name.clone());
+                    }
+                    fields.push(name);
                 }
             }
             _ => {}
         }
     }
-    (methods, delegating, fields, has_behavior)
+    (methods, delegating, fields, has_behavior, callback_fields)
 }
 
 /// Classify a method: returns (is_behavior, is_delegating).
@@ -600,49 +607,80 @@ fn count_optional_params_ts(node: Node, src: &[u8]) -> usize {
     count
 }
 
-/// Check if class body has a listener/callback collection field.
-fn check_listener_field(body: Node, src: &[u8]) -> bool {
-    let mut cursor = body.walk();
-    for child in body.children(&mut cursor) {
-        if (child.kind() == "public_field_definition" || child.kind() == "property_definition")
-            && let Some(n) = child.child_by_field_name("name")
-            && is_listener_name(node_text(n, src))
-        {
-            return true;
+/// Check if a field's type annotation is a callback collection.
+/// Matches: `Function[]`, `Array<Function>`, `(() => void)[]`, `((x: T) => R)[]`
+fn is_callback_collection_type_ts(field_node: Node, src: &[u8]) -> bool {
+    let Some(ty) = field_node.child_by_field_name("type") else {
+        // No type annotation — check initializer for array literal
+        if let Some(init) = field_node.child_by_field_name("value") {
+            let text = node_text(init, src);
+            return text == "[]" || text.contains("new Array");
         }
-    }
-    false
+        return false;
+    };
+    let text = node_text(ty, src);
+    // Function[] or Array<Function> or (() => void)[] or ((...) => ...)[]
+    (text.contains("Function") && (text.contains("[]") || text.contains("Array<")))
+        || (text.contains("=>") && text.contains("[]"))
+        || text.contains("Array<(")
 }
 
-/// Check if class body has a notify/emit method.
-fn check_notify_method(body: Node, src: &[u8]) -> bool {
+/// Structural Observer detection for TS: method iterates a callback field and calls elements.
+/// Pattern: `this.field.forEach(cb => cb(...))` or `for (const cb of this.field) { cb(...) }`
+fn has_iterate_and_call_ts(body: Node, src: &[u8], cb_fields: &[String]) -> bool {
+    if cb_fields.is_empty() {
+        return false;
+    }
     let mut cursor = body.walk();
     for child in body.children(&mut cursor) {
         if child.kind() == "method_definition"
-            && let Some(n) = child.child_by_field_name("name")
-            && is_notify_name_ts(node_text(n, src))
+            && let Some(fn_body) = child.child_by_field_name("body")
         {
+            for field in cb_fields {
+                let this_field = format!("this.{field}");
+                if walk_for_iterate_call_ts(fn_body, src, &this_field) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+fn walk_for_iterate_call_ts(node: Node, src: &[u8], this_field: &str) -> bool {
+    // for (const x of this.field) { x(...) }
+    if node.kind() == "for_in_statement"
+        && node_text(node, src).contains(this_field)
+        && let Some(loop_body) = node.child_by_field_name("body")
+        && has_call_expression_ts(loop_body)
+    {
+        return true;
+    }
+    // this.field.forEach(cb => cb(...))
+    if node.kind() == "call_expression" || node.kind() == "expression_statement" {
+        let text = node_text(node, src);
+        if text.contains(this_field) && text.contains("forEach") {
+            return true;
+        }
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if walk_for_iterate_call_ts(child, src, this_field) {
             return true;
         }
     }
     false
 }
 
-fn is_listener_name(name: &str) -> bool {
-    let lower = name.to_lowercase();
-    (lower.contains("listener")
-        || lower.contains("handler")
-        || lower.contains("callback")
-        || lower.contains("observer")
-        || lower.contains("subscriber"))
-        && lower.ends_with('s')
-}
-
-fn is_notify_name_ts(name: &str) -> bool {
-    let lower = name.to_lowercase();
-    lower.contains("notify")
-        || lower.contains("emit")
-        || lower.contains("dispatch")
-        || lower.contains("fire")
-        || lower.contains("broadcast")
+fn has_call_expression_ts(node: Node) -> bool {
+    if node.kind() == "call_expression" {
+        return true;
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if has_call_expression_ts(child) {
+            return true;
+        }
+    }
+    false
 }

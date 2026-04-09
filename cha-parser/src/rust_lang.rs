@@ -48,6 +48,8 @@ struct ParseContext<'a> {
     col: Collector,
     last_self_call_count: usize,
     last_has_notify: bool,
+    /// Callback collection field names per class name.
+    callback_fields: std::collections::HashMap<String, Vec<String>>,
 }
 
 impl<'a> ParseContext<'a> {
@@ -56,6 +58,7 @@ impl<'a> ParseContext<'a> {
             src,
             last_self_call_count: 0,
             last_has_notify: false,
+            callback_fields: std::collections::HashMap::new(),
             col: Collector {
                 functions: Vec::new(),
                 classes: Vec::new(),
@@ -89,8 +92,11 @@ impl<'a> ParseContext<'a> {
     }
 
     fn push_struct(&mut self, node: Node) {
-        if let Some(mut c) = extract_struct(node, self.src) {
+        if let Some((mut c, cb_fields)) = extract_struct(node, self.src) {
             c.is_exported = has_pub(node);
+            if !cb_fields.is_empty() {
+                self.callback_fields.insert(c.name.clone(), cb_fields);
+            }
             self.col.classes.push(c);
         }
     }
@@ -112,7 +118,13 @@ impl<'a> ParseContext<'a> {
             .child_by_field_name("trait")
             .map(|t| node_text(t, self.src).to_string());
 
-        let (methods, delegating, has_behavior) = self.scan_impl_body(body);
+        let cb_fields = impl_name
+            .as_ref()
+            .and_then(|n| self.callback_fields.get(n))
+            .cloned()
+            .unwrap_or_default();
+
+        let (methods, delegating, has_behavior) = self.scan_impl_body(body, &cb_fields);
 
         if let Some(name) = &impl_name
             && let Some(class) = self.col.classes.iter_mut().find(|c| &c.name == name)
@@ -128,7 +140,7 @@ impl<'a> ParseContext<'a> {
         }
     }
 
-    fn scan_impl_body(&mut self, body: Node) -> (usize, usize, bool) {
+    fn scan_impl_body(&mut self, body: Node, cb_fields: &[String]) -> (usize, usize, bool) {
         let mut methods = 0;
         let mut delegating = 0;
         let mut has_behavior = false;
@@ -147,10 +159,11 @@ impl<'a> ParseContext<'a> {
                 if f.line_count > 3 {
                     has_behavior = true;
                 }
-                let self_calls =
-                    count_self_method_calls(child.child_by_field_name("body"), self.src);
+                let fn_body = child.child_by_field_name("body");
+                let self_calls = count_self_method_calls(fn_body, self.src);
                 max_self_calls = max_self_calls.max(self_calls);
-                if is_notify_name(&f.name) {
+                // Structural Observer: method iterates a callback field and calls elements
+                if !has_notify && has_iterate_and_call(fn_body, self.src, cb_fields) {
                     has_notify = true;
                 }
                 self.col.functions.push(f);
@@ -253,32 +266,35 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
     })
 }
 
-fn extract_struct(node: Node, src: &[u8]) -> Option<ClassInfo> {
+fn extract_struct(node: Node, src: &[u8]) -> Option<(ClassInfo, Vec<String>)> {
     let name_node = node.child_by_field_name("name")?;
     let name = node_text(name_node, src).to_string();
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
-    let (field_count, field_names) = extract_fields(node, src);
+    let (field_count, field_names, callback_fields) = extract_fields(node, src);
     let is_interface = node.kind() == "trait_item";
-    let has_listener_field = check_listener_fields_rs(&field_names, node, src);
-    Some(ClassInfo {
-        name,
-        start_line,
-        end_line,
-        method_count: 0,
-        line_count: end_line - start_line + 1,
-        is_exported: false,
-        delegating_method_count: 0,
-        field_count,
-        field_names,
-        has_behavior: false,
-        is_interface,
-        parent_name: None,
-        override_count: 0,
-        self_call_count: 0,
-        has_listener_field,
-        has_notify_method: false,
-    })
+    let has_listener_field = !callback_fields.is_empty();
+    Some((
+        ClassInfo {
+            name,
+            start_line,
+            end_line,
+            method_count: 0,
+            line_count: end_line - start_line + 1,
+            is_exported: false,
+            delegating_method_count: 0,
+            field_count,
+            field_names,
+            has_behavior: false,
+            is_interface,
+            parent_name: None,
+            override_count: 0,
+            self_call_count: 0,
+            has_listener_field,
+            has_notify_method: false,
+        },
+        callback_fields,
+    ))
 }
 
 fn count_parameters(node: Node) -> usize {
@@ -505,19 +521,35 @@ fn collect_self_fields(node: Node, src: &[u8], refs: &mut Vec<String>) {
 }
 
 /// Extract field names from a struct body.
-fn extract_fields(node: Node, src: &[u8]) -> (usize, Vec<String>) {
+/// Returns (field_count, field_names, callback_collection_field_names).
+fn extract_fields(node: Node, src: &[u8]) -> (usize, Vec<String>, Vec<String>) {
     let mut names = Vec::new();
+    let mut callback_fields = Vec::new();
     if let Some(body) = node.child_by_field_name("body") {
         let mut cursor = body.walk();
         for child in body.children(&mut cursor) {
             if child.kind() == "field_declaration"
                 && let Some(name_node) = child.child_by_field_name("name")
             {
-                names.push(node_text(name_node, src).to_string());
+                let name = node_text(name_node, src).to_string();
+                if let Some(ty) = child.child_by_field_name("type")
+                    && is_callback_collection_type_rs(node_text(ty, src))
+                {
+                    callback_fields.push(name.clone());
+                }
+                names.push(name);
             }
         }
     }
-    (names.len(), names)
+    (names.len(), names, callback_fields)
+}
+
+/// Check if a type looks like a collection of callbacks: Vec<Box<dyn Fn*>>, Vec<fn(...)>.
+fn is_callback_collection_type_rs(ty: &str) -> bool {
+    if !ty.contains("Vec<") {
+        return false;
+    }
+    ty.contains("Fn(") || ty.contains("FnMut(") || ty.contains("FnOnce(") || ty.contains("fn(")
 }
 
 /// Collect field names checked for None/null in match/if-let patterns.
@@ -634,31 +666,54 @@ fn walk_self_calls(node: Node, src: &[u8], count: &mut usize) {
     }
 }
 
-/// Check if a method name looks like a notification/emit method.
-fn is_notify_name(name: &str) -> bool {
-    let lower = name.to_lowercase();
-    lower.contains("notify")
-        || lower.contains("emit")
-        || lower.contains("dispatch")
-        || lower.contains("fire")
-        || lower.contains("broadcast")
+/// Structural Observer detection: method body iterates a callback collection field and calls elements.
+/// Pattern: `for cb in &self.field { cb(...) }` or `self.field.iter().for_each(|cb| cb(...))`
+fn has_iterate_and_call(body: Option<Node>, src: &[u8], cb_fields: &[String]) -> bool {
+    let Some(body) = body else { return false };
+    for field in cb_fields {
+        let self_field = format!("self.{field}");
+        if walk_for_iterate_call(body, src, &self_field) {
+            return true;
+        }
+    }
+    false
 }
 
-/// Check if any field looks like a listener/callback collection.
-fn check_listener_fields_rs(field_names: &[String], node: Node, src: &[u8]) -> bool {
-    let text = node_text(node, src);
-    let has_vec_fn = text.contains("Vec<")
-        && (text.contains("Fn(") || text.contains("FnMut(") || text.contains("FnOnce("));
-    let has_listener_collection = field_names.iter().any(|f| is_listener_collection_name(f));
-    has_listener_collection || has_vec_fn
+fn walk_for_iterate_call(node: Node, src: &[u8], self_field: &str) -> bool {
+    // for x in &self.field { x(...) }
+    if node.kind() == "for_expression"
+        && let Some(value) = node.child_by_field_name("value")
+        && node_text(value, src).contains(self_field)
+        && let Some(loop_body) = node.child_by_field_name("body")
+        && has_call_expression(loop_body)
+    {
+        return true;
+    }
+    // self.field.iter().for_each(|cb| cb(...))
+    if node.kind() == "call_expression" {
+        let text = node_text(node, src);
+        if text.contains(self_field) && text.contains("for_each") {
+            return true;
+        }
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if walk_for_iterate_call(child, src, self_field) {
+            return true;
+        }
+    }
+    false
 }
 
-fn is_listener_collection_name(name: &str) -> bool {
-    let lower = name.to_lowercase();
-    (lower.contains("listener")
-        || lower.contains("handler")
-        || lower.contains("callback")
-        || lower.contains("observer")
-        || lower.contains("subscriber"))
-        && lower.ends_with('s')
+fn has_call_expression(node: Node) -> bool {
+    if node.kind() == "call_expression" {
+        return true;
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if has_call_expression(child) {
+            return true;
+        }
+    }
+    false
 }
