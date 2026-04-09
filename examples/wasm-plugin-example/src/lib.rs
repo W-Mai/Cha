@@ -34,3 +34,22 @@ impl Guest for ExamplePlugin {
             .collect()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use cha_plugin_sdk::test_utils::WasmPluginTest;
+
+    #[test]
+    fn detects_suspicious_name() {
+        WasmPluginTest::new()
+            .source("typescript", "function todo_fix() {}")
+            .assert_finding("suspicious_name");
+    }
+
+    #[test]
+    fn no_finding_for_clean_name() {
+        WasmPluginTest::new()
+            .source("typescript", "function processData() {}")
+            .assert_no_finding();
+    }
+}

@@ -25,6 +25,11 @@
 
 pub use cha_plugin_sdk_macros::plugin;
 
+#[cfg(feature = "test-utils")]
+mod test_utils_impl;
+#[cfg(feature = "test-utils")]
+pub use test_utils_impl::test_utils;
+
 /// Extract a string option by key from `analysis-input.options`.
 #[macro_export]
 macro_rules! option_str {

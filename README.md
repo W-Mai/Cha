@@ -54,6 +54,21 @@ cha schema
 
 # Auto-fix naming convention violations
 cha fix src/ --dry-run
+
+# Scaffold a new WASM plugin
+cha plugin new my-plugin
+
+# Build plugin and convert to WASM component
+cha plugin build
+
+# Install plugin
+cha plugin install my_plugin.wasm
+
+# List installed plugins
+cha plugin list
+
+# Remove a plugin
+cha plugin remove my_plugin
 ```
 
 ## 📦 Installation
@@ -133,10 +148,8 @@ Extend with custom analyzers via WebAssembly Component Model:
 
 ```bash
 cd examples/wasm-plugin-example
-cargo build --target wasm32-wasip1
-wasm-tools component new target/wasm32-wasip1/release/example.wasm \
-  --adapt wasi_snapshot_preview1.reactor.wasm \
-  -o plugin.wasm
+cha plugin build
+cha plugin install example.wasm
 ```
 
 Place `.wasm` files in `.cha/plugins/` (project-local) or `~/.cha/plugins/` (global).
