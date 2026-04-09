@@ -1,6 +1,6 @@
 [workspace]
 members = ["cha-core", "cha-parser", "cha-cli", "cha-lsp", "xtask"]
-exclude = ["examples/wasm-plugin-example"]
+exclude = ["examples/wasm-plugin-example", "examples/wasm-plugin-hardcoded"]
 resolver = "2"
 
 [workspace.package]

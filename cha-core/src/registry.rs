@@ -30,9 +30,17 @@ impl PluginRegistry {
         register_simple_plugins(&mut plugins, config);
         register_layer_violation(&mut plugins, config);
 
-        for wp in wasm::load_wasm_plugins(project_dir) {
+        for mut wp in wasm::load_wasm_plugins(project_dir) {
             if config.is_enabled(wp.name()) {
-                plugins.push(wp);
+                if let Some(pc) = config.plugins.get(wp.name()) {
+                    let opts: Vec<(String, String)> = pc
+                        .options
+                        .iter()
+                        .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                        .collect();
+                    wp.set_options(opts);
+                }
+                plugins.push(Box::new(wp));
             }
         }
 

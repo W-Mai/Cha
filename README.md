@@ -139,6 +139,16 @@ wasm-tools component new target/wasm32-wasip1/release/example.wasm \
   -o plugin.wasm
 ```
 
+Place `.wasm` files in `.cha/plugins/` (project-local) or `~/.cha/plugins/` (global).
+
+Configure plugin options in `.cha.toml`:
+
+```toml
+[plugins.hardcoded-strings]
+SITE_DOMAIN = "example.com"
+USER_NAME   = "octocat"
+```
+
 WIT interface (`wit/plugin.wit`):
 
 ```wit
@@ -149,6 +159,8 @@ world analyzer {
     export analyze: func(input: source-input) -> list<finding>;
 }
 ```
+
+See `examples/wasm-plugin-example` (suspicious names) and `examples/wasm-plugin-hardcoded` (hardcoded strings) for complete examples.
 
 ## 💡 LSP Integration
 

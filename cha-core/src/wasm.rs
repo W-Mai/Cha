@@ -45,6 +45,7 @@ pub struct WasmPlugin {
     engine: Engine,
     component: Component,
     plugin_name: String,
+    options: Vec<(String, String)>,
 }
 
 impl WasmPlugin {
@@ -64,7 +65,13 @@ impl WasmPlugin {
             engine,
             component,
             plugin_name: name,
+            options: vec![],
         })
+    }
+
+    /// Set plugin options from config.
+    pub fn set_options(&mut self, options: Vec<(String, String)>) {
+        self.options = options;
     }
 }
 
@@ -80,7 +87,7 @@ impl Plugin for WasmPlugin {
 
             let mut store = Store::new(&self.engine, new_host_state());
             let instance = Analyzer::instantiate(&mut store, &self.component, &linker)?;
-            let input = to_wit_input(ctx);
+            let input = to_wit_input(ctx, &self.options);
             let results = instance.call_analyze(&mut store, &input)?;
             Ok(results.into_iter().map(from_wit_finding).collect())
         })();
@@ -92,7 +99,7 @@ impl Plugin for WasmPlugin {
     }
 }
 
-fn to_wit_input(ctx: &AnalysisContext) -> wit::AnalysisInput {
+fn to_wit_input(ctx: &AnalysisContext, options: &[(String, String)]) -> wit::AnalysisInput {
     wit::AnalysisInput {
         path: ctx.file.path.to_string_lossy().into(),
         content: ctx.file.content.clone(),
@@ -101,7 +108,7 @@ fn to_wit_input(ctx: &AnalysisContext) -> wit::AnalysisInput {
         functions: convert_functions(&ctx.model.functions),
         classes: convert_classes(&ctx.model.classes),
         imports: convert_imports(&ctx.model.imports),
-        options: vec![],
+        options: options.to_vec(),
     }
 }
 
@@ -179,8 +186,8 @@ fn convert_category(c: wit::SmellCategory) -> SmellCategory {
 }
 
 /// Scan plugin directories and load all .wasm components.
-pub fn load_wasm_plugins(project_dir: &Path) -> Vec<Box<dyn Plugin>> {
-    let mut plugins: Vec<Box<dyn Plugin>> = Vec::new();
+pub fn load_wasm_plugins(project_dir: &Path) -> Vec<WasmPlugin> {
+    let mut plugins: Vec<WasmPlugin> = Vec::new();
     let mut seen = HashMap::new();
 
     let project_plugins = project_dir.join(".cha").join("plugins");
@@ -197,7 +204,7 @@ pub fn load_wasm_plugins(project_dir: &Path) -> Vec<Box<dyn Plugin>> {
 fn load_plugins_from_dir(
     dir: &Path,
     seen: &mut HashMap<String, bool>,
-    plugins: &mut Vec<Box<dyn Plugin>>,
+    plugins: &mut Vec<WasmPlugin>,
 ) {
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
@@ -215,7 +222,7 @@ fn load_plugins_from_dir(
         match WasmPlugin::load(&path) {
             Ok(p) => {
                 seen.insert(filename, true);
-                plugins.push(Box::new(p));
+                plugins.push(p);
             }
             Err(e) => {
                 eprintln!("failed to load wasm plugin {}: {}", path.display(), e);
