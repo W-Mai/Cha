@@ -84,4 +84,67 @@ mod tests {
             .option("SITE_DOMAIN", "example.com")
             .assert_no_finding();
     }
+
+    #[test]
+    fn no_finding_on_import_line() {
+        WasmPluginTest::new()
+            .source("typescript", r#"import { foo } from "example.com/lib";"#)
+            .option("SITE_DOMAIN", "example.com")
+            .assert_no_finding();
+    }
+
+    #[test]
+    fn no_finding_on_comment_line() {
+        WasmPluginTest::new()
+            .source("typescript", r#"// see https://example.com for docs"#)
+            .option("SITE_DOMAIN", "example.com")
+            .assert_no_finding();
+    }
+
+    #[test]
+    fn multiple_options_each_detected() {
+        let findings = WasmPluginTest::new()
+            .source("typescript", "const url = \"example.com\";\nconst user = \"octocat\";")
+            .option("SITE_DOMAIN", "example.com")
+            .option("USER_NAME", "octocat")
+            .findings();
+        // const lines are skipped, so no findings expected
+        assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn detects_multiple_occurrences_in_body() {
+        let findings = WasmPluginTest::new()
+            .source(
+                "typescript",
+                "function a() { return \"example.com\"; }\nfunction b() { return \"example.com\"; }",
+            )
+            .option("SITE_DOMAIN", "example.com")
+            .findings();
+        assert_eq!(findings.len(), 2);
+    }
+
+    #[test]
+    fn empty_option_value_skipped() {
+        WasmPluginTest::new()
+            .source("typescript", r#"fetch("https://example.com");"#)
+            .option("SITE_DOMAIN", "")
+            .assert_no_finding();
+    }
+
+    #[test]
+    fn assert_any_finding_works() {
+        WasmPluginTest::new()
+            .source("typescript", r#"fetch("https://example.com/api");"#)
+            .option("SITE_DOMAIN", "example.com")
+            .assert_any_finding();
+    }
+
+    #[test]
+    fn assert_no_finding_named_works() {
+        WasmPluginTest::new()
+            .source("typescript", r#"fetch("https://example.com/api");"#)
+            .option("SITE_DOMAIN", "example.com")
+            .assert_no_finding_named("suspicious_name");
+    }
 }

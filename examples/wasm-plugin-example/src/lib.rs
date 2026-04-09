@@ -52,4 +52,48 @@ mod tests {
             .source("typescript", "function processData() {}")
             .assert_no_finding();
     }
+
+    #[test]
+    fn detects_fixme_in_name() {
+        WasmPluginTest::new()
+            .source("typescript", "function fixme_later() {}")
+            .assert_finding("suspicious_name");
+    }
+
+    #[test]
+    fn detects_hack_in_name() {
+        WasmPluginTest::new()
+            .source("typescript", "function hack_workaround() {}")
+            .assert_finding("suspicious_name");
+    }
+
+    #[test]
+    fn multiple_functions_only_suspicious_flagged() {
+        let findings = WasmPluginTest::new()
+            .source("typescript", "function processData() {}\nfunction todo_cleanup() {}")
+            .findings();
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].smell_name, "suspicious_name");
+    }
+
+    #[test]
+    fn empty_source_no_finding() {
+        WasmPluginTest::new()
+            .source("typescript", "")
+            .assert_no_finding();
+    }
+
+    #[test]
+    fn assert_any_finding_passes_when_finding_exists() {
+        WasmPluginTest::new()
+            .source("typescript", "function todo_fix() {}")
+            .assert_any_finding();
+    }
+
+    #[test]
+    fn assert_no_finding_named_passes_for_different_smell() {
+        WasmPluginTest::new()
+            .source("typescript", "function todo_fix() {}")
+            .assert_no_finding_named("high_complexity");
+    }
 }

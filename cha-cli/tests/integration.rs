@@ -104,3 +104,68 @@ fn fail_on_error_exits_zero_for_warnings_only() {
         .expect("failed to run cha");
     assert_eq!(output.status.code().unwrap_or(-1), 0);
 }
+
+#[test]
+fn plugin_filter_limits_output() {
+    // Only run the naming plugin — should not produce complexity findings
+    let output = Command::new(cha_binary())
+        .args([
+            "analyze",
+            &fixture("smelly.ts"),
+            "--plugin",
+            "naming",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("failed to run cha");
+    let out = String::from_utf8_lossy(&output.stdout);
+    let findings: Vec<serde_json::Value> = serde_json::from_str(&out).expect("invalid JSON");
+    // All findings must come from the naming plugin
+    for f in &findings {
+        let name = f["smell_name"].as_str().unwrap_or("");
+        assert!(
+            name.starts_with("naming"),
+            "unexpected finding from non-naming plugin: {name}"
+        );
+    }
+}
+
+#[test]
+fn plugin_filter_unknown_plugin_produces_no_findings() {
+    let output = Command::new(cha_binary())
+        .args([
+            "analyze",
+            &fixture("smelly.ts"),
+            "--plugin",
+            "nonexistent_plugin_xyz",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("failed to run cha");
+    let out = String::from_utf8_lossy(&output.stdout);
+    let findings: Vec<serde_json::Value> = serde_json::from_str(&out).expect("invalid JSON");
+    assert!(
+        findings.is_empty(),
+        "expected no findings for unknown plugin"
+    );
+}
+
+#[test]
+fn llm_output_contains_findings_section() {
+    let (_, out) = run_analyze(&fixture("smelly.ts"), "llm");
+    assert!(
+        out.contains("finding") || out.contains("smell") || out.contains("issue"),
+        "LLM output missing expected content"
+    );
+}
+
+#[test]
+fn clean_file_exits_zero_with_fail_on_warning() {
+    let output = Command::new(cha_binary())
+        .args(["analyze", &fixture("clean.ts"), "--fail-on", "warning"])
+        .output()
+        .expect("failed to run cha");
+    assert_eq!(output.status.code().unwrap_or(-1), 0);
+}
