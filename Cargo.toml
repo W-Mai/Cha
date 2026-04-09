@@ -1,5 +1,5 @@
 [workspace]
-members = ["cha-core", "cha-parser", "cha-cli", "cha-lsp", "xtask", "cha-plugin-sdk-macros"]
+members = ["cha-core", "cha-parser", "cha-cli", "cha-lsp", "xtask"]
 exclude = ["examples/wasm-plugin-example", "examples/wasm-plugin-hardcoded", "cha-plugin-sdk"]
 resolver = "2"
 

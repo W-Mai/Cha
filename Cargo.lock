@@ -353,15 +353,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cha-plugin-sdk-macros"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "clap"
 version = "4.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
