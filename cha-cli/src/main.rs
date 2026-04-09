@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 
 mod diff;
+mod plugin;
 
 use cha_core::{
     AnalysisContext, Config, Finding, JsonReporter, LlmContextReporter, PluginRegistry, Reporter,
@@ -73,6 +74,34 @@ enum Cli {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Manage WASM plugins
+    Plugin {
+        #[command(subcommand)]
+        cmd: PluginCmd,
+    },
+}
+
+#[derive(clap::Subcommand)]
+enum PluginCmd {
+    /// Scaffold a new plugin project
+    New {
+        /// Plugin name
+        name: String,
+    },
+    /// Build the plugin in the current directory
+    Build,
+    /// List installed plugins
+    List,
+    /// Install a .wasm file into .cha/plugins/
+    Install {
+        /// Path to the .wasm file
+        path: String,
+    },
+    /// Remove an installed plugin
+    Remove {
+        /// Plugin name (with or without .wasm extension)
+        name: String,
+    },
 }
 
 impl DiffMode {
@@ -110,6 +139,13 @@ fn main() {
             diff,
             dry_run,
         } => cmd_fix(&paths, diff, dry_run),
+        Cli::Plugin { cmd } => match cmd {
+            PluginCmd::New { name } => plugin::cmd_new(&name),
+            PluginCmd::Build => plugin::cmd_build(),
+            PluginCmd::List => plugin::cmd_list(),
+            PluginCmd::Install { path } => plugin::cmd_install(&path),
+            PluginCmd::Remove { name } => plugin::cmd_remove(&name),
+        },
     }
 }
 
