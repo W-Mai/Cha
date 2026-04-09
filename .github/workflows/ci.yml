@@ -18,8 +18,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+          targets: wasm32-wasip1
 
       - uses: Swatinem/rust-cache@v2
 
       - name: CI
-        run: cargo xtask ci
+        run: |
+          cargo build --release -p cha-cli
+          echo "$PWD/target/release" >> $GITHUB_PATH
+          cargo xtask ci
