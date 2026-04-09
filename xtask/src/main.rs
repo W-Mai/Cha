@@ -19,6 +19,10 @@ fn run() -> Result {
         let level = args.get(1).map(|s| s.as_str()).unwrap_or("");
         return cmd_bump(level);
     }
+    if cmd == "publish" {
+        let dry_run = args.iter().any(|a| a == "--dry-run");
+        return cmd_publish(dry_run);
+    }
 
     type Cmd = (&'static str, fn() -> Result);
     let commands: &[Cmd] = &[
@@ -36,7 +40,7 @@ fn run() -> Result {
     } else {
         let names: Vec<&str> = commands.iter().map(|(n, _)| *n).collect();
         eprintln!(
-            "usage: cargo xtask <{}|bump <major|minor|patch>>",
+            "usage: cargo xtask <{}|bump <major|minor|patch>|publish [--dry-run]>",
             names.join("|")
         );
         std::process::exit(1);
@@ -330,6 +334,64 @@ fn run_cmd(cmd: &str, args: &[&str]) -> Result {
     } else {
         Err(format!("{cmd} {} failed with {status}", args.join(" ")).into())
     }
+}
+
+/// Publish all publishable crates to crates.io in topological order.
+/// Use --dry-run to only verify packaging without publishing.
+fn cmd_publish(dry_run: bool) -> Result {
+    let root = project_root();
+
+    // Check working tree is clean
+    let status = Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(&root)
+        .output()?;
+    if !status.stdout.is_empty() {
+        return Err("working tree is not clean — commit or stash changes first".into());
+    }
+
+    // (crate_name, working_dir relative to root)
+    // sdk crates live in their own workspace
+    let crates: &[(&str, &str)] = &[
+        ("cha-core", "."),
+        ("cha-plugin-sdk-macros", "cha-plugin-sdk"),
+        ("cha-parser", "."),
+        ("cha-plugin-sdk", "cha-plugin-sdk"),
+        ("cha-cli", "."),
+    ];
+
+    let verb = if dry_run { "Packaging" } else { "Publishing" };
+    println!("  → {verb} {} crates", crates.len());
+
+    for (i, (name, dir)) in crates.iter().enumerate() {
+        println!("\n  [{}/{}] {verb} {name}", i + 1, crates.len());
+        let work_dir = format!("{root}/{dir}");
+        let mut publish_args = vec!["publish", "-p", name, "--no-verify"];
+        if dry_run {
+            publish_args.push("--dry-run");
+        }
+        let status = Command::new("cargo")
+            .args(&publish_args)
+            .current_dir(&work_dir)
+            .status()
+            .map_err(|e| format!("failed to run cargo publish: {e}"))?;
+        if !status.success() {
+            return Err(format!("failed to publish {name}").into());
+        }
+        // Wait for crates.io index to update between publishes
+        if !dry_run && i + 1 < crates.len() {
+            println!("  → waiting 30s for crates.io index...");
+            std::thread::sleep(std::time::Duration::from_secs(30));
+        }
+    }
+
+    if dry_run {
+        println!("\n  ✅ dry-run complete — all crates packaged successfully");
+        println!("  → run without --dry-run to publish for real");
+    } else {
+        println!("\n  ✅ all crates published successfully");
+    }
+    Ok(())
 }
 
 /// Bump version across all publishable crates.
