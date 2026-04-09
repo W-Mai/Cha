@@ -30,12 +30,35 @@ pub fn plugin(input: TokenStream) -> TokenStream {
             inline: #wit,
             world: "analyzer",
         });
-        // Bring remaining types into scope (AnalysisInput/Finding are already at root).
         #[allow(unused_imports)]
         use cha::plugin::types::{
             ClassInfo, FunctionInfo, ImportInfo, Location, OptionValue, Severity, SmellCategory,
         };
-        export!(#ty);
+
+        /// Implement this trait in your plugin struct.
+        /// `version`, `description`, and `authors` are filled automatically from Cargo.toml.
+        pub trait PluginImpl {
+            fn name() -> String;
+            fn analyze(input: AnalysisInput) -> Vec<Finding>;
+        }
+
+        struct __ChaPluginWrapper(std::marker::PhantomData<#ty>);
+
+        impl Guest for __ChaPluginWrapper {
+            fn name() -> String { <#ty as PluginImpl>::name() }
+            fn version() -> String { env!("CARGO_PKG_VERSION").to_string() }
+            fn description() -> String {
+                let d = env!("CARGO_PKG_DESCRIPTION");
+                if d.is_empty() { <#ty as PluginImpl>::name() } else { d.to_string() }
+            }
+            fn authors() -> Vec<String> {
+                let a = env!("CARGO_PKG_AUTHORS");
+                if a.is_empty() { vec![] } else { a.split(':').map(str::to_string).collect() }
+            }
+            fn analyze(input: AnalysisInput) -> Vec<Finding> { <#ty as PluginImpl>::analyze(input) }
+        }
+
+        export!(__ChaPluginWrapper);
     }
     .into()
 }

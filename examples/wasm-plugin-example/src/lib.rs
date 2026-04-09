@@ -2,7 +2,7 @@ cha_plugin_sdk::plugin!(ExamplePlugin);
 
 struct ExamplePlugin;
 
-impl Guest for ExamplePlugin {
+impl PluginImpl for ExamplePlugin {
     fn name() -> String {
         "example-wasm".into()
     }

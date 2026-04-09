@@ -17,7 +17,7 @@ const LIB_RS_TEMPLATE: &str = r#"cha_plugin_sdk::plugin!(MyPlugin);
 
 struct MyPlugin;
 
-impl Guest for MyPlugin {
+impl PluginImpl for MyPlugin {
     fn name() -> String {
         "{name}".into()
     }
@@ -115,7 +115,15 @@ pub fn cmd_list() {
         if !plugins.is_empty() {
             println!("{label}:");
             for p in plugins {
-                println!("  {}", p.file_name().unwrap_or_default().to_string_lossy());
+                print!("  {}", p.file_name().unwrap_or_default().to_string_lossy());
+                if let Ok(wp) = cha_core::wasm::WasmPlugin::load(&p) {
+                    print!("  v{}  {}", wp.version(), wp.description());
+                    let authors = wp.authors();
+                    if !authors.is_empty() {
+                        print!("  ({})", authors.join(", "));
+                    }
+                }
+                println!();
             }
             found = true;
         }

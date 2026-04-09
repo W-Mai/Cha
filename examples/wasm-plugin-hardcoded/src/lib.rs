@@ -2,7 +2,7 @@ cha_plugin_sdk::plugin!(HardcodedStringsPlugin);
 
 struct HardcodedStringsPlugin;
 
-impl Guest for HardcodedStringsPlugin {
+impl PluginImpl for HardcodedStringsPlugin {
     fn name() -> String {
         "hardcoded-strings".into()
     }

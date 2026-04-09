@@ -45,6 +45,9 @@ pub struct WasmPlugin {
     engine: Engine,
     component: Component,
     plugin_name: String,
+    plugin_version: String,
+    plugin_description: String,
+    plugin_authors: Vec<String>,
     options: Vec<(String, wit::OptionValue)>,
 }
 
@@ -60,11 +63,17 @@ impl WasmPlugin {
         let mut store = Store::new(&engine, new_host_state());
         let instance = Analyzer::instantiate(&mut store, &component, &linker)?;
         let name = instance.call_name(&mut store)?;
+        let version = instance.call_version(&mut store)?;
+        let description = instance.call_description(&mut store)?;
+        let authors = instance.call_authors(&mut store)?;
 
         Ok(Self {
             engine,
             component,
             plugin_name: name,
+            plugin_version: version,
+            plugin_description: description,
+            plugin_authors: authors,
             options: vec![],
         })
     }
@@ -72,6 +81,18 @@ impl WasmPlugin {
     /// Set plugin options from config.
     pub fn set_options(&mut self, options: Vec<(String, wit::OptionValue)>) {
         self.options = options;
+    }
+
+    pub fn version(&self) -> &str {
+        &self.plugin_version
+    }
+
+    pub fn description(&self) -> &str {
+        &self.plugin_description
+    }
+
+    pub fn authors(&self) -> &[String] {
+        &self.plugin_authors
     }
 }
 

@@ -110,8 +110,17 @@ interface types {
 world analyzer {
     use types.{analysis-input, finding};
 
-    /// Return the plugin name.
+    /// Return the plugin name (matches [plugins.<name>] in .cha.toml).
     export name: func() -> string;
+
+    /// Return the plugin version (e.g. "1.0.0").
+    export version: func() -> string;
+
+    /// Return a short description of what the plugin detects.
+    export description: func() -> string;
+
+    /// Return the list of authors.
+    export authors: func() -> list<string>;
 
     /// Run analysis and return findings.
     export analyze: func(input: analysis-input) -> list<finding>;
