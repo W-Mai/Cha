@@ -1,0 +1,10 @@
+[package]
+name = "cha-plugin-sdk"
+version = "0.1.0"
+edition = "2024"
+description = "SDK for building Cha WASM analyzer plugins"
+license = "MIT"
+repository = "https://github.com/W-Mai/Cha"
+
+[dependencies]
+cha-plugin-sdk-macros = { path = "../cha-plugin-sdk-macros" }

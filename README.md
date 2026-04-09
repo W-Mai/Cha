@@ -149,14 +149,29 @@ SITE_DOMAIN = "example.com"
 USER_NAME   = "octocat"
 ```
 
-WIT interface (`wit/plugin.wit`):
+### Writing a plugin
 
-```wit
-package cha:plugin@0.1.0;
+Add to your plugin's `Cargo.toml`:
 
-world analyzer {
-    export name: func() -> string;
-    export analyze: func(input: source-input) -> list<finding>;
+```toml
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+cha-plugin-sdk = { git = "https://github.com/W-Mai/Cha" }
+wit-bindgen = "0.55"
+```
+
+Then in `src/lib.rs` — no WIT file needed, the SDK embeds it:
+
+```rust
+cha_plugin_sdk::plugin!(MyPlugin);
+
+struct MyPlugin;
+
+impl Guest for MyPlugin {
+    fn name() -> String { "my-plugin".into() }
+    fn analyze(input: AnalysisInput) -> Vec<Finding> { vec![] }
 }
 ```
 
