@@ -57,3 +57,31 @@ fn is_skip_line(line: &str) -> bool {
         || t.starts_with('*')
         || t.starts_with("/*")
 }
+
+#[cfg(test)]
+mod tests {
+    use cha_plugin_sdk::test_utils::WasmPluginTest;
+
+    #[test]
+    fn detects_hardcoded_string() {
+        WasmPluginTest::new()
+            .source("typescript", r#"fetch("https://example.com/api");"#)
+            .option("SITE_DOMAIN", "example.com")
+            .assert_finding("hardcoded_string");
+    }
+
+    #[test]
+    fn no_finding_without_options() {
+        WasmPluginTest::new()
+            .source("typescript", r#"fetch("https://example.com/api");"#)
+            .assert_no_finding();
+    }
+
+    #[test]
+    fn no_finding_on_const_declaration() {
+        WasmPluginTest::new()
+            .source("typescript", r#"const SITE_DOMAIN = "example.com";"#)
+            .option("SITE_DOMAIN", "example.com")
+            .assert_no_finding();
+    }
+}

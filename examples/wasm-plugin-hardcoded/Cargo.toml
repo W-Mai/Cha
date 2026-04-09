@@ -10,3 +10,6 @@ crate-type = ["cdylib"]
 cha-plugin-sdk = { path = "../../cha-plugin-sdk" }
 wit-bindgen = "0.55"
 
+[dev-dependencies]
+cha-plugin-sdk = { path = "../../cha-plugin-sdk", features = ["test-utils"] }
+
