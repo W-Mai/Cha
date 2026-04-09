@@ -20,7 +20,7 @@ cha-plugin-sdk-macros = { path = "macros", version = "0.1.0" }
 test-utils = ["dep:cha-core", "dep:cha-parser", "dep:anyhow", "dep:toml"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-cha-core = { version = "0.1.0", optional = true }
-cha-parser = { version = "0.1.0", optional = true }
+cha-core = { path = "../cha-core", version = "0.1.0", optional = true }
+cha-parser = { path = "../cha-parser", version = "0.1.0", optional = true }
 anyhow = { version = "1", optional = true }
 toml = { version = "0.8", optional = true }
