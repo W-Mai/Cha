@@ -46,12 +46,16 @@ struct Collector {
 struct ParseContext<'a> {
     src: &'a [u8],
     col: Collector,
+    last_self_call_count: usize,
+    last_has_notify: bool,
 }
 
 impl<'a> ParseContext<'a> {
     fn new(src: &'a [u8]) -> Self {
         Self {
             src,
+            last_self_call_count: 0,
+            last_has_notify: false,
             col: Collector {
                 functions: Vec::new(),
                 classes: Vec::new(),
@@ -116,6 +120,8 @@ impl<'a> ParseContext<'a> {
             class.method_count += methods;
             class.delegating_method_count += delegating;
             class.has_behavior |= has_behavior;
+            class.self_call_count = class.self_call_count.max(self.last_self_call_count);
+            class.has_notify_method |= self.last_has_notify;
             if let Some(t) = &trait_name {
                 class.parent_name = Some(t.clone());
             }
@@ -126,6 +132,8 @@ impl<'a> ParseContext<'a> {
         let mut methods = 0;
         let mut delegating = 0;
         let mut has_behavior = false;
+        let mut max_self_calls = 0;
+        let mut has_notify = false;
         let mut cursor = body.walk();
         for child in body.children(&mut cursor) {
             if child.kind() == "function_item"
@@ -139,9 +147,18 @@ impl<'a> ParseContext<'a> {
                 if f.line_count > 3 {
                     has_behavior = true;
                 }
+                let self_calls =
+                    count_self_method_calls(child.child_by_field_name("body"), self.src);
+                max_self_calls = max_self_calls.max(self_calls);
+                if is_notify_name(&f.name) {
+                    has_notify = true;
+                }
                 self.col.functions.push(f);
             }
         }
+        // Store extra signals in the class via the caller
+        self.last_self_call_count = max_self_calls;
+        self.last_has_notify = has_notify;
         (methods, delegating, has_behavior)
     }
 }
@@ -230,6 +247,9 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         is_delegating,
         comment_lines: count_comment_lines(node, src),
         referenced_fields: collect_field_refs(body, src),
+        null_check_fields: collect_null_checks(body, src),
+        switch_dispatch_target: extract_switch_target(body, src),
+        optional_param_count: count_optional_params(node, src),
     })
 }
 
@@ -240,6 +260,7 @@ fn extract_struct(node: Node, src: &[u8]) -> Option<ClassInfo> {
     let end_line = node.end_position().row + 1;
     let (field_count, field_names) = extract_fields(node, src);
     let is_interface = node.kind() == "trait_item";
+    let has_listener_field = check_listener_fields_rs(&field_names, node, src);
     Some(ClassInfo {
         name,
         start_line,
@@ -254,6 +275,9 @@ fn extract_struct(node: Node, src: &[u8]) -> Option<ClassInfo> {
         is_interface,
         parent_name: None,
         override_count: 0,
+        self_call_count: 0,
+        has_listener_field,
+        has_notify_method: false,
     })
 }
 
@@ -494,4 +518,147 @@ fn extract_fields(node: Node, src: &[u8]) -> (usize, Vec<String>) {
         }
     }
     (names.len(), names)
+}
+
+/// Collect field names checked for None/null in match/if-let patterns.
+fn collect_null_checks(body: Option<Node>, src: &[u8]) -> Vec<String> {
+    let Some(body) = body else { return vec![] };
+    let mut fields = Vec::new();
+    walk_null_checks_rs(body, src, &mut fields);
+    fields.sort();
+    fields.dedup();
+    fields
+}
+
+fn walk_null_checks_rs(node: Node, src: &[u8], fields: &mut Vec<String>) {
+    if node.kind() == "if_let_expression" {
+        // if let Some(x) = self.field { ... }
+        if let Some(pattern) = node.child_by_field_name("pattern")
+            && node_text(pattern, src).contains("Some")
+            && let Some(value) = node.child_by_field_name("value")
+        {
+            let vtext = node_text(value, src);
+            if let Some(f) = vtext.strip_prefix("self.") {
+                fields.push(f.to_string());
+            }
+        }
+    } else if node.kind() == "if_expression"
+        && let Some(cond) = node.child_by_field_name("condition")
+    {
+        let text = node_text(cond, src);
+        if text.contains("is_some") || text.contains("is_none") {
+            extract_null_checked_fields(text, fields);
+        }
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        walk_null_checks_rs(child, src, fields);
+    }
+}
+
+/// Extract self.field names from a condition text containing null checks.
+fn extract_null_checked_fields(text: &str, fields: &mut Vec<String>) {
+    if !(text.contains("is_some") || text.contains("is_none") || text.contains("Some")) {
+        return;
+    }
+    for part in text.split("self.") {
+        if let Some(field) = part
+            .split(|c: char| !c.is_alphanumeric() && c != '_')
+            .next()
+            && !field.is_empty()
+            && field != "is_some"
+            && field != "is_none"
+        {
+            fields.push(field.to_string());
+        }
+    }
+}
+
+/// Extract the variable/field being dispatched on in a match expression.
+fn extract_switch_target(body: Option<Node>, src: &[u8]) -> Option<String> {
+    let body = body?;
+    find_match_target(body, src)
+}
+
+fn find_match_target(node: Node, src: &[u8]) -> Option<String> {
+    if node.kind() == "match_expression"
+        && let Some(value) = node.child_by_field_name("value")
+    {
+        return Some(node_text(value, src).to_string());
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if let Some(t) = find_match_target(child, src) {
+            return Some(t);
+        }
+    }
+    None
+}
+
+/// Count optional parameters (those with default values or Option<T> type).
+fn count_optional_params(node: Node, src: &[u8]) -> usize {
+    let Some(params) = node.child_by_field_name("parameters") else {
+        return 0;
+    };
+    let mut count = 0;
+    let mut cursor = params.walk();
+    for child in params.children(&mut cursor) {
+        if child.kind() == "parameter" {
+            let text = node_text(child, src);
+            if text.contains("Option<") {
+                count += 1;
+            }
+        }
+    }
+    count
+}
+
+/// Count self.method() calls in a function body (for Template Method detection).
+fn count_self_method_calls(body: Option<Node>, src: &[u8]) -> usize {
+    let Some(body) = body else { return 0 };
+    let mut count = 0;
+    walk_self_calls(body, src, &mut count);
+    count
+}
+
+fn walk_self_calls(node: Node, src: &[u8], count: &mut usize) {
+    if node.kind() == "call_expression"
+        && let Some(func) = node.child_by_field_name("function")
+        && node_text(func, src).starts_with("self.")
+    {
+        *count += 1;
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        walk_self_calls(child, src, count);
+    }
+}
+
+/// Check if a method name looks like a notification/emit method.
+fn is_notify_name(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    lower.contains("notify")
+        || lower.contains("emit")
+        || lower.contains("dispatch")
+        || lower.contains("fire")
+        || lower.contains("broadcast")
+}
+
+/// Check if any field looks like a listener/callback collection.
+fn check_listener_fields_rs(field_names: &[String], node: Node, src: &[u8]) -> bool {
+    let text = node_text(node, src);
+    // Check for Vec<Box<dyn Fn*>> collection fields
+    let has_vec_fn = text.contains("Vec<")
+        && (text.contains("Fn(") || text.contains("FnMut(") || text.contains("FnOnce("));
+    // Check for plural listener-like field names (listeners, handlers, etc.)
+    let has_listener_collection = field_names.iter().any(|f| {
+        let lower = f.to_lowercase();
+        (lower.contains("listener")
+            || lower.contains("handler")
+            || lower.contains("callback")
+            || lower.contains("observer")
+            || lower.contains("subscriber"))
+            && lower.ends_with('s')
+    });
+    has_listener_collection || has_vec_fn
 }

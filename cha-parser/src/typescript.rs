@@ -152,6 +152,9 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         is_delegating,
         comment_lines: count_comment_lines(node),
         referenced_fields: collect_this_fields(body, src),
+        null_check_fields: collect_null_checks_ts(body, src),
+        switch_dispatch_target: extract_switch_target_ts(body, src),
+        optional_param_count: count_optional_params_ts(node, src),
     })
 }
 
@@ -202,6 +205,9 @@ fn try_extract_arrow(child: Node, decl: Node, src: &[u8], exported: bool) -> Opt
         is_delegating: body.map(|b| check_delegating(b, src)).unwrap_or(false),
         comment_lines: count_comment_lines(value),
         referenced_fields: collect_this_fields(body, src),
+        null_check_fields: collect_null_checks_ts(body, src),
+        switch_dispatch_target: extract_switch_target_ts(body, src),
+        optional_param_count: count_optional_params_ts(value, src),
     })
 }
 
@@ -229,6 +235,9 @@ fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
         is_interface,
         parent_name: extract_parent_name(node, src),
         override_count: 0,
+        self_call_count: 0,
+        has_listener_field: check_listener_field(body, src),
+        has_notify_method: check_notify_method(body, src),
     })
 }
 
@@ -526,4 +535,114 @@ fn extract_parent_name(node: Node, src: &[u8]) -> Option<String> {
         }
     }
     None
+}
+
+/// Collect field names checked for null/undefined in TS.
+fn collect_null_checks_ts(body: Option<Node>, src: &[u8]) -> Vec<String> {
+    let Some(body) = body else { return vec![] };
+    let mut fields = Vec::new();
+    walk_null_checks_ts(body, src, &mut fields);
+    fields.sort();
+    fields.dedup();
+    fields
+}
+
+fn walk_null_checks_ts(node: Node, src: &[u8], fields: &mut Vec<String>) {
+    if node.kind() == "binary_expression"
+        && let text = node_text(node, src)
+        && (text.contains("null") || text.contains("undefined"))
+        && let Some(left) = node.child_by_field_name("left")
+        && let ltext = node_text(left, src)
+        && let Some(f) = ltext.strip_prefix("this.")
+    {
+        fields.push(f.to_string());
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        walk_null_checks_ts(child, src, fields);
+    }
+}
+
+/// Extract switch dispatch target in TS.
+fn extract_switch_target_ts(body: Option<Node>, src: &[u8]) -> Option<String> {
+    let body = body?;
+    find_switch_target_ts(body, src)
+}
+
+fn find_switch_target_ts(node: Node, src: &[u8]) -> Option<String> {
+    if node.kind() == "switch_statement"
+        && let Some(value) = node.child_by_field_name("value")
+    {
+        return Some(node_text(value, src).to_string());
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if let Some(t) = find_switch_target_ts(child, src) {
+            return Some(t);
+        }
+    }
+    None
+}
+
+/// Count optional parameters in TS (those with ? or default value).
+fn count_optional_params_ts(node: Node, src: &[u8]) -> usize {
+    let Some(params) = node.child_by_field_name("parameters") else {
+        return 0;
+    };
+    let mut count = 0;
+    let mut cursor = params.walk();
+    for child in params.children(&mut cursor) {
+        let text = node_text(child, src);
+        if text.contains('?') || child.child_by_field_name("value").is_some() {
+            count += 1;
+        }
+    }
+    count
+}
+
+/// Check if class body has a listener/callback collection field.
+fn check_listener_field(body: Node, src: &[u8]) -> bool {
+    let mut cursor = body.walk();
+    for child in body.children(&mut cursor) {
+        if (child.kind() == "public_field_definition" || child.kind() == "property_definition")
+            && let Some(n) = child.child_by_field_name("name")
+            && is_listener_name(node_text(n, src))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// Check if class body has a notify/emit method.
+fn check_notify_method(body: Node, src: &[u8]) -> bool {
+    let mut cursor = body.walk();
+    for child in body.children(&mut cursor) {
+        if child.kind() == "method_definition"
+            && let Some(n) = child.child_by_field_name("name")
+            && is_notify_name_ts(node_text(n, src))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn is_listener_name(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    (lower.contains("listener")
+        || lower.contains("handler")
+        || lower.contains("callback")
+        || lower.contains("observer")
+        || lower.contains("subscriber"))
+        && lower.ends_with('s')
+}
+
+fn is_notify_name_ts(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    lower.contains("notify")
+        || lower.contains("emit")
+        || lower.contains("dispatch")
+        || lower.contains("fire")
+        || lower.contains("broadcast")
 }

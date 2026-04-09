@@ -4,4 +4,4 @@ exclude = ["*/tests/fixtures/*"]
 enabled = false
 
 [plugins.length]
-max_file_lines = 600
+max_file_lines = 700

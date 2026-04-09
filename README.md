@@ -96,6 +96,7 @@ Requires [Rust](https://www.rust-lang.org/tools/install) (edition 2024).
 | **ShotgunSurgeryAnalyzer** | Files that always change together (git log) | Change Preventers | Hint |
 | **DivergentChangeAnalyzer** | Files changed for many distinct reasons (git log) | Change Preventers | Hint |
 | **InappropriateIntimacyAnalyzer** | Bidirectional imports between files | Couplers | Warning |
+| **DesignPatternAdvisor** | Suggests Strategy, State, Builder, Null Object, Template Method, Observer | OO Abusers | Hint |
 
 Supported languages: TypeScript (.ts/.tsx), Rust (.rs).
 

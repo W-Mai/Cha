@@ -27,6 +27,12 @@ pub struct FunctionInfo {
     pub comment_lines: usize,
     /// Field names referenced in this function body (for Temporary Field).
     pub referenced_fields: Vec<String>,
+    /// Field names checked for null/None in this function (for Null Object pattern).
+    pub null_check_fields: Vec<String>,
+    /// The field/variable name being dispatched on in switch/match (for Strategy/State).
+    pub switch_dispatch_target: Option<String>,
+    /// Number of optional parameters (for Builder pattern).
+    pub optional_param_count: usize,
 }
 
 /// Extracted class/struct info from AST.
@@ -53,6 +59,12 @@ pub struct ClassInfo {
     pub parent_name: Option<String>,
     /// Number of overridden methods (for Refused Bequest).
     pub override_count: usize,
+    /// Number of self-method calls in the longest method (for Template Method).
+    pub self_call_count: usize,
+    /// Whether the class has a listener/callback collection field.
+    pub has_listener_field: bool,
+    /// Whether the class has a notify/emit method.
+    pub has_notify_method: bool,
 }
 
 /// Extracted import info.

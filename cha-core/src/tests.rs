@@ -32,6 +32,9 @@ fn arb_function_info() -> impl Strategy<Value = FunctionInfo> {
                 is_delegating: false,
                 comment_lines: 0,
                 referenced_fields: vec![],
+                null_check_fields: vec![],
+                switch_dispatch_target: None,
+                optional_param_count: 0,
             },
         )
 }
@@ -58,6 +61,9 @@ fn arb_class_info() -> impl Strategy<Value = ClassInfo> {
             is_interface: false,
             parent_name: None,
             override_count: 0,
+            self_call_count: 0,
+            has_listener_field: false,
+            has_notify_method: false,
         })
 }
 

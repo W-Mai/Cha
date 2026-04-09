@@ -50,3 +50,6 @@ max_depth = 3
 # [plugins.divergent_change]
 # min_distinct_reasons = 4
 # max_commits = 50
+
+# [plugins.design_pattern]
+# enabled = true

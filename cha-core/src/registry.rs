@@ -5,12 +5,12 @@ use crate::{
     config::Config,
     plugins::{
         ApiSurfaceAnalyzer, CommentsAnalyzer, ComplexityAnalyzer, CouplingAnalyzer,
-        DataClassAnalyzer, DataClumpsAnalyzer, DeadCodeAnalyzer, DivergentChangeAnalyzer,
-        DuplicateCodeAnalyzer, FeatureEnvyAnalyzer, InappropriateIntimacyAnalyzer,
-        LayerViolationAnalyzer, LazyClassAnalyzer, LengthAnalyzer, LongParameterListAnalyzer,
-        MessageChainAnalyzer, MiddleManAnalyzer, NamingAnalyzer, PrimitiveObsessionAnalyzer,
-        RefusedBequestAnalyzer, ShotgunSurgeryAnalyzer, SpeculativeGeneralityAnalyzer,
-        SwitchStatementAnalyzer, TemporaryFieldAnalyzer,
+        DataClassAnalyzer, DataClumpsAnalyzer, DeadCodeAnalyzer, DesignPatternAdvisor,
+        DivergentChangeAnalyzer, DuplicateCodeAnalyzer, FeatureEnvyAnalyzer,
+        InappropriateIntimacyAnalyzer, LayerViolationAnalyzer, LazyClassAnalyzer, LengthAnalyzer,
+        LongParameterListAnalyzer, MessageChainAnalyzer, MiddleManAnalyzer, NamingAnalyzer,
+        PrimitiveObsessionAnalyzer, RefusedBequestAnalyzer, ShotgunSurgeryAnalyzer,
+        SpeculativeGeneralityAnalyzer, SwitchStatementAnalyzer, TemporaryFieldAnalyzer,
     },
     wasm,
 };
@@ -141,6 +141,9 @@ fn register_extended_smell_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &
     });
     register_if_enabled(plugins, config, "data_class", || {
         Box::new(DataClassAnalyzer::default())
+    });
+    register_if_enabled(plugins, config, "design_pattern", || {
+        Box::new(DesignPatternAdvisor)
     });
     register_if_enabled(plugins, config, "temporary_field", || {
         Box::new(TemporaryFieldAnalyzer::default())
