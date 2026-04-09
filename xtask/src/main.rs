@@ -12,21 +12,24 @@ fn main() {
 
 fn run() -> Result {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    match args.first().map(|s| s.as_str()) {
-        Some("ci") => cmd_ci(),
-        Some("build") => cmd_build(),
-        Some("test") => cmd_test(),
-        Some("lint") => cmd_lint(),
-        Some("analyze") => cmd_analyze(),
-        Some("lsp-test") => cmd_lsp_test(),
-        Some("plugin-test") => cmd_plugin_test(),
-        Some("plugin-e2e") => cmd_plugin_e2e(),
-        _ => {
-            eprintln!(
-                "usage: cargo xtask <ci|build|test|lint|analyze|lsp-test|plugin-test|plugin-e2e>"
-            );
-            std::process::exit(1);
-        }
+    let cmd = args.first().map(|s| s.as_str()).unwrap_or("");
+    type Cmd = (&'static str, fn() -> Result);
+    let commands: &[Cmd] = &[
+        ("ci", cmd_ci),
+        ("build", cmd_build),
+        ("test", cmd_test),
+        ("lint", cmd_lint),
+        ("analyze", cmd_analyze),
+        ("lsp-test", cmd_lsp_test),
+        ("plugin-test", cmd_plugin_test),
+        ("plugin-e2e", cmd_plugin_e2e),
+    ];
+    if let Some((_, f)) = commands.iter().find(|(name, _)| *name == cmd) {
+        f()
+    } else {
+        let names: Vec<&str> = commands.iter().map(|(n, _)| *n).collect();
+        eprintln!("usage: cargo xtask <{}>", names.join("|"));
+        std::process::exit(1);
     }
 }
 
@@ -176,31 +179,14 @@ fn validate_lsp_response(resp: &str) -> Result {
     }
 }
 
-fn cmd_plugin_e2e() -> Result {
-    let cha = cha_binary();
-    let tmp = std::env::temp_dir().join("cha-plugin-e2e-test");
-    // Clean up from any previous run
-    let _ = std::fs::remove_dir_all(&tmp);
-    std::fs::create_dir_all(&tmp)?;
-    let tmp = tmp.to_string_lossy().to_string();
-
-    println!("  → e2e: cha plugin new test-e2e");
-    let status = Command::new(&cha)
-        .args(["plugin", "new", "test-e2e"])
-        .current_dir(&tmp)
-        .status()?;
-    if !status.success() {
-        return Err("cha plugin new failed".into());
-    }
-
-    // new generates in-place when dir is empty, or creates <name>/ subdir
+fn e2e_scaffold_and_build(cha: &str, tmp: &str) -> Result<String> {
+    run_cmd(cha, &["plugin", "new", "test-e2e"])?;
     let plugin_dir = if std::path::Path::new(&format!("{tmp}/test-e2e")).exists() {
         format!("{tmp}/test-e2e")
     } else {
-        tmp.clone()
+        tmp.to_string()
     };
-
-    // Patch the plugin to always emit one finding so we can verify it's loaded
+    // Patch to always emit one finding so we can verify the plugin is loaded
     let lib_rs = format!("{plugin_dir}/src/lib.rs");
     let patched = std::fs::read_to_string(&lib_rs)?
         .replace(
@@ -219,8 +205,6 @@ fn cmd_plugin_e2e() -> Result {
         }]"#,
         );
     std::fs::write(&lib_rs, patched)?;
-
-    println!("  → e2e: cargo build --target wasm32-wasip1 --release");
     let status = Command::new("cargo")
         .args(["build", "--target", "wasm32-wasip1", "--release"])
         .current_dir(&plugin_dir)
@@ -228,29 +212,13 @@ fn cmd_plugin_e2e() -> Result {
     if !status.success() {
         return Err("cargo build failed".into());
     }
+    run_cmd_in(cha, &["plugin", "build"], &plugin_dir)?;
+    Ok(plugin_dir)
+}
 
-    println!("  → e2e: cha plugin build");
-    let status = Command::new(&cha)
-        .args(["plugin", "build"])
-        .current_dir(&plugin_dir)
-        .status()?;
-    if !status.success() {
-        return Err("cha plugin build failed".into());
-    }
-
-    // Install into project-local .cha/plugins/
-    let wasm = format!("{plugin_dir}/test_e2e.wasm");
-    println!("  → e2e: cha plugin install");
-    let status = Command::new(&cha)
-        .args(["plugin", "install", &wasm])
-        .current_dir(project_root())
-        .status()?;
-    if !status.success() {
-        return Err("cha plugin install failed".into());
-    }
-
+fn e2e_verify_and_cleanup(cha: &str, tmp: &str) -> Result {
     println!("  → e2e: cha plugin list");
-    let output = Command::new(&cha)
+    let output = Command::new(cha)
         .args(["plugin", "list"])
         .current_dir(project_root())
         .output()?;
@@ -258,12 +226,10 @@ fn cmd_plugin_e2e() -> Result {
     if !list.contains("test_e2e.wasm") {
         return Err(format!("plugin not found in list: {list}").into());
     }
-
-    // Write a temp source file and verify the plugin produces a finding
     println!("  → e2e: cha analyze (verify plugin is active)");
     let probe = format!("{tmp}/probe.ts");
     std::fs::write(&probe, "function hello() {}")?;
-    let output = Command::new(&cha)
+    let output = Command::new(cha)
         .args(["analyze", &probe, "--format", "json"])
         .current_dir(project_root())
         .output()?;
@@ -271,29 +237,35 @@ fn cmd_plugin_e2e() -> Result {
     if !json.contains("e2e_test_finding") {
         return Err(format!("plugin did not produce expected finding; output: {json}").into());
     }
-
     println!("  → e2e: cha plugin remove test_e2e");
-    let status = Command::new(&cha)
-        .args(["plugin", "remove", "test_e2e"])
-        .current_dir(project_root())
-        .status()?;
-    if !status.success() {
-        return Err("cha plugin remove failed".into());
-    }
-
-    // Verify removed
-    let output = Command::new(&cha)
+    run_cmd_in(cha, &["plugin", "remove", "test_e2e"], &project_root())?;
+    let output = Command::new(cha)
         .args(["plugin", "list"])
         .current_dir(project_root())
         .output()?;
-    let list = String::from_utf8_lossy(&output.stdout);
-    if list.contains("test_e2e.wasm") {
+    if String::from_utf8_lossy(&output.stdout).contains("test_e2e.wasm") {
         return Err("plugin still present after remove".into());
     }
-
     let _ = std::fs::remove_dir_all(std::env::temp_dir().join("cha-plugin-e2e-test"));
     println!("  ✅ plugin e2e passed");
     Ok(())
+}
+
+fn cmd_plugin_e2e() -> Result {
+    let cha = cha_binary();
+    let tmp = std::env::temp_dir().join("cha-plugin-e2e-test");
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(&tmp)?;
+    let tmp = tmp.to_string_lossy().to_string();
+
+    println!("  → e2e: scaffold + build");
+    let plugin_dir = e2e_scaffold_and_build(&cha, &tmp)?;
+
+    let wasm = format!("{plugin_dir}/test_e2e.wasm");
+    println!("  → e2e: cha plugin install");
+    run_cmd_in(&cha, &["plugin", "install", &wasm], &project_root())?;
+
+    e2e_verify_and_cleanup(&cha, &tmp)
 }
 
 // Helpers
@@ -320,6 +292,20 @@ fn lsp_binary() -> String {
 
 fn cargo(args: &[&str]) -> Result {
     run_cmd("cargo", args)
+}
+
+fn run_cmd_in(cmd: &str, args: &[&str], dir: &str) -> Result {
+    println!("  → {cmd} {}", args.join(" "));
+    let status = Command::new(cmd)
+        .args(args)
+        .current_dir(dir)
+        .status()
+        .map_err(|e| format!("failed to run {cmd}: {e}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("{cmd} {} failed with {status}", args.join(" ")).into())
+    }
 }
 
 fn run_cmd(cmd: &str, args: &[&str]) -> Result {

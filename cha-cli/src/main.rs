@@ -139,13 +139,17 @@ fn main() {
             diff,
             dry_run,
         } => cmd_fix(&paths, diff, dry_run),
-        Cli::Plugin { cmd } => match cmd {
-            PluginCmd::New { name } => plugin::cmd_new(&name),
-            PluginCmd::Build => plugin::cmd_build(),
-            PluginCmd::List => plugin::cmd_list(),
-            PluginCmd::Install { path } => plugin::cmd_install(&path),
-            PluginCmd::Remove { name } => plugin::cmd_remove(&name),
-        },
+        Cli::Plugin { cmd } => cmd_plugin(cmd),
+    }
+}
+
+fn cmd_plugin(cmd: PluginCmd) {
+    match cmd {
+        PluginCmd::New { name } => plugin::cmd_new(&name),
+        PluginCmd::Build => plugin::cmd_build(),
+        PluginCmd::List => plugin::cmd_list(),
+        PluginCmd::Install { path } => plugin::cmd_install(&path),
+        PluginCmd::Remove { name } => plugin::cmd_remove(&name),
     }
 }
 
