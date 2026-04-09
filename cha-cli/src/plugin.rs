@@ -22,7 +22,8 @@ impl Guest for MyPlugin {
         "{name}".into()
     }
 
-    fn analyze(_input: AnalysisInput) -> Vec<Finding> {
+    fn analyze(input: AnalysisInput) -> Vec<Finding> {
+        let _ = input;
         vec![]
     }
 }

@@ -200,6 +200,26 @@ fn cmd_plugin_e2e() -> Result {
         tmp.clone()
     };
 
+    // Patch the plugin to always emit one finding so we can verify it's loaded
+    let lib_rs = format!("{plugin_dir}/src/lib.rs");
+    let patched = std::fs::read_to_string(&lib_rs)?
+        .replace(
+            "fn analyze(_input: AnalysisInput)",
+            "fn analyze(input: AnalysisInput)",
+        )
+        .replace(
+            "vec![]",
+            r#"vec![Finding {
+            smell_name: "e2e_test_finding".into(),
+            message: "e2e test".into(),
+            severity: Severity::Hint,
+            category: SmellCategory::Dispensables,
+            location: Location { path: input.path.clone(), start_line: 1, end_line: 1, name: None },
+            suggested_refactorings: vec![],
+        }]"#,
+        );
+    std::fs::write(&lib_rs, patched)?;
+
     println!("  → e2e: cargo build --target wasm32-wasip1 --release");
     let status = Command::new("cargo")
         .args(["build", "--target", "wasm32-wasip1", "--release"])
@@ -237,6 +257,19 @@ fn cmd_plugin_e2e() -> Result {
     let list = String::from_utf8_lossy(&output.stdout);
     if !list.contains("test_e2e.wasm") {
         return Err(format!("plugin not found in list: {list}").into());
+    }
+
+    // Write a temp source file and verify the plugin produces a finding
+    println!("  → e2e: cha analyze (verify plugin is active)");
+    let probe = format!("{tmp}/probe.ts");
+    std::fs::write(&probe, "function hello() {}")?;
+    let output = Command::new(&cha)
+        .args(["analyze", &probe, "--format", "json"])
+        .current_dir(project_root())
+        .output()?;
+    let json = String::from_utf8_lossy(&output.stdout);
+    if !json.contains("e2e_test_finding") {
+        return Err(format!("plugin did not produce expected finding; output: {json}").into());
     }
 
     println!("  → e2e: cha plugin remove test_e2e");
