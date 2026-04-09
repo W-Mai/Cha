@@ -8,7 +8,7 @@ use cha_core::{
     AnalysisContext, Config, Finding, JsonReporter, LlmContextReporter, PluginRegistry, Reporter,
     SarifReporter, Severity, SourceFile, TerminalReporter,
 };
-use clap::{Parser, ValueEnum};
+use clap::{CommandFactory, Parser, ValueEnum};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 
@@ -79,6 +79,11 @@ enum Cli {
         #[command(subcommand)]
         cmd: PluginCmd,
     },
+    /// Generate shell completion scripts
+    Completions {
+        /// Shell to generate completions for
+        shell: clap_complete::Shell,
+    },
 }
 
 #[derive(clap::Subcommand)]
@@ -140,6 +145,10 @@ fn main() {
             dry_run,
         } => cmd_fix(&paths, diff, dry_run),
         Cli::Plugin { cmd } => cmd_plugin(cmd),
+        Cli::Completions { shell } => {
+            let mut cmd = Cli::command();
+            clap_complete::generate(shell, &mut cmd, "cha", &mut std::io::stdout());
+        }
     }
 }
 

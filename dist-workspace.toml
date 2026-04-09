@@ -19,3 +19,8 @@ install-path = "CARGO_HOME"
 publish-jobs = ["homebrew"]
 # Whether to install an updater program
 install-updater = false
+
+[dist.formula]
+extra-content = """
+  generate_completions_from_executable(bin/"cha", "completions")
+"""
