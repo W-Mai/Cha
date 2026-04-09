@@ -1,0 +1,51 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.1.0] - 2026-04-10
+
+### Added
+
+#### Core Analysis
+- 25 built-in code smell plugins covering Bloaters, Couplers, OO Abusers, Change Preventers, and Dispensables
+- 9 new plugins: TemporaryField, SpeculativeGenerality, RefusedBequest, ShotgunSurgery, DivergentChange, LazyClass, DataClass, MiddleMan, FeatureEnvy
+- DesignPatternAdvisor: suggests Strategy, State, Builder, Null Object, Template Method, Observer patterns
+- TypeScript and Rust AST parsing via Tree-sitter
+- Structural duplication detection via AST hash
+
+#### WASM Plugin System
+- WIT interface with full model fields (`FunctionInfo`, `ClassInfo`) and typed `option-value` variant
+- `cha-plugin-sdk` crate: zero-config plugin development — no WIT file needed, `plugin!` macro embeds WIT at compile time
+- `cha plugin new/build/install/list/remove` CLI subcommands
+- Auto-conversion of WASM binary to WASM Component in `cha plugin build`
+- `test-utils` feature: `WasmPluginTest` builder for plugin unit testing
+- Plugin metadata (version, description, authors) auto-filled from plugin's `Cargo.toml`
+- Config options passed from `.cha.toml` to plugins as typed `OptionValue`
+
+#### CLI
+- `cha analyze` — recursive analysis with `.gitignore` awareness, `--diff`, `--stdin-diff`, `--plugin` filter
+- `cha parse` — inspect AST structure
+- `cha init` — generate default config
+- `cha fix` — auto-fix naming violations
+- `cha schema` — print JSON Schema for output format
+- Output formats: terminal, JSON, SARIF, LLM context
+- `--fail-on` exit code control
+
+#### LSP
+- Real-time diagnostics on open/change/save
+- Code action suggestions
+
+#### Tooling
+- `cargo xtask ci/build/test/lint/analyze/lsp-test/plugin-test/plugin-e2e`
+- `cargo xtask bump <major|minor|patch>` — version bump across all crates
+- `cargo xtask publish [--dry-run]` — publish to crates.io in topological order
+- cargo-dist: multi-platform binaries (macOS/Linux/Windows), shell/powershell/homebrew/msi installers
+- oranda: project website with release artifacts
+
+[Unreleased]: https://github.com/W-Mai/Cha/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/W-Mai/Cha/releases/tag/v0.1.0

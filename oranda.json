@@ -3,7 +3,8 @@
     "artifacts": {
       "auto": true,
       "cargo_dist": true
-    }
+    },
+    "changelog": true
   },
   "styles": {
     "theme": "cupcake"
