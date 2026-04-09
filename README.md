@@ -190,6 +190,8 @@ impl Guest for MyPlugin {
 
 See `examples/wasm-plugin-example` (suspicious names) and `examples/wasm-plugin-hardcoded` (hardcoded strings) for complete examples.
 
+📖 **[Full Plugin Development Guide](docs/plugin-development.md)**
+
 ## 💡 LSP Integration
 
 ```bash
