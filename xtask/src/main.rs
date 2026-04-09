@@ -13,8 +13,10 @@ fn main() {
 fn run() -> Result {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let cmd = args.first().map(|s| s.as_str()).unwrap_or("");
+    dispatch_with_args(cmd, &args)
+}
 
-    // Commands that take extra arguments are handled separately
+fn dispatch_with_args(cmd: &str, args: &[String]) -> Result {
     if cmd == "bump" {
         let level = args.get(1).map(|s| s.as_str()).unwrap_or("");
         return cmd_bump(level);
@@ -36,15 +38,14 @@ fn run() -> Result {
         ("plugin-e2e", cmd_plugin_e2e),
     ];
     if let Some((_, f)) = commands.iter().find(|(name, _)| *name == cmd) {
-        f()
-    } else {
-        let names: Vec<&str> = commands.iter().map(|(n, _)| *n).collect();
-        eprintln!(
-            "usage: cargo xtask <{}|bump <major|minor|patch>|publish [--dry-run]>",
-            names.join("|")
-        );
-        std::process::exit(1);
+        return f();
     }
+    let names: Vec<&str> = commands.iter().map(|(n, _)| *n).collect();
+    eprintln!(
+        "usage: cargo xtask <{}|bump <major|minor|patch>|publish [--dry-run]>",
+        names.join("|")
+    );
+    std::process::exit(1);
 }
 
 // Run all CI steps in sequence
@@ -351,20 +352,35 @@ fn run_cmd(cmd: &str, args: &[&str]) -> Result {
 
 /// Publish all publishable crates to crates.io in topological order.
 /// Use --dry-run to only verify packaging without publishing.
+fn publish_one(name: &str, work_dir: &str, dry_run: bool) -> Result {
+    let mut args = vec!["publish", "-p", name, "--no-verify"];
+    if dry_run {
+        args.push("--dry-run");
+    }
+    let status = Command::new("cargo")
+        .args(&args)
+        .current_dir(work_dir)
+        .status()
+        .map_err(|e| format!("failed to run cargo publish: {e}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("failed to publish {name}").into())
+    }
+}
+
 fn cmd_publish(dry_run: bool) -> Result {
     let root = project_root();
 
-    // Check working tree is clean
-    let status = Command::new("git")
+    let output = Command::new("git")
         .args(["status", "--porcelain"])
         .current_dir(&root)
         .output()?;
-    if !status.stdout.is_empty() {
+    if !output.stdout.is_empty() {
         return Err("working tree is not clean — commit or stash changes first".into());
     }
 
-    // (crate_name, working_dir relative to root)
-    // sdk crates live in their own workspace
+    // (crate_name, working_dir relative to root); sdk crates live in their own workspace
     let crates: &[(&str, &str)] = &[
         ("cha-core", "."),
         ("cha-plugin-sdk-macros", "cha-plugin-sdk"),
@@ -378,20 +394,7 @@ fn cmd_publish(dry_run: bool) -> Result {
 
     for (i, (name, dir)) in crates.iter().enumerate() {
         println!("\n  [{}/{}] {verb} {name}", i + 1, crates.len());
-        let work_dir = format!("{root}/{dir}");
-        let mut publish_args = vec!["publish", "-p", name, "--no-verify"];
-        if dry_run {
-            publish_args.push("--dry-run");
-        }
-        let status = Command::new("cargo")
-            .args(&publish_args)
-            .current_dir(&work_dir)
-            .status()
-            .map_err(|e| format!("failed to run cargo publish: {e}"))?;
-        if !status.success() {
-            return Err(format!("failed to publish {name}").into());
-        }
-        // Wait for crates.io index to update between publishes
+        publish_one(name, &format!("{root}/{dir}"), dry_run)?;
         if !dry_run && i + 1 < crates.len() {
             println!("  → waiting 30s for crates.io index...");
             std::thread::sleep(std::time::Duration::from_secs(30));
@@ -414,51 +417,51 @@ fn cmd_bump(level: &str) -> Result {
         return Err("usage: cargo xtask bump <major|minor|patch>".into());
     }
     let root = project_root();
-
-    // Read current version from workspace Cargo.toml
-    let ws_toml_path = format!("{root}/Cargo.toml");
-    let ws_content = std::fs::read_to_string(&ws_toml_path)?;
-    let current = ws_content
-        .lines()
-        .find(|l| l.trim().starts_with("version =") && !l.contains("workspace"))
-        .and_then(|l| l.split('"').nth(1))
-        .ok_or("could not find version in workspace Cargo.toml")?
-        .to_string();
-
+    let current = read_workspace_version(&root)?;
     let next = bump_version(&current, level)?;
     println!("  → bumping {current} → {next}");
-
-    // Files to update: workspace + sdk workspace
     let targets = [
         format!("{root}/Cargo.toml"),
         format!("{root}/cha-plugin-sdk/Cargo.toml"),
         format!("{root}/cha-plugin-sdk/macros/Cargo.toml"),
     ];
     for path in &targets {
-        let content = std::fs::read_to_string(path)?;
-        // Replace version = "x.y.z" (not workspace = true lines)
-        let updated = content
-            .lines()
-            .map(|line| {
-                if line.trim().starts_with("version =") && !line.contains("workspace") {
-                    line.replace(&format!("\"{current}\""), &format!("\"{next}\""))
-                } else {
-                    // Also update internal version references like version = "0.1.0" in deps
-                    line.replace(
-                        &format!("version = \"{current}\""),
-                        &format!("version = \"{next}\""),
-                    )
-                }
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
-            + "\n";
-        std::fs::write(path, updated)?;
+        rewrite_version(path, &current, &next)?;
         println!("  → updated {path}");
     }
-
     println!("  ✅ version bumped to {next}");
     println!("  → run: git add -p && git commit -m \"🔖: bump version to {next}\"");
+    Ok(())
+}
+
+fn read_workspace_version(root: &str) -> Result<String> {
+    let content = std::fs::read_to_string(format!("{root}/Cargo.toml"))?;
+    content
+        .lines()
+        .find(|l| l.trim().starts_with("version =") && !l.contains("workspace"))
+        .and_then(|l| l.split('"').nth(1))
+        .map(|s| s.to_string())
+        .ok_or_else(|| "could not find version in workspace Cargo.toml".into())
+}
+
+fn rewrite_version(path: &str, current: &str, next: &str) -> Result {
+    let content = std::fs::read_to_string(path)?;
+    let updated = content
+        .lines()
+        .map(|line| {
+            if line.trim().starts_with("version =") && !line.contains("workspace") {
+                line.replace(&format!("\"{current}\""), &format!("\"{next}\""))
+            } else {
+                line.replace(
+                    &format!("version = \"{current}\""),
+                    &format!("version = \"{next}\""),
+                )
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
+    std::fs::write(path, updated)?;
     Ok(())
 }
 
