@@ -13,6 +13,13 @@ fn main() {
 fn run() -> Result {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let cmd = args.first().map(|s| s.as_str()).unwrap_or("");
+
+    // Commands that take extra arguments are handled separately
+    if cmd == "bump" {
+        let level = args.get(1).map(|s| s.as_str()).unwrap_or("");
+        return cmd_bump(level);
+    }
+
     type Cmd = (&'static str, fn() -> Result);
     let commands: &[Cmd] = &[
         ("ci", cmd_ci),
@@ -28,7 +35,10 @@ fn run() -> Result {
         f()
     } else {
         let names: Vec<&str> = commands.iter().map(|(n, _)| *n).collect();
-        eprintln!("usage: cargo xtask <{}>", names.join("|"));
+        eprintln!(
+            "usage: cargo xtask <{}|bump <major|minor|patch>>",
+            names.join("|")
+        );
         std::process::exit(1);
     }
 }
@@ -320,4 +330,80 @@ fn run_cmd(cmd: &str, args: &[&str]) -> Result {
     } else {
         Err(format!("{cmd} {} failed with {status}", args.join(" ")).into())
     }
+}
+
+/// Bump version across all publishable crates.
+/// Updates workspace Cargo.toml and cha-plugin-sdk/Cargo.toml + macros/Cargo.toml.
+fn cmd_bump(level: &str) -> Result {
+    if !matches!(level, "major" | "minor" | "patch") {
+        return Err("usage: cargo xtask bump <major|minor|patch>".into());
+    }
+    let root = project_root();
+
+    // Read current version from workspace Cargo.toml
+    let ws_toml_path = format!("{root}/Cargo.toml");
+    let ws_content = std::fs::read_to_string(&ws_toml_path)?;
+    let current = ws_content
+        .lines()
+        .find(|l| l.trim().starts_with("version =") && !l.contains("workspace"))
+        .and_then(|l| l.split('"').nth(1))
+        .ok_or("could not find version in workspace Cargo.toml")?
+        .to_string();
+
+    let next = bump_version(&current, level)?;
+    println!("  → bumping {current} → {next}");
+
+    // Files to update: workspace + sdk workspace
+    let targets = [
+        format!("{root}/Cargo.toml"),
+        format!("{root}/cha-plugin-sdk/Cargo.toml"),
+        format!("{root}/cha-plugin-sdk/macros/Cargo.toml"),
+    ];
+    for path in &targets {
+        let content = std::fs::read_to_string(path)?;
+        // Replace version = "x.y.z" (not workspace = true lines)
+        let updated = content
+            .lines()
+            .map(|line| {
+                if line.trim().starts_with("version =") && !line.contains("workspace") {
+                    line.replace(&format!("\"{current}\""), &format!("\"{next}\""))
+                } else {
+                    // Also update internal version references like version = "0.1.0" in deps
+                    line.replace(
+                        &format!("version = \"{current}\""),
+                        &format!("version = \"{next}\""),
+                    )
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n";
+        std::fs::write(path, updated)?;
+        println!("  → updated {path}");
+    }
+
+    println!("  ✅ version bumped to {next}");
+    println!("  → run: git add -p && git commit -m \"🔖: bump version to {next}\"");
+    Ok(())
+}
+
+fn bump_version(version: &str, level: &str) -> Result<String> {
+    let parts: Vec<u64> = version
+        .split('.')
+        .map(|p| {
+            p.parse::<u64>()
+                .map_err(|e| format!("invalid version: {e}"))
+        })
+        .collect::<std::result::Result<_, _>>()?;
+    if parts.len() != 3 {
+        return Err(format!("expected semver x.y.z, got {version}").into());
+    }
+    let (major, minor, patch) = (parts[0], parts[1], parts[2]);
+    let next = match level {
+        "major" => format!("{}.0.0", major + 1),
+        "minor" => format!("{major}.{}.0", minor + 1),
+        "patch" => format!("{major}.{minor}.{}", patch + 1),
+        _ => unreachable!(),
+    };
+    Ok(next)
 }
