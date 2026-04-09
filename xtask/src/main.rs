@@ -194,11 +194,24 @@ fn validate_lsp_response(resp: &str) -> Result {
 }
 
 fn e2e_scaffold_and_build(cha: &str, tmp: &str) -> Result<String> {
-    run_cmd(cha, &["plugin", "new", "test-e2e"])?;
-    let plugin_dir = if std::path::Path::new(&format!("{tmp}/test-e2e")).exists() {
-        format!("{tmp}/test-e2e")
-    } else {
-        tmp.to_string()
+    // Run `cha plugin new` inside tmp so the plugin is created at tmp/test-e2e.
+    // If tmp is empty, cha plugin new uses tmp itself as the plugin dir.
+    let status = Command::new(cha)
+        .args(["plugin", "new", "test-e2e"])
+        .current_dir(tmp)
+        .status()
+        .map_err(|e| format!("failed to run cha plugin new: {e}"))?;
+    if !status.success() {
+        return Err("cha plugin new failed".into());
+    }
+    // cha plugin new uses cwd directly if it's empty, otherwise creates a subdir
+    let plugin_dir = {
+        let subdir = format!("{tmp}/test-e2e");
+        if std::path::Path::new(&subdir).exists() {
+            subdir
+        } else {
+            tmp.to_string()
+        }
     };
     // Patch to always emit one finding so we can verify the plugin is loaded
     let lib_rs = format!("{plugin_dir}/src/lib.rs");

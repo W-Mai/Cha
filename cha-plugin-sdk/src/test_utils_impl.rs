@@ -2,7 +2,7 @@
 pub mod test_utils {
     use anyhow::{Context, Result};
     use cha_core::{AnalysisContext, Finding, Plugin, SourceFile, wasm::WasmPlugin};
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
 
     /// Builder for WASM plugin integration tests.
     ///
