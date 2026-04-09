@@ -3,11 +3,18 @@ name = "cha-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
 description = "Cha — pluggable code smell detection CLI (察)"
 repository.workspace = true
 homepage.workspace = true
 keywords.workspace = true
 categories.workspace = true
+
+[package.metadata.wix]
+upgrade-guid = "A422BEBC-2ACC-4C9B-A185-0A5355D7BBFB"
+path-guid = "D106BC45-7876-4F40-B3DA-86478496594B"
+license = false
+eula = false
 
 [[bin]]
 name = "cha"
