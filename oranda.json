@@ -1,4 +1,7 @@
 {
+  "project": {
+    "repository": "https://github.com/W-Mai/Cha"
+  },
   "components": {
     "artifacts": {
       "auto": true,
