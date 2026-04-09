@@ -33,10 +33,12 @@ impl PluginRegistry {
         for mut wp in wasm::load_wasm_plugins(project_dir) {
             if config.is_enabled(wp.name()) {
                 if let Some(pc) = config.plugins.get(wp.name()) {
-                    let opts: Vec<(String, String)> = pc
+                    let opts = pc
                         .options
                         .iter()
-                        .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                        .filter_map(|(k, v)| {
+                            wasm::toml_to_option_value(v).map(|ov| (k.clone(), ov))
+                        })
                         .collect();
                     wp.set_options(opts);
                 }

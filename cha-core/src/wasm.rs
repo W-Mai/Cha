@@ -45,7 +45,7 @@ pub struct WasmPlugin {
     engine: Engine,
     component: Component,
     plugin_name: String,
-    options: Vec<(String, String)>,
+    options: Vec<(String, wit::OptionValue)>,
 }
 
 impl WasmPlugin {
@@ -70,7 +70,7 @@ impl WasmPlugin {
     }
 
     /// Set plugin options from config.
-    pub fn set_options(&mut self, options: Vec<(String, String)>) {
+    pub fn set_options(&mut self, options: Vec<(String, wit::OptionValue)>) {
         self.options = options;
     }
 }
@@ -99,7 +99,10 @@ impl Plugin for WasmPlugin {
     }
 }
 
-fn to_wit_input(ctx: &AnalysisContext, options: &[(String, String)]) -> wit::AnalysisInput {
+fn to_wit_input(
+    ctx: &AnalysisContext,
+    options: &[(String, wit::OptionValue)],
+) -> wit::AnalysisInput {
     wit::AnalysisInput {
         path: ctx.file.path.to_string_lossy().into(),
         content: ctx.file.content.clone(),
@@ -130,6 +133,13 @@ fn convert_functions(funcs: &[crate::model::FunctionInfo]) -> Vec<wit::FunctionI
         switch_arms: f.switch_arms as u32,
         external_refs: f.external_refs.clone(),
         is_delegating: f.is_delegating,
+        is_exported: f.is_exported,
+        comment_lines: f.comment_lines as u32,
+        referenced_fields: f.referenced_fields.clone(),
+        null_check_fields: f.null_check_fields.clone(),
+        switch_dispatch_target: f.switch_dispatch_target.clone(),
+        optional_param_count: f.optional_param_count as u32,
+        body_hash: f.body_hash.map(|h| format!("{h:016x}")),
     })
 }
 
@@ -141,6 +151,16 @@ fn convert_classes(classes: &[crate::model::ClassInfo]) -> Vec<wit::ClassInfo> {
         method_count: c.method_count as u32,
         line_count: c.line_count as u32,
         delegating_method_count: c.delegating_method_count as u32,
+        field_count: c.field_count as u32,
+        field_names: c.field_names.clone(),
+        is_exported: c.is_exported,
+        has_behavior: c.has_behavior,
+        is_interface: c.is_interface,
+        parent_name: c.parent_name.clone(),
+        override_count: c.override_count as u32,
+        self_call_count: c.self_call_count as u32,
+        has_listener_field: c.has_listener_field,
+        has_notify_method: c.has_notify_method,
     })
 }
 
@@ -235,4 +255,22 @@ fn home_dir() -> PathBuf {
     std::env::var("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("."))
+}
+
+/// Convert a TOML value to a WIT option-value.
+pub fn toml_to_option_value(v: &toml::Value) -> Option<wit::OptionValue> {
+    match v {
+        toml::Value::String(s) => Some(wit::OptionValue::Str(s.clone())),
+        toml::Value::Integer(i) => Some(wit::OptionValue::Int(*i)),
+        toml::Value::Float(f) => Some(wit::OptionValue::Float(*f)),
+        toml::Value::Boolean(b) => Some(wit::OptionValue::Boolean(*b)),
+        toml::Value::Array(arr) => {
+            let strs: Vec<String> = arr
+                .iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect();
+            Some(wit::OptionValue::ListStr(strs))
+        }
+        _ => None,
+    }
 }

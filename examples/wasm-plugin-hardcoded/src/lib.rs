@@ -24,9 +24,19 @@ impl Guest for HardcodedStringsPlugin {
     /// USER_NAME   = "octocat"
     /// ```
     fn analyze(input: AnalysisInput) -> Vec<Finding> {
-        use cha::plugin::types::{Location, Severity, SmellCategory};
+        use cha::plugin::types::{Location, OptionValue, Severity, SmellCategory};
 
-        if input.options.is_empty() {
+        // Extract string options only
+        let str_opts: Vec<(&str, &str)> = input
+            .options
+            .iter()
+            .filter_map(|(k, v)| match v {
+                OptionValue::Str(s) => Some((k.as_str(), s.as_str())),
+                _ => None,
+            })
+            .collect();
+
+        if str_opts.is_empty() {
             return vec![];
         }
 
@@ -36,11 +46,11 @@ impl Guest for HardcodedStringsPlugin {
             if is_skip_line(line) {
                 continue;
             }
-            for (const_name, literal) in &input.options {
+            for (const_name, literal) in &str_opts {
                 if literal.is_empty() {
                     continue;
                 }
-                if line.contains(literal.as_str()) {
+                if line.contains(literal) {
                     let line_num = (i + 1) as u32;
                     findings.push(Finding {
                         smell_name: "hardcoded_string".into(),

@@ -43,6 +43,19 @@ interface types {
         end-line: u32,
         line-count: u32,
         complexity: u32,
+        parameter-count: u32,
+        parameter-types: list<string>,
+        chain-depth: u32,
+        switch-arms: u32,
+        external-refs: list<string>,
+        is-delegating: bool,
+        is-exported: bool,
+        comment-lines: u32,
+        referenced-fields: list<string>,
+        null-check-fields: list<string>,
+        switch-dispatch-target: option<string>,
+        optional-param-count: u32,
+        body-hash: option<string>,
     }
 
     /// Class info from parsed source.
@@ -52,12 +65,32 @@ interface types {
         end-line: u32,
         method-count: u32,
         line-count: u32,
+        delegating-method-count: u32,
+        field-count: u32,
+        field-names: list<string>,
+        is-exported: bool,
+        has-behavior: bool,
+        is-interface: bool,
+        parent-name: option<string>,
+        override-count: u32,
+        self-call-count: u32,
+        has-listener-field: bool,
+        has-notify-method: bool,
     }
 
     /// Import info.
     record import-info {
         source: string,
         line: u32,
+    }
+
+    /// Typed option value for plugin configuration.
+    variant option-value {
+        str(string),
+        int(s64),
+        float(f64),
+        boolean(bool),
+        list-str(list<string>),
     }
 
     /// Full analysis context passed to the plugin.
@@ -69,7 +102,7 @@ interface types {
         functions: list<function-info>,
         classes: list<class-info>,
         imports: list<import-info>,
-        options: list<tuple<string, string>>,
+        options: list<tuple<string, option-value>>,
     }
 }
 
