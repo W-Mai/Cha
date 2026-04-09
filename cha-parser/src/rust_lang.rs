@@ -647,18 +647,18 @@ fn is_notify_name(name: &str) -> bool {
 /// Check if any field looks like a listener/callback collection.
 fn check_listener_fields_rs(field_names: &[String], node: Node, src: &[u8]) -> bool {
     let text = node_text(node, src);
-    // Check for Vec<Box<dyn Fn*>> collection fields
     let has_vec_fn = text.contains("Vec<")
         && (text.contains("Fn(") || text.contains("FnMut(") || text.contains("FnOnce("));
-    // Check for plural listener-like field names (listeners, handlers, etc.)
-    let has_listener_collection = field_names.iter().any(|f| {
-        let lower = f.to_lowercase();
-        (lower.contains("listener")
-            || lower.contains("handler")
-            || lower.contains("callback")
-            || lower.contains("observer")
-            || lower.contains("subscriber"))
-            && lower.ends_with('s')
-    });
+    let has_listener_collection = field_names.iter().any(|f| is_listener_collection_name(f));
     has_listener_collection || has_vec_fn
+}
+
+fn is_listener_collection_name(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    (lower.contains("listener")
+        || lower.contains("handler")
+        || lower.contains("callback")
+        || lower.contains("observer")
+        || lower.contains("subscriber"))
+        && lower.ends_with('s')
 }
