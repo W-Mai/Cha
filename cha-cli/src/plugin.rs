@@ -70,17 +70,15 @@ pub fn cmd_build() {
 
     match status {
         Ok(s) if s.success() => {
-            // Infer wasm name from Cargo.toml in cwd
             let wasm_name = read_package_name().unwrap_or_else(|| "plugin".into());
-            let wasm_path = format!("target/wasm32-wasip1/release/{wasm_name}.wasm");
-            println!();
-            println!("Build succeeded. To create a WASM component:");
-            println!(
-                "  wasm-tools component new {wasm_path} \\\n    --adapt wasi_snapshot_preview1.reactor.wasm \\\n    -o {wasm_name}.component.wasm"
-            );
-            println!();
-            println!("Then install:");
-            println!("  cha plugin install {wasm_name}.component.wasm");
+            let src = format!("target/wasm32-wasip1/release/{wasm_name}.wasm");
+            let out = format!("{wasm_name}.wasm");
+            match make_component(&src, &out) {
+                Ok(()) => println!("Component ready: {out}\n  cha plugin install {out}"),
+                Err(e) => eprintln!(
+                    "warning: component conversion failed: {e}\n  Run wasm-tools manually."
+                ),
+            }
         }
         Ok(_) => std::process::exit(1),
         Err(e) => {
@@ -88,6 +86,18 @@ pub fn cmd_build() {
             std::process::exit(1);
         }
     }
+}
+
+fn make_component(src: &str, out: &str) -> anyhow::Result<()> {
+    use wit_component::ComponentEncoder;
+    let wasm = std::fs::read(src)?;
+    let adapter = wasi_preview1_component_adapter_provider::WASI_SNAPSHOT_PREVIEW1_REACTOR_ADAPTER;
+    let component = ComponentEncoder::default()
+        .module(&wasm)?
+        .adapter("wasi_snapshot_preview1", adapter)?
+        .encode()?;
+    std::fs::write(out, component)?;
+    Ok(())
 }
 
 pub fn cmd_list() {
