@@ -3,7 +3,7 @@ use quote::quote;
 use syn::{Ident, parse_macro_input};
 
 /// The WIT content embedded at proc-macro compile time.
-const WIT: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../wit/plugin.wit"));
+const WIT: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/wit/plugin.wit"));
 
 /// Set up bindings and export a plugin implementation.
 ///

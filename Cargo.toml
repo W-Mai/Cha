@@ -7,10 +7,14 @@ resolver = "2"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+repository = "https://github.com/W-Mai/Cha"
+homepage = "https://github.com/W-Mai/Cha"
+keywords = ["code-quality", "static-analysis", "linter", "ast", "wasm"]
+categories = ["development-tools", "development-tools::testing"]
 
 [workspace.dependencies]
-cha-core = { path = "cha-core" }
-cha-parser = { path = "cha-parser" }
+cha-core = { path = "cha-core", version = "0.1.0" }
+cha-parser = { path = "cha-parser", version = "0.1.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"

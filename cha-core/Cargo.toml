@@ -3,6 +3,11 @@ name = "cha-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "Core analysis engine for Cha — pluggable code smell detection"
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 schemars = { version = "1.2.1", features = ["derive"] }

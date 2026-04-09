@@ -3,6 +3,11 @@ name = "cha-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "Cha — pluggable code smell detection CLI (察)"
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [[bin]]
 name = "cha"

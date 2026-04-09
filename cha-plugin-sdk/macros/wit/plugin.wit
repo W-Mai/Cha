@@ -1,0 +1,127 @@
+package cha:plugin@0.1.0;
+
+/// Data types shared between host and guest.
+interface types {
+    /// Severity level.
+    enum severity {
+        hint,
+        warning,
+        error,
+    }
+
+    /// Smell category.
+    enum smell-category {
+        bloaters,
+        oo-abusers,
+        change-preventers,
+        dispensables,
+        couplers,
+    }
+
+    /// Source location.
+    record location {
+        path: string,
+        start-line: u32,
+        end-line: u32,
+        name: option<string>,
+    }
+
+    /// A single finding.
+    record finding {
+        smell-name: string,
+        category: smell-category,
+        severity: severity,
+        location: location,
+        message: string,
+        suggested-refactorings: list<string>,
+    }
+
+    /// Function info from parsed source.
+    record function-info {
+        name: string,
+        start-line: u32,
+        end-line: u32,
+        line-count: u32,
+        complexity: u32,
+        parameter-count: u32,
+        parameter-types: list<string>,
+        chain-depth: u32,
+        switch-arms: u32,
+        external-refs: list<string>,
+        is-delegating: bool,
+        is-exported: bool,
+        comment-lines: u32,
+        referenced-fields: list<string>,
+        null-check-fields: list<string>,
+        switch-dispatch-target: option<string>,
+        optional-param-count: u32,
+        body-hash: option<string>,
+    }
+
+    /// Class info from parsed source.
+    record class-info {
+        name: string,
+        start-line: u32,
+        end-line: u32,
+        method-count: u32,
+        line-count: u32,
+        delegating-method-count: u32,
+        field-count: u32,
+        field-names: list<string>,
+        is-exported: bool,
+        has-behavior: bool,
+        is-interface: bool,
+        parent-name: option<string>,
+        override-count: u32,
+        self-call-count: u32,
+        has-listener-field: bool,
+        has-notify-method: bool,
+    }
+
+    /// Import info.
+    record import-info {
+        source: string,
+        line: u32,
+    }
+
+    /// Typed option value for plugin configuration.
+    variant option-value {
+        str(string),
+        int(s64),
+        float(f64),
+        boolean(bool),
+        list-str(list<string>),
+    }
+
+    /// Full analysis context passed to the plugin.
+    record analysis-input {
+        path: string,
+        content: string,
+        language: string,
+        total-lines: u32,
+        functions: list<function-info>,
+        classes: list<class-info>,
+        imports: list<import-info>,
+        options: list<tuple<string, option-value>>,
+    }
+}
+
+/// The world that WASM plugins must implement.
+world analyzer {
+    use types.{analysis-input, finding};
+
+    /// Return the plugin name (matches [plugins.<name>] in .cha.toml).
+    export name: func() -> string;
+
+    /// Return the plugin version (e.g. "1.0.0").
+    export version: func() -> string;
+
+    /// Return a short description of what the plugin detects.
+    export description: func() -> string;
+
+    /// Return the list of authors.
+    export authors: func() -> list<string>;
+
+    /// Run analysis and return findings.
+    export analyze: func(input: analysis-input) -> list<finding>;
+}

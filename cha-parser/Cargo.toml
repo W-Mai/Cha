@@ -3,6 +3,11 @@ name = "cha-parser"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "Tree-sitter based AST parser for Cha (TypeScript, Rust)"
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 cha-core.workspace = true
