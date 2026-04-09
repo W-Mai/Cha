@@ -6,6 +6,7 @@ license.workspace = true
 description = "LSP server for Cha — real-time code smell diagnostics"
 repository.workspace = true
 homepage.workspace = true
+publish = false
 keywords.workspace = true
 categories.workspace = true
 
