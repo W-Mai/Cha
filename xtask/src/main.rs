@@ -19,8 +19,9 @@ fn run() -> Result {
         Some("lint") => cmd_lint(),
         Some("analyze") => cmd_analyze(),
         Some("lsp-test") => cmd_lsp_test(),
+        Some("plugin-test") => cmd_plugin_test(),
         _ => {
-            eprintln!("usage: cargo xtask <ci|build|test|lint|analyze|lsp-test>");
+            eprintln!("usage: cargo xtask <ci|build|test|lint|analyze|lsp-test|plugin-test>");
             std::process::exit(1);
         }
     }
@@ -34,6 +35,7 @@ fn cmd_ci() -> Result {
         ("lint", cmd_lint),
         ("analyze", cmd_analyze),
         ("lsp-test", cmd_lsp_test),
+        ("plugin-test", cmd_plugin_test),
     ] {
         println!("\n=== xtask: {name} ===");
         step()?;
@@ -67,6 +69,47 @@ fn cmd_analyze() -> Result {
     run_cmd(&cha, &["analyze", ".", "--format", "json"])?;
     run_cmd(&cha, &["analyze", ".", "--format", "llm"])?;
     run_cmd(&cha, &["analyze", "--diff"])
+}
+
+fn cmd_plugin_test() -> Result {
+    let root = project_root();
+    let cha = cha_binary();
+    let examples = [
+        "examples/wasm-plugin-example",
+        "examples/wasm-plugin-hardcoded",
+    ];
+    for example in examples {
+        let dir = format!("{root}/{example}");
+        println!("  → plugin-test: {example}");
+        // Build wasm
+        let status = Command::new("cargo")
+            .args(["build", "--target", "wasm32-wasip1", "--release"])
+            .current_dir(&dir)
+            .status()
+            .map_err(|e| format!("cargo build failed: {e}"))?;
+        if !status.success() {
+            return Err(format!("cargo build failed in {example}").into());
+        }
+        // Convert to component
+        let status = Command::new(&cha)
+            .args(["plugin", "build"])
+            .current_dir(&dir)
+            .status()
+            .map_err(|e| format!("cha plugin build failed: {e}"))?;
+        if !status.success() {
+            return Err(format!("cha plugin build failed in {example}").into());
+        }
+        // Run tests
+        let status = Command::new("cargo")
+            .args(["test"])
+            .current_dir(&dir)
+            .status()
+            .map_err(|e| format!("cargo test failed: {e}"))?;
+        if !status.success() {
+            return Err(format!("cargo test failed in {example}").into());
+        }
+    }
+    Ok(())
 }
 
 fn cmd_lsp_test() -> Result {
