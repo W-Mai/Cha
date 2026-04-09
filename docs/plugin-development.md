@@ -40,23 +40,19 @@ cha_plugin_sdk::plugin!(MyPlugin);
 
 struct MyPlugin;
 
-impl Guest for MyPlugin {
-    fn name() -> String {
-        "my-plugin".into()
-    }
-
-    fn analyze(input: AnalysisInput) -> Vec<Finding> {
-        // your logic here
-        vec![]
-    }
+impl PluginImpl for MyPlugin {
+    fn name() -> String { "my-plugin".into() }
+    fn analyze(input: AnalysisInput) -> Vec<Finding> { vec![] }
 }
 ```
 
 `plugin!` expands to `wit_bindgen::generate!` with the embedded WIT interface, plus `export!`. No local `.wit` file needed.
 
+`version()`, `description()`, and `authors()` are automatically filled from the plugin's `Cargo.toml` — no need to implement them manually.
+
 ### Available Types
 
-After `plugin!(MyPlugin)`, these types are in scope:
+After `plugin!(MyPlugin)`, these types are in scope and `PluginImpl` is the trait to implement:
 
 | Type | Description |
 |------|-------------|
@@ -260,10 +256,11 @@ cargo test
 The full interface is in `wit/plugin.wit`. The `plugin!` macro embeds it at compile time — you never need to manage it manually.
 
 ```wit
-package cha:plugin@0.1.0;
-
 world analyzer {
     export name: func() -> string;
+    export version: func() -> string;       // auto from Cargo.toml
+    export description: func() -> string;   // auto from Cargo.toml
+    export authors: func() -> list<string>; // auto from Cargo.toml
     export analyze: func(input: analysis-input) -> list<finding>;
 }
 ```
