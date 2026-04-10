@@ -43,6 +43,9 @@ gh pr diff | cha analyze --stdin-diff --fail-on warning
 # Run specific plugins only
 cha analyze --plugin complexity,naming
 
+# Force full re-analysis (skip cache)
+cha analyze --no-cache
+
 # Parse and inspect file structure
 cha parse src/
 

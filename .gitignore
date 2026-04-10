@@ -3,3 +3,4 @@
 .githooks/
 .idea/
 *.wasm
+.cha/

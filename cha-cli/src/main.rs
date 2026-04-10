@@ -53,6 +53,9 @@ enum Cli {
         /// Only run specific plugins (comma-separated names)
         #[arg(long, value_delimiter = ',')]
         plugin: Vec<String>,
+        /// Disable analysis cache (force full re-analysis)
+        #[arg(long)]
+        no_cache: bool,
     },
     /// Parse source files and show structure
     Parse {
@@ -131,8 +134,13 @@ fn main() {
             diff,
             stdin_diff,
             plugin,
+            no_cache,
         } => {
             let mode = DiffMode::from_flags(diff, stdin_diff);
+            if no_cache {
+                let cwd = std::env::current_dir().unwrap_or_default();
+                let _ = std::fs::remove_dir_all(cwd.join(".cha/cache"));
+            }
             let code = cmd_analyze(&paths, &format, fail_on.as_ref(), mode, &plugin);
             process::exit(code);
         }
@@ -319,6 +327,8 @@ fn resolve_files(paths: &[String], diff: bool) -> Vec<PathBuf> {
 
 /// Analyze files in parallel using rayon, with per-file config inheritance.
 fn run_analysis(files: &[PathBuf], project_root: &Path, plugin_filter: &[String]) -> Vec<Finding> {
+    let cache = open_cache(project_root, !plugin_filter.is_empty());
+
     let pb = ProgressBar::new(files.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
@@ -329,21 +339,83 @@ fn run_analysis(files: &[PathBuf], project_root: &Path, plugin_filter: &[String]
     let results: Vec<Finding> = files
         .par_iter()
         .flat_map(|path| {
-            let findings = analyze_file(path, project_root, plugin_filter);
+            let findings = analyze_one(path, project_root, plugin_filter, &cache);
             pb.inc(1);
             findings
         })
         .collect();
     pb.finish_and_clear();
+
+    if let Some(cache) = cache
+        && let Ok(c) = cache.into_inner()
+    {
+        c.flush();
+    }
     results
 }
 
-fn analyze_file(path: &Path, project_root: &Path, plugin_filter: &[String]) -> Vec<Finding> {
+fn open_cache(
+    project_root: &Path,
+    no_cache: bool,
+) -> Option<std::sync::Mutex<cha_core::AnalysisCache>> {
+    use cha_core::AnalysisCache;
+    if no_cache {
+        return None;
+    }
+    let plugin_dirs = vec![
+        project_root.join(".cha/plugins"),
+        dirs::home_dir().unwrap_or_default().join(".cha/plugins"),
+    ];
+    let env_hash = AnalysisCache::env_hash(project_root, &plugin_dirs);
+    Some(std::sync::Mutex::new(AnalysisCache::open(
+        project_root,
+        env_hash,
+    )))
+}
+
+fn analyze_one(
+    path: &Path,
+    project_root: &Path,
+    plugin_filter: &[String],
+    cache: &Option<std::sync::Mutex<cha_core::AnalysisCache>>,
+) -> Vec<Finding> {
+    use cha_core::AnalysisCache;
+
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(_) => return vec![],
     };
-    let file = SourceFile::new(path.to_path_buf(), content);
+    let rel = path
+        .strip_prefix(project_root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .to_string();
+    let content_hash = AnalysisCache::hash_content(&content);
+
+    if let Some(cache) = cache
+        && let Ok(c) = cache.lock()
+        && let Some(cached) = c.get(&rel, content_hash)
+    {
+        return cached.to_vec();
+    }
+
+    let findings = analyze_file_with_content(path, &content, project_root, plugin_filter);
+
+    if let Some(cache) = cache
+        && let Ok(mut c) = cache.lock()
+    {
+        c.put(rel, content_hash, findings.clone());
+    }
+    findings
+}
+
+fn analyze_file_with_content(
+    path: &Path,
+    content: &str,
+    project_root: &Path,
+    plugin_filter: &[String],
+) -> Vec<Finding> {
+    let file = SourceFile::new(path.to_path_buf(), content.to_string());
     let model = match cha_parser::parse_file(&file) {
         Some(m) => m,
         None => return vec![],

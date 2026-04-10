@@ -1,3 +1,4 @@
+mod cache;
 pub mod config;
 mod model;
 mod plugin;
@@ -7,6 +8,7 @@ pub mod reporter;
 mod source;
 pub mod wasm;
 
+pub use cache::AnalysisCache;
 pub use config::Config;
 pub use model::*;
 pub use plugin::*;
