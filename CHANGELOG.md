@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-04-10
+
+### Added
+- `cha completions <shell>` — generate shell completion scripts (bash/zsh/fish/powershell); auto-installed via Homebrew
+
+### Fixed
+- `cha plugin new` hint now shows `cha plugin build` instead of `cargo build`, and uses correct underscore filename
+- WASM plugin e2e test: plugin dir detection when `cha plugin new` uses cwd directly
+- Unused `Path` import in `cha-plugin-sdk` test-utils
+
+### Changed
+- `cha-lsp`: marked `publish = false`, not distributed via crates.io
+- `xtask`: refactored `cmd_publish`/`cmd_bump` to reduce complexity
+
 ## [0.1.0] - 2026-04-10
 
 ### Added
@@ -47,5 +61,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - cargo-dist: multi-platform binaries (macOS/Linux/Windows), shell/powershell/homebrew/msi installers
 - oranda: project website with release artifacts
 
-[Unreleased]: https://github.com/W-Mai/Cha/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/W-Mai/Cha/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/W-Mai/Cha/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/W-Mai/Cha/releases/tag/v0.1.0
