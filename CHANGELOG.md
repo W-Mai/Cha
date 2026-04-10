@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-11
+
 ### Added
 - Tech debt summary in terminal output: total estimated remediation time + grade distribution
 - `--format html` — self-contained HTML report with dark theme, source code highlighting, health scores, and collapsible file sections
@@ -88,7 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - cargo-dist: multi-platform binaries (macOS/Linux/Windows), shell/powershell/homebrew/msi installers
 - oranda: project website with release artifacts
 
-[Unreleased]: https://github.com/W-Mai/Cha/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/W-Mai/Cha/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/W-Mai/Cha/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/W-Mai/Cha/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/W-Mai/Cha/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/W-Mai/Cha/compare/v0.1.0...v0.1.1
