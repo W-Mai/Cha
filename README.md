@@ -46,6 +46,12 @@ cha analyze --plugin complexity,naming
 # Force full re-analysis (skip cache)
 cha analyze --no-cache
 
+# Generate baseline of current issues
+cha baseline
+
+# Only report new issues (not in baseline)
+cha analyze --baseline .cha/baseline.json
+
 # Parse and inspect file structure
 cha parse src/
 

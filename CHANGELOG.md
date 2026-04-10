@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Incremental analysis cache (`.cha/cache/`) — skips unchanged files, ~70x speedup on warm runs
 - `--no-cache` flag to force full re-analysis
 - Cache auto-invalidates when `.cha.toml` or plugins change
+- `cha baseline` — generate a baseline file of current findings, suppress known issues
+- `--baseline <path>` flag on `cha analyze` to only report new findings
 
 ## [0.2.0] - 2026-04-10
 

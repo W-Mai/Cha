@@ -1,3 +1,4 @@
+mod baseline;
 mod cache;
 pub mod config;
 mod model;
@@ -8,6 +9,7 @@ pub mod reporter;
 mod source;
 pub mod wasm;
 
+pub use baseline::Baseline;
 pub use cache::AnalysisCache;
 pub use config::Config;
 pub use model::*;

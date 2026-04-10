@@ -56,6 +56,17 @@ enum Cli {
         /// Disable analysis cache (force full re-analysis)
         #[arg(long)]
         no_cache: bool,
+        /// Only report findings not in the baseline file
+        #[arg(long)]
+        baseline: Option<String>,
+    },
+    /// Generate a baseline file from current findings (suppresses known issues)
+    Baseline {
+        /// Files or directories to analyze (defaults to current directory)
+        paths: Vec<String>,
+        /// Output path for baseline file (default: .cha/baseline.json)
+        #[arg(long, short)]
+        output: Option<String>,
     },
     /// Parse source files and show structure
     Parse {
@@ -135,15 +146,24 @@ fn main() {
             stdin_diff,
             plugin,
             no_cache,
+            baseline,
         } => {
             let mode = DiffMode::from_flags(diff, stdin_diff);
             if no_cache {
                 let cwd = std::env::current_dir().unwrap_or_default();
                 let _ = std::fs::remove_dir_all(cwd.join(".cha/cache"));
             }
-            let code = cmd_analyze(&paths, &format, fail_on.as_ref(), mode, &plugin);
+            let code = cmd_analyze(
+                &paths,
+                &format,
+                fail_on.as_ref(),
+                mode,
+                &plugin,
+                baseline.as_deref(),
+            );
             process::exit(code);
         }
+        Cli::Baseline { paths, output } => cmd_baseline(&paths, output.as_deref()),
         Cli::Parse { paths } => cmd_parse(&paths),
         Cli::Init => cmd_init(),
         Cli::Schema => println!("{}", cha_core::findings_json_schema()),
@@ -238,6 +258,7 @@ fn cmd_analyze(
     fail_on: Option<&FailLevel>,
     diff_mode: DiffMode,
     plugin_filter: &[String],
+    baseline_path: Option<&str>,
 ) -> i32 {
     let cwd = std::env::current_dir().unwrap_or_default();
     let root_config = Config::load(&cwd);
@@ -253,6 +274,17 @@ fn cmd_analyze(
     let all_findings = match diff_map {
         Some(ref dm) => diff::filter_by_diff(all_findings, dm),
         None => all_findings,
+    };
+    let all_findings = if let Some(bp) = baseline_path {
+        match cha_core::Baseline::load(Path::new(bp)) {
+            Some(bl) => bl.filter_new(all_findings, &cwd),
+            None => {
+                eprintln!("warning: baseline file not found: {bp}");
+                all_findings
+            }
+        }
+    } else {
+        all_findings
     };
     print_report(&all_findings, format);
     exit_code(&all_findings, fail_on)
@@ -456,6 +488,23 @@ fn exit_code(findings: &[Finding], fail_on: Option<&FailLevel>) -> i32 {
         }
     }
     0
+}
+
+fn cmd_baseline(paths: &[String], output: Option<&str>) {
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let root_config = Config::load(&cwd);
+    let files = filter_excluded(collect_files(paths), &root_config.exclude, &cwd);
+    let findings = run_analysis(&files, &cwd, &[]);
+    let baseline = cha_core::Baseline::from_findings(&findings, &cwd);
+    let out = Path::new(output.unwrap_or(".cha/baseline.json"));
+    match baseline.save(out) {
+        Ok(()) => println!(
+            "Baseline saved to {} ({} findings)",
+            out.display(),
+            baseline.fingerprints.len()
+        ),
+        Err(e) => eprintln!("Failed to save baseline: {e}"),
+    }
 }
 
 fn cmd_parse(paths: &[String]) {

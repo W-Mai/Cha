@@ -5,3 +5,9 @@ enabled = false
 
 [plugins.length]
 max_file_lines = 750
+
+[plugins.long_parameter_list]
+max_params = 7
+
+[plugins.complexity]
+warn_threshold = 12
