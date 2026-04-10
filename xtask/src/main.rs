@@ -432,6 +432,19 @@ fn cmd_bump(level: &str) -> Result {
             println!("  → updated {entry}");
         }
     }
+    // Refresh all Cargo.lock files so they pick up the new versions
+    for lock in find_cargo_locks(&root) {
+        let dir = std::path::Path::new(&lock).parent().unwrap();
+        print!("  → refreshing {lock} ... ");
+        let st = Command::new("cargo")
+            .arg("update")
+            .arg("--workspace")
+            .current_dir(dir)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()?;
+        println!("{}", if st.success() { "ok" } else { "FAILED" });
+    }
     println!("  ✅ version bumped to {next}");
     println!("  → run: git add -p && git commit -m \"🔖: bump version to {next}\"");
     Ok(())
@@ -447,9 +460,10 @@ fn read_workspace_version(root: &str) -> Result<String> {
         .ok_or_else(|| "could not find version in workspace Cargo.toml".into())
 }
 
-fn find_cargo_tomls(root: &str) -> Vec<String> {
+fn find_files(root: &str, filename: &str) -> Vec<String> {
     let mut result = Vec::new();
-    fn walk(dir: &std::path::Path, result: &mut Vec<String>) {
+    let target = filename.to_string();
+    fn walk(dir: &std::path::Path, target: &str, result: &mut Vec<String>) {
         let Ok(entries) = std::fs::read_dir(dir) else {
             return;
         };
@@ -458,16 +472,24 @@ fn find_cargo_tomls(root: &str) -> Vec<String> {
             if path.is_dir() {
                 let name = path.file_name().unwrap_or_default().to_string_lossy();
                 if name != "target" && name != "node_modules" && name != ".git" {
-                    walk(&path, result);
+                    walk(&path, target, result);
                 }
-            } else if path.file_name().is_some_and(|f| f == "Cargo.toml") {
+            } else if path.file_name().is_some_and(|f| f == target) {
                 result.push(path.to_string_lossy().into_owned());
             }
         }
     }
-    walk(std::path::Path::new(root), &mut result);
+    walk(std::path::Path::new(root), &target, &mut result);
     result.sort();
     result
+}
+
+fn find_cargo_tomls(root: &str) -> Vec<String> {
+    find_files(root, "Cargo.toml")
+}
+
+fn find_cargo_locks(root: &str) -> Vec<String> {
+    find_files(root, "Cargo.lock")
 }
 
 /// Rewrite version strings in a Cargo.toml to `next`.

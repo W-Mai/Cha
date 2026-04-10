@@ -7,8 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-10
+
 ### Added
 - Python language support (.py) — functions, classes, imports, complexity, chain depth, delegating detection
+
+### Fixed
+- `xtask bump` now dynamically scans all Cargo.toml files instead of hardcoded paths, and refreshes all Cargo.lock files
+- Duplicate `PythonParser` import in cha-parser
+- `cha-lsp/Cargo.toml` version not updated by `xtask bump`
 
 ## [0.1.1] - 2026-04-10
 
@@ -64,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - cargo-dist: multi-platform binaries (macOS/Linux/Windows), shell/powershell/homebrew/msi installers
 - oranda: project website with release artifacts
 
-[Unreleased]: https://github.com/W-Mai/Cha/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/W-Mai/Cha/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/W-Mai/Cha/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/W-Mai/Cha/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/W-Mai/Cha/releases/tag/v0.1.0
