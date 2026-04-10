@@ -1,5 +1,6 @@
 use std::io::{Read, Write};
 use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -24,6 +25,9 @@ fn dispatch_with_args(cmd: &str, args: &[String]) -> Result {
     if cmd == "publish" {
         let dry_run = args.iter().any(|a| a == "--dry-run");
         return cmd_publish(dry_run);
+    }
+    if cmd == "release" {
+        return cmd_release();
     }
 
     type Cmd = (&'static str, fn() -> Result);
@@ -462,6 +466,102 @@ fn rewrite_version(path: &str, current: &str, next: &str) -> Result {
         .join("\n")
         + "\n";
     std::fs::write(path, updated)?;
+    Ok(())
+}
+
+fn gh(args: &[&str]) -> Result<String> {
+    let out = Command::new("gh")
+        .args(args)
+        .output()
+        .map_err(|e| format!("gh {}: {e}", args.join(" ")))?;
+    if out.status.success() {
+        Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+    } else {
+        Err(format!(
+            "gh {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&out.stderr).trim()
+        )
+        .into())
+    }
+}
+
+/// Poll until the latest run of a workflow reaches a terminal state.
+/// Returns "success" or errors on failure/timeout.
+fn wait_for_workflow(workflow: &str, timeout: Duration) -> Result<()> {
+    let start = Instant::now();
+    println!("  → waiting for {workflow} ...");
+    loop {
+        std::thread::sleep(Duration::from_secs(15));
+        let out = gh(&[
+            "run",
+            "list",
+            "--workflow",
+            workflow,
+            "--limit",
+            "1",
+            "--json",
+            "status,conclusion",
+            "-q",
+            ".[0] | [.status, .conclusion] | @tsv",
+        ])?;
+        let parts: Vec<&str> = out.split('\t').collect();
+        let status = parts.first().copied().unwrap_or("");
+        let conclusion = parts.get(1).copied().unwrap_or("");
+        println!("    {workflow}: {status} / {conclusion}");
+        if status == "completed" {
+            if conclusion == "success" {
+                return Ok(());
+            }
+            return Err(format!("{workflow} completed with: {conclusion}").into());
+        }
+        if start.elapsed() > timeout {
+            return Err(format!("timeout waiting for {workflow}").into());
+        }
+    }
+}
+
+fn cmd_release() -> Result {
+    let root = project_root();
+
+    // 1. Ensure working tree is clean
+    let dirty = Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(&root)
+        .output()?;
+    if !dirty.stdout.is_empty() {
+        return Err("working tree is not clean — commit all changes first".into());
+    }
+
+    // 2. Read version
+    let version = read_workspace_version(&root)?;
+    let tag = format!("v{version}");
+    println!("  → releasing {tag}");
+
+    // 3. Push main
+    println!("\n  → git push origin main");
+    run_cmd("git", &["push", "origin", "main"])?;
+
+    // 4. Wait for CI
+    println!("\n  → waiting for CI to pass (timeout 20min)...");
+    wait_for_workflow("ci.yml", Duration::from_secs(20 * 60))?;
+    println!("  ✅ CI passed");
+
+    // 5. Tag and push
+    println!("\n  → tagging {tag}");
+    run_cmd("git", &["tag", &tag])?;
+    run_cmd("git", &["push", "origin", &tag])?;
+
+    // 6. Wait for release workflow
+    println!("\n  → waiting for release workflow (timeout 30min)...");
+    wait_for_workflow("release.yml", Duration::from_secs(30 * 60))?;
+    println!("  ✅ GitHub Release created");
+
+    // 7. Publish to crates.io
+    println!("\n  → publishing to crates.io...");
+    cmd_publish(false)?;
+
+    println!("\n  🎉 released {tag} successfully!");
     Ok(())
 }
 
