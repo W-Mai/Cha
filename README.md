@@ -69,6 +69,9 @@ cha plugin list
 
 # Remove a plugin
 cha plugin remove my_plugin
+
+# Generate shell completions (fish/bash/zsh/powershell)
+cha completions fish > ~/.config/fish/completions/cha.fish
 ```
 
 ## 📦 Installation
@@ -212,6 +215,9 @@ cargo xtask test      # Unit + property + fixture tests
 cargo xtask lint      # Clippy + fmt
 cargo xtask analyze   # Self-analysis in all formats
 cargo xtask lsp-test  # LSP smoke test
+
+# Release (push → wait CI → tag → wait release workflow → publish to crates.io)
+cargo xtask release
 ```
 
 ## 📁 Project Structure
