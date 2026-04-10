@@ -81,6 +81,9 @@ pub struct AnalysisInput {
 }
 ```
 
+> **Note:** WASM plugins run in a sandboxed environment with no filesystem access.
+> Use `input.content` to read the source text — do **not** use `std::fs::read_to_string(&input.path)`, it will silently return an empty string.
+
 ### FunctionInfo Fields
 
 ```rust
