@@ -547,15 +547,54 @@ fn cmd_release() -> Result {
     wait_for_workflow("ci.yml", Duration::from_secs(20 * 60))?;
     println!("  ✅ CI passed");
 
-    // 5. Tag and push
+    // 5. Tag and push (idempotent — skip if tag already exists)
     println!("\n  → tagging {tag}");
-    run_cmd("git", &["tag", &tag])?;
-    run_cmd("git", &["push", "origin", &tag])?;
+    let tag_exists = Command::new("git")
+        .args(["tag", "-l", &tag])
+        .current_dir(&root)
+        .output()
+        .map(|o| !o.stdout.is_empty())
+        .unwrap_or(false);
+    if tag_exists {
+        println!("  → tag {tag} already exists, skipping");
+    } else {
+        run_cmd("git", &["tag", &tag])?;
+        run_cmd("git", &["push", "origin", &tag])?;
+    }
 
-    // 6. Wait for release workflow
+    // 6. Wait for release workflow (skip if already succeeded)
     println!("\n  → waiting for release workflow (timeout 30min)...");
-    wait_for_workflow("release.yml", Duration::from_secs(30 * 60))?;
-    println!("  ✅ GitHub Release created");
+    let release_done = gh(&[
+        "run",
+        "list",
+        "--workflow",
+        "release.yml",
+        "--limit",
+        "1",
+        "--json",
+        "status,conclusion,headBranch",
+        "-q",
+        &format!(".[0] | select(.headBranch == \"{tag}\") | .conclusion"),
+    ])
+    .unwrap_or_default();
+    if release_done == "success" {
+        println!("  → release workflow already succeeded, skipping");
+    } else {
+        // If previous run failed, re-run it; otherwise wait for in-progress
+        let prev_id = gh(&[
+            "run", "list", "--workflow", "release.yml",
+            "--limit", "1",
+            "--json", "databaseId,conclusion,headBranch",
+            "-q", &format!(".[0] | select(.headBranch == \"{tag}\") | select(.conclusion == \"failure\") | .databaseId"),
+        ])
+        .unwrap_or_default();
+        if !prev_id.is_empty() {
+            println!("  → previous release run failed, re-running...");
+            gh(&["run", "rerun", &prev_id])?;
+        }
+        wait_for_workflow("release.yml", Duration::from_secs(30 * 60))?;
+        println!("  ✅ GitHub Release created");
+    }
 
     // 7. Publish to crates.io
     println!("\n  → publishing to crates.io...");
