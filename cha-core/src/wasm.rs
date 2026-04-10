@@ -223,6 +223,7 @@ fn convert_category(c: wit::SmellCategory) -> SmellCategory {
         wit::SmellCategory::ChangePreventers => SmellCategory::ChangePreventers,
         wit::SmellCategory::Dispensables => SmellCategory::Dispensables,
         wit::SmellCategory::Couplers => SmellCategory::Couplers,
+        wit::SmellCategory::Security => SmellCategory::Security,
     }
 }
 

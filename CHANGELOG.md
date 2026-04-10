@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Tech debt summary in terminal output: total estimated remediation time + grade distribution
+- `--format html` — self-contained HTML report with dark theme, source code highlighting, health scores, and collapsible file sections
+- `--output <path>` flag to write report to file
+- `hardcoded_secret` plugin — detects API keys, tokens, passwords, private keys, JWTs in source code
+- `SmellCategory::Security` variant for security-related findings
+
 ## [0.3.0] - 2026-04-10
 
 ### Added
@@ -16,9 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `cha baseline` — generate a baseline file of current findings, suppress known issues
 - `--baseline <path>` flag on `cha analyze` to only report new findings
 - Code health scores (A–F) per file in terminal output, based on issue density and severity
-- Tech debt summary in terminal output: total estimated remediation time + grade distribution
-- `--format html` — self-contained HTML report with dark theme, source code highlighting, health scores, and collapsible file sections
-- `--output <path>` flag to write report to file
 
 ## [0.2.0] - 2026-04-10
 

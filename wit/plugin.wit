@@ -16,6 +16,7 @@ interface types {
         change-preventers,
         dispensables,
         couplers,
+        security,
     }
 
     /// Source location.

@@ -53,3 +53,6 @@ max_depth = 3
 
 # [plugins.design_pattern]
 # enabled = true
+
+# [plugins.hardcoded_secret]
+# enabled = true

@@ -7,10 +7,11 @@ use crate::{
         ApiSurfaceAnalyzer, CommentsAnalyzer, ComplexityAnalyzer, CouplingAnalyzer,
         DataClassAnalyzer, DataClumpsAnalyzer, DeadCodeAnalyzer, DesignPatternAdvisor,
         DivergentChangeAnalyzer, DuplicateCodeAnalyzer, FeatureEnvyAnalyzer,
-        InappropriateIntimacyAnalyzer, LayerViolationAnalyzer, LazyClassAnalyzer, LengthAnalyzer,
-        LongParameterListAnalyzer, MessageChainAnalyzer, MiddleManAnalyzer, NamingAnalyzer,
-        PrimitiveObsessionAnalyzer, RefusedBequestAnalyzer, ShotgunSurgeryAnalyzer,
-        SpeculativeGeneralityAnalyzer, SwitchStatementAnalyzer, TemporaryFieldAnalyzer,
+        HardcodedSecretAnalyzer, InappropriateIntimacyAnalyzer, LayerViolationAnalyzer,
+        LazyClassAnalyzer, LengthAnalyzer, LongParameterListAnalyzer, MessageChainAnalyzer,
+        MiddleManAnalyzer, NamingAnalyzer, PrimitiveObsessionAnalyzer, RefusedBequestAnalyzer,
+        ShotgunSurgeryAnalyzer, SpeculativeGeneralityAnalyzer, SwitchStatementAnalyzer,
+        TemporaryFieldAnalyzer,
     },
     wasm,
 };
@@ -176,6 +177,9 @@ fn register_change_preventer_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config:
     });
     register_if_enabled(plugins, config, "inappropriate_intimacy", || {
         Box::new(InappropriateIntimacyAnalyzer)
+    });
+    register_if_enabled(plugins, config, "hardcoded_secret", || {
+        Box::new(HardcodedSecretAnalyzer)
     });
 }
 

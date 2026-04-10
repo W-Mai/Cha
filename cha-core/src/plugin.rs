@@ -24,6 +24,7 @@ pub enum SmellCategory {
     ChangePreventers,
     Dispensables,
     Couplers,
+    Security,
 }
 
 /// Source location of a finding.

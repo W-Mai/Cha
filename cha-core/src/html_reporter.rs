@@ -15,8 +15,18 @@ pub fn render_html(
         "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">\
         <title>Cha Report</title><style>{CSS}</style></head><body>"
     );
+    render_summary(&mut html, findings, scores);
+    render_scores_table(&mut html, scores);
+    let contents: BTreeMap<&str, &str> = file_contents
+        .iter()
+        .map(|(p, c)| (p.as_str(), c.as_str()))
+        .collect();
+    render_findings_section(&mut html, findings, &contents);
+    let _ = write!(html, "</body></html>");
+    html
+}
 
-    // Summary
+fn render_summary(html: &mut String, findings: &[Finding], scores: &[HealthScore]) {
     let (errors, warnings, hints) = count_severities(findings);
     let total_debt: u32 = scores.iter().map(|s| s.debt_minutes).sum();
     let _ = write!(
@@ -30,8 +40,9 @@ pub fn render_html(
          </div></header>",
         format_duration(total_debt)
     );
+}
 
-    // Health score table
+fn render_scores_table(html: &mut String, scores: &[HealthScore]) {
     let _ = write!(
         html,
         "<section><h2>Health Scores</h2><table><tr>\
@@ -51,14 +62,14 @@ pub fn render_html(
         );
     }
     let _ = write!(html, "</table></section>");
+}
 
-    // Findings grouped by file
+fn render_findings_section(
+    html: &mut String,
+    findings: &[Finding],
+    contents: &BTreeMap<&str, &str>,
+) {
     let grouped = group_by_file(findings);
-    let contents: BTreeMap<&str, &str> = file_contents
-        .iter()
-        .map(|(p, c)| (p.as_str(), c.as_str()))
-        .collect();
-
     let _ = write!(html, "<section><h2>Findings</h2>");
     for (path, file_findings) in &grouped {
         let _ = write!(
@@ -69,30 +80,9 @@ pub fn render_html(
             path = esc(path),
             n = file_findings.len(),
         );
-
-        // Source code with highlighted lines
         if let Some(src) = contents.get(path.as_str()) {
-            let highlight_lines = finding_lines(file_findings);
-            let _ = write!(html, "<div class=\"source\"><table class=\"code\">");
-            for (i, line) in src.lines().enumerate() {
-                let ln = i + 1;
-                let cls = if highlight_lines.contains(&ln) {
-                    " class=\"hl\""
-                } else {
-                    ""
-                };
-                let _ = write!(
-                    html,
-                    "<tr{cls} id=\"{id}-L{ln}\"><td class=\"ln\">{ln}</td>\
-                     <td class=\"src\">{code}</td></tr>",
-                    id = path_id(path),
-                    code = esc(line),
-                );
-            }
-            let _ = write!(html, "</table></div>");
+            render_source_block(html, path, src, file_findings);
         }
-
-        // Finding list
         for f in file_findings {
             let _ = write!(
                 html,
@@ -110,8 +100,28 @@ pub fn render_html(
         }
         let _ = write!(html, "</details>");
     }
-    let _ = write!(html, "</section></body></html>");
-    html
+    let _ = write!(html, "</section>");
+}
+
+fn render_source_block(html: &mut String, path: &str, src: &str, file_findings: &[&Finding]) {
+    let highlight_lines = finding_lines(file_findings);
+    let _ = write!(html, "<div class=\"source\"><table class=\"code\">");
+    for (i, line) in src.lines().enumerate() {
+        let ln = i + 1;
+        let cls = if highlight_lines.contains(&ln) {
+            " class=\"hl\""
+        } else {
+            ""
+        };
+        let _ = write!(
+            html,
+            "<tr{cls} id=\"{id}-L{ln}\"><td class=\"ln\">{ln}</td>\
+             <td class=\"src\">{code}</td></tr>",
+            id = path_id(path),
+            code = esc(line),
+        );
+    }
+    let _ = write!(html, "</table></div>");
 }
 
 fn count_severities(findings: &[Finding]) -> (usize, usize, usize) {
