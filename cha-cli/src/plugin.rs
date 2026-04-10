@@ -60,9 +60,9 @@ pub fn cmd_new(name: &str) {
     println!();
     println!("Next steps:");
     println!("  cd {}", dir.display());
-    println!("  cargo build --target wasm32-wasip1 --release");
+    println!("  cha plugin build");
     let wasm_file = name.replace('-', "_");
-    println!("  cha plugin install target/wasm32-wasip1/release/{wasm_file}.wasm");
+    println!("  cha plugin install {wasm_file}.wasm");
 }
 
 pub fn cmd_build() {
