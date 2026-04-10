@@ -503,6 +503,33 @@ fn print_health_scores(findings: &[Finding], files: &[PathBuf]) {
             println!("  {} {} (~{}min debt)", s.grade, s.path, s.debt_minutes);
         }
     }
+    let total: u32 = scores.iter().map(|s| s.debt_minutes).sum();
+    if total > 0 {
+        let grade_count = |g: cha_core::Grade| scores.iter().filter(|s| s.grade == g).count();
+        println!(
+            "\nTech debt: ~{} | A:{} B:{} C:{} D:{} F:{}",
+            format_duration(total),
+            grade_count(cha_core::Grade::A),
+            grade_count(cha_core::Grade::B),
+            grade_count(cha_core::Grade::C),
+            grade_count(cha_core::Grade::D),
+            grade_count(cha_core::Grade::F),
+        );
+    }
+}
+
+fn format_duration(minutes: u32) -> String {
+    if minutes < 60 {
+        format!("{minutes}min")
+    } else {
+        let h = minutes / 60;
+        let m = minutes % 60;
+        if m == 0 {
+            format!("{h}h")
+        } else {
+            format!("{h}h {m}min")
+        }
+    }
 }
 
 fn exit_code(findings: &[Finding], fail_on: Option<&FailLevel>) -> i32 {

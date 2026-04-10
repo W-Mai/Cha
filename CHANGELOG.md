@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `cha baseline` — generate a baseline file of current findings, suppress known issues
 - `--baseline <path>` flag on `cha analyze` to only report new findings
 - Code health scores (A–F) per file in terminal output, based on issue density and severity
+- Tech debt summary in terminal output: total estimated remediation time + grade distribution
 
 ## [0.2.0] - 2026-04-10
 
