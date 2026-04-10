@@ -286,7 +286,7 @@ fn cmd_analyze(
     } else {
         all_findings
     };
-    print_report(&all_findings, format);
+    print_report(&all_findings, format, &files);
     exit_code(&all_findings, fail_on)
 }
 
@@ -466,7 +466,7 @@ fn analyze_file_with_content(
         .collect()
 }
 
-fn print_report(findings: &[Finding], format: &Format) {
+fn print_report(findings: &[Finding], format: &Format, files: &[PathBuf]) {
     let reporter: Box<dyn Reporter> = match format {
         Format::Terminal => Box::new(TerminalReporter),
         Format::Json => Box::new(JsonReporter),
@@ -474,6 +474,35 @@ fn print_report(findings: &[Finding], format: &Format) {
         Format::Sarif => Box::new(SarifReporter),
     };
     println!("{}", reporter.render(findings));
+    if matches!(format, Format::Terminal) && !findings.is_empty() {
+        print_health_scores(findings, files);
+    }
+}
+
+fn print_health_scores(findings: &[Finding], files: &[PathBuf]) {
+    let file_lines: Vec<(String, usize)> = files
+        .iter()
+        .filter_map(|p| {
+            let content = std::fs::read_to_string(p).ok()?;
+            Some((p.to_string_lossy().to_string(), content.lines().count()))
+        })
+        .collect();
+    let mut scores = cha_core::score_files(findings, &file_lines);
+    scores.sort_by(|a, b| {
+        b.grade
+            .cmp(&a.grade)
+            .then(b.debt_minutes.cmp(&a.debt_minutes))
+    });
+    let worst: Vec<_> = scores
+        .iter()
+        .filter(|s| s.grade > cha_core::Grade::A)
+        .collect();
+    if !worst.is_empty() {
+        println!("\nHealth scores:");
+        for s in &worst {
+            println!("  {} {} (~{}min debt)", s.grade, s.path, s.debt_minutes);
+        }
+    }
 }
 
 fn exit_code(findings: &[Finding], fail_on: Option<&FailLevel>) -> i32 {

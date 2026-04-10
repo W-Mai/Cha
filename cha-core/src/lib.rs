@@ -1,6 +1,7 @@
 mod baseline;
 mod cache;
 pub mod config;
+mod health;
 mod model;
 mod plugin;
 pub mod plugins;
@@ -12,6 +13,7 @@ pub mod wasm;
 pub use baseline::Baseline;
 pub use cache::AnalysisCache;
 pub use config::Config;
+pub use health::{Grade, HealthScore, score_files};
 pub use model::*;
 pub use plugin::*;
 pub use registry::PluginRegistry;
