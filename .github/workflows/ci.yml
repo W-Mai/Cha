@@ -35,7 +35,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: test
-      - run: cargo test --workspace
+      # cha-cli integration tests require a release binary, run in build-and-analyze job
+      - run: cargo test --workspace --exclude cha-cli
 
   build-and-analyze:
     name: Build & Analyze
@@ -47,7 +48,9 @@ jobs:
         with:
           key: build
       - name: Build release
-        run: cargo build --release -p cha-cli
+        run: cargo build --release -p cha-cli -p cha-lsp
+      - name: Integration tests
+        run: cargo test -p cha-cli
       - name: Analyze (self-check)
         run: |
           echo "$PWD/target/release" >> $GITHUB_PATH
