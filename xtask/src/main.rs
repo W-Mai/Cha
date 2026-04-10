@@ -415,7 +415,10 @@ fn cmd_publish(dry_run: bool) -> Result {
 }
 
 /// Bump version across all publishable crates.
-/// Updates workspace Cargo.toml and cha-plugin-sdk/Cargo.toml + macros/Cargo.toml.
+/// Bump version across all Cargo.toml files in the repo.
+/// Dynamically scans every Cargo.toml; rewrites:
+/// - Own `version = "x.y.z"` (not workspace)
+/// - Any dependency line containing `path =` (i.e. internal crate)
 fn cmd_bump(level: &str) -> Result {
     if !matches!(level, "major" | "minor" | "patch") {
         return Err("usage: cargo xtask bump <major|minor|patch>".into());
@@ -424,14 +427,10 @@ fn cmd_bump(level: &str) -> Result {
     let current = read_workspace_version(&root)?;
     let next = bump_version(&current, level)?;
     println!("  → bumping {current} → {next}");
-    let targets = [
-        format!("{root}/Cargo.toml"),
-        format!("{root}/cha-plugin-sdk/Cargo.toml"),
-        format!("{root}/cha-plugin-sdk/macros/Cargo.toml"),
-    ];
-    for path in &targets {
-        rewrite_version(path, &current, &next)?;
-        println!("  → updated {path}");
+    for entry in find_cargo_tomls(&root) {
+        if rewrite_version(&entry, &next)? {
+            println!("  → updated {entry}");
+        }
     }
     println!("  ✅ version bumped to {next}");
     println!("  → run: git add -p && git commit -m \"🔖: bump version to {next}\"");
@@ -448,25 +447,91 @@ fn read_workspace_version(root: &str) -> Result<String> {
         .ok_or_else(|| "could not find version in workspace Cargo.toml".into())
 }
 
-fn rewrite_version(path: &str, current: &str, next: &str) -> Result {
+fn find_cargo_tomls(root: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    fn walk(dir: &std::path::Path, result: &mut Vec<String>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let name = path.file_name().unwrap_or_default().to_string_lossy();
+                if name != "target" && name != "node_modules" && name != ".git" {
+                    walk(&path, result);
+                }
+            } else if path.file_name().is_some_and(|f| f == "Cargo.toml") {
+                result.push(path.to_string_lossy().into_owned());
+            }
+        }
+    }
+    walk(std::path::Path::new(root), &mut result);
+    result.sort();
+    result
+}
+
+/// Rewrite version strings in a Cargo.toml to `next`.
+fn rewrite_version(path: &str, next: &str) -> Result<bool> {
     let content = std::fs::read_to_string(path)?;
     let updated = content
         .lines()
         .map(|line| {
-            if line.trim().starts_with("version =") && !line.contains("workspace") {
-                line.replace(&format!("\"{current}\""), &format!("\"{next}\""))
+            let trimmed = line.trim();
+            let should_rewrite =
+                // Own package version: `version = "x.y.z"` (not workspace ref)
+                (trimmed.starts_with("version =") && !trimmed.contains("workspace"))
+                // Internal dep: any line with both `path =` and `version =`
+                || (trimmed.contains("path =") && trimmed.contains("version ="));
+            if should_rewrite {
+                replace_first_semver(line, next)
             } else {
-                line.replace(
-                    &format!("version = \"{current}\""),
-                    &format!("version = \"{next}\""),
-                )
+                line.to_string()
             }
         })
         .collect::<Vec<_>>()
         .join("\n")
         + "\n";
+    if updated == content {
+        return Ok(false);
+    }
     std::fs::write(path, updated)?;
-    Ok(())
+    Ok(true)
+}
+
+/// Replace the first `"x.y.z"` semver string in a line.
+fn replace_first_semver(line: &str, next: &str) -> String {
+    let mut result = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(start) = rest.find('"') {
+        result.push_str(&rest[..start]);
+        let after = &rest[start + 1..];
+        if let Some(end) = after.find('"') {
+            let inner = &after[..end];
+            if is_semver(inner) {
+                result.push_str(&format!("\"{next}\""));
+                rest = &after[end + 1..];
+                result.push_str(rest);
+                return result;
+            }
+            result.push('"');
+            result.push_str(inner);
+            result.push('"');
+            rest = &after[end + 1..];
+        } else {
+            result.push_str(&rest[start..]);
+            return result;
+        }
+    }
+    result.push_str(rest);
+    result
+}
+
+fn is_semver(s: &str) -> bool {
+    let parts: Vec<&str> = s.split('.').collect();
+    parts.len() == 3
+        && parts
+            .iter()
+            .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
 }
 
 fn gh(args: &[&str]) -> Result<String> {
