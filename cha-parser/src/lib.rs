@@ -1,7 +1,10 @@
+mod python;
 mod rust_lang;
 mod typescript;
 
 pub use cha_core::{ClassInfo, FunctionInfo, ImportInfo, SourceModel};
+pub use python::PythonParser;
+pub use python::PythonParser;
 pub use rust_lang::RustParser;
 pub use typescript::TypeScriptParser;
 
@@ -19,6 +22,7 @@ pub fn parse_file(file: &SourceFile) -> Option<SourceModel> {
     let parser: Box<dyn LanguageParser> = match ext {
         "ts" | "tsx" => Box::new(TypeScriptParser),
         "rs" => Box::new(RustParser),
+        "py" => Box::new(PythonParser),
         _ => return None,
     };
     parser.parse(file)

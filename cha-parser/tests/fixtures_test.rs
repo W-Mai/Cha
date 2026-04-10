@@ -95,6 +95,85 @@ fn tsx_exports() {
 
 #[test]
 fn unsupported_extension() {
-    let file = SourceFile::new(PathBuf::from("test.py"), "def foo(): pass".into());
+    let file = SourceFile::new(PathBuf::from("test.rb"), "def foo; end".into());
     assert!(parse_file(&file).is_none());
+}
+
+// -- Python fixtures --
+
+#[test]
+fn python_simple() {
+    let model = parse_file(&fixture("simple.py")).unwrap();
+    assert_eq!(model.language, "python");
+    assert_eq!(model.functions.len(), 13); // 4 top-level + 4 Animal + 3 Dog + 2 EmptyInterface
+    let top_fn = model
+        .functions
+        .iter()
+        .find(|f| f.name == "simple_function")
+        .unwrap();
+    assert_eq!(top_fn.parameter_count, 2);
+    assert_eq!(top_fn.complexity, 1);
+
+    let complex_fn = model
+        .functions
+        .iter()
+        .find(|f| f.name == "complex_function")
+        .unwrap();
+    assert!(complex_fn.complexity >= 4); // for + if + elif + base
+    assert_eq!(complex_fn.optional_param_count, 1);
+    assert!(complex_fn.comment_lines >= 1);
+}
+
+#[test]
+fn python_classes() {
+    let model = parse_file(&fixture("simple.py")).unwrap();
+    assert_eq!(model.classes.len(), 3); // Animal, Dog, EmptyInterface
+
+    let animal = model.classes.iter().find(|c| c.name == "Animal").unwrap();
+    assert_eq!(animal.method_count, 4);
+    assert!(animal.field_count >= 2); // name, sound, listeners
+    assert!(animal.has_listener_field);
+    assert!(animal.has_notify_method);
+    assert!(animal.has_behavior);
+
+    let dog = model.classes.iter().find(|c| c.name == "Dog").unwrap();
+    assert_eq!(dog.parent_name.as_deref(), Some("Animal"));
+    assert!(dog.has_behavior);
+
+    let iface = model
+        .classes
+        .iter()
+        .find(|c| c.name == "EmptyInterface")
+        .unwrap();
+    assert!(iface.is_interface);
+}
+
+#[test]
+fn python_imports() {
+    let model = parse_file(&fixture("simple.py")).unwrap();
+    assert!(model.imports.len() >= 4); // os, sys, pathlib.Path, typing.List, typing.Optional
+    assert!(model.imports.iter().any(|i| i.source == "os"));
+    assert!(model.imports.iter().any(|i| i.source.contains("Path")));
+}
+
+#[test]
+fn python_chain_depth() {
+    let model = parse_file(&fixture("simple.py")).unwrap();
+    let chain_fn = model
+        .functions
+        .iter()
+        .find(|f| f.name == "long_chain_example")
+        .unwrap();
+    assert!(chain_fn.chain_depth >= 4);
+}
+
+#[test]
+fn python_delegating() {
+    let model = parse_file(&fixture("simple.py")).unwrap();
+    let del_fn = model
+        .functions
+        .iter()
+        .find(|f| f.name == "delegating")
+        .unwrap();
+    assert!(del_fn.is_delegating);
 }

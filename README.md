@@ -116,7 +116,7 @@ Requires [Rust](https://www.rust-lang.org/tools/install) (edition 2024).
 | **InappropriateIntimacyAnalyzer** | Bidirectional imports between files | Couplers | Warning |
 | **DesignPatternAdvisor** | Suggests Strategy, State, Builder, Null Object, Template Method, Observer | OO Abusers | Hint |
 
-Supported languages: TypeScript (.ts/.tsx), Rust (.rs).
+Supported languages: Python (.py), TypeScript (.ts/.tsx), Rust (.rs).
 
 ## ⚙️ Configuration
 
@@ -224,7 +224,7 @@ cargo xtask release
 
 ```
 cha-core/       Core traits, plugin registry, reporters, WASM runtime
-cha-parser/     Tree-sitter parsing (TypeScript, Rust)
+cha-parser/     Tree-sitter parsing (Python, TypeScript, Rust)
 cha-cli/        CLI binary (analyze, parse)
 cha-lsp/        LSP server binary
 xtask/          CI automation (cargo xtask)

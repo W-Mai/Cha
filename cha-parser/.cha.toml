@@ -1,0 +1,3 @@
+# Parser modules have inherently complex match/dispatch logic
+[plugins.complexity]
+warn_threshold = 15

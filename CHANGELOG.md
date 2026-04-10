@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Python language support (.py) — functions, classes, imports, complexity, chain depth, delegating detection
+
 ## [0.1.1] - 2026-04-10
 
 ### Added
