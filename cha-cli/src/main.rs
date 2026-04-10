@@ -18,6 +18,7 @@ enum Format {
     Json,
     Llm,
     Sarif,
+    Html,
 }
 
 #[derive(Clone, ValueEnum, PartialEq, Eq, PartialOrd, Ord)]
@@ -59,6 +60,9 @@ enum Cli {
         /// Only report findings not in the baseline file
         #[arg(long)]
         baseline: Option<String>,
+        /// Write output to file (used with --format html)
+        #[arg(long, short)]
+        output: Option<String>,
     },
     /// Generate a baseline file from current findings (suppresses known issues)
     Baseline {
@@ -147,6 +151,7 @@ fn main() {
             plugin,
             no_cache,
             baseline,
+            output,
         } => {
             let mode = DiffMode::from_flags(diff, stdin_diff);
             if no_cache {
@@ -160,6 +165,7 @@ fn main() {
                 mode,
                 &plugin,
                 baseline.as_deref(),
+                output.as_deref(),
             );
             process::exit(code);
         }
@@ -259,6 +265,7 @@ fn cmd_analyze(
     diff_mode: DiffMode,
     plugin_filter: &[String],
     baseline_path: Option<&str>,
+    output_path: Option<&str>,
 ) -> i32 {
     let cwd = std::env::current_dir().unwrap_or_default();
     let root_config = Config::load(&cwd);
@@ -286,7 +293,11 @@ fn cmd_analyze(
     } else {
         all_findings
     };
-    print_report(&all_findings, format, &files);
+    if matches!(format, Format::Html) {
+        print_html_report(&all_findings, &files, output_path);
+    } else {
+        print_report(&all_findings, format, &files);
+    }
     exit_code(&all_findings, fail_on)
 }
 
@@ -466,12 +477,44 @@ fn analyze_file_with_content(
         .collect()
 }
 
+fn print_html_report(findings: &[Finding], files: &[PathBuf], output_path: Option<&str>) {
+    let file_data: Vec<(String, usize)> = files
+        .iter()
+        .filter_map(|p| {
+            let c = std::fs::read_to_string(p).ok()?;
+            Some((p.to_string_lossy().to_string(), c.lines().count()))
+        })
+        .collect();
+    let mut scores = cha_core::score_files(findings, &file_data);
+    scores.sort_by(|a, b| {
+        b.grade
+            .cmp(&a.grade)
+            .then(b.debt_minutes.cmp(&a.debt_minutes))
+    });
+    let file_contents: Vec<(String, String)> = files
+        .iter()
+        .filter_map(|p| {
+            let c = std::fs::read_to_string(p).ok()?;
+            Some((p.to_string_lossy().to_string(), c))
+        })
+        .collect();
+    let html = cha_core::html_reporter::render_html(findings, &scores, &file_contents);
+    match output_path {
+        Some(path) => {
+            std::fs::write(path, &html).unwrap_or_else(|e| eprintln!("Failed to write: {e}"));
+            println!("Report written to {path}");
+        }
+        None => println!("{html}"),
+    }
+}
+
 fn print_report(findings: &[Finding], format: &Format, files: &[PathBuf]) {
     let reporter: Box<dyn Reporter> = match format {
         Format::Terminal => Box::new(TerminalReporter),
         Format::Json => Box::new(JsonReporter),
         Format::Llm => Box::new(LlmContextReporter),
         Format::Sarif => Box::new(SarifReporter),
+        Format::Html => unreachable!("HTML handled separately"),
     };
     println!("{}", reporter.render(findings));
     if matches!(format, Format::Terminal) && !findings.is_empty() {

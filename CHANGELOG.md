@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--baseline <path>` flag on `cha analyze` to only report new findings
 - Code health scores (A–F) per file in terminal output, based on issue density and severity
 - Tech debt summary in terminal output: total estimated remediation time + grade distribution
+- `--format html` — self-contained HTML report with dark theme, source code highlighting, health scores, and collapsible file sections
+- `--output <path>` flag to write report to file
 
 ## [0.2.0] - 2026-04-10
 

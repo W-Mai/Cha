@@ -52,6 +52,9 @@ cha baseline
 # Only report new issues (not in baseline)
 cha analyze --baseline .cha/baseline.json
 
+# Generate HTML report
+cha analyze --format html --output report.html
+
 # Parse and inspect file structure
 cha parse src/
 

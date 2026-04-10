@@ -2,6 +2,7 @@ mod baseline;
 mod cache;
 pub mod config;
 mod health;
+pub mod html_reporter;
 mod model;
 mod plugin;
 pub mod plugins;
