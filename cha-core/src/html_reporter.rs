@@ -74,7 +74,7 @@ fn render_findings_section(
     for (path, file_findings) in &grouped {
         let _ = write!(
             html,
-            "<details open id=\"f-{id}\"><summary><strong>{path}</strong> \
+            "<details id=\"f-{id}\"><summary><strong>{path}</strong> \
              <span class=\"count\">({n})</span></summary>",
             id = path_id(path),
             path = esc(path),
@@ -104,10 +104,29 @@ fn render_findings_section(
 }
 
 fn render_source_block(html: &mut String, path: &str, src: &str, file_findings: &[&Finding]) {
+    let context = 5;
     let highlight_lines = finding_lines(file_findings);
+    let mut visible: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
+    for &ln in &highlight_lines {
+        let start = ln.saturating_sub(context).max(1);
+        for l in start..=ln + context {
+            visible.insert(l);
+        }
+    }
+    let lines: Vec<&str> = src.lines().collect();
+    let total = lines.len();
     let _ = write!(html, "<div class=\"source\"><table class=\"code\">");
-    for (i, line) in src.lines().enumerate() {
-        let ln = i + 1;
+    let mut prev = 0usize;
+    for &ln in &visible {
+        if ln > total {
+            break;
+        }
+        if ln > prev + 1 {
+            let _ = write!(
+                html,
+                "<tr class=\"sep\"><td class=\"ln\">⋮</td><td class=\"src\"></td></tr>"
+            );
+        }
         let cls = if highlight_lines.contains(&ln) {
             " class=\"hl\""
         } else {
@@ -118,8 +137,9 @@ fn render_source_block(html: &mut String, path: &str, src: &str, file_findings: 
             "<tr{cls} id=\"{id}-L{ln}\"><td class=\"ln\">{ln}</td>\
              <td class=\"src\">{code}</td></tr>",
             id = path_id(path),
-            code = esc(line),
+            code = esc(lines[ln - 1]),
         );
+        prev = ln;
     }
     let _ = write!(html, "</table></div>");
 }
@@ -227,6 +247,8 @@ summary:hover{background:#1c2128}
 .code .src{color:#c9d1d9}
 .code tr.hl{background:#2d1b00}
 .code tr.hl .src{color:#f0c674}
+.code tr.sep{color:#484f58}
+.code tr.sep td{border:none;padding:.1rem .5rem}
 .finding{padding:.4rem 1rem;font-size:.85rem;border-left:3px solid}
 .finding.error{border-color:#da3633;background:#1a0000}.finding.warning{border-color:#d29922;background:#1a1500}.finding.hint{border-color:#388bfd;background:#0a1929}
 .finding a{color:#58a6ff;text-decoration:none}
