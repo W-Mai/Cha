@@ -1,16 +1,13 @@
 use std::path::{Path, PathBuf};
 use std::process;
 
+mod analyze;
+mod deps;
 mod diff;
 mod plugin;
 
-use cha_core::{
-    AnalysisContext, Config, Finding, JsonReporter, LlmContextReporter, PluginRegistry, Reporter,
-    SarifReporter, Severity, SourceFile, TerminalReporter,
-};
+use cha_core::{Config, Finding, SourceFile};
 use clap::{CommandFactory, Parser, ValueEnum};
-use indicatif::{ProgressBar, ProgressStyle};
-use rayon::prelude::*;
 
 #[derive(Clone, ValueEnum)]
 enum Format {
@@ -29,14 +26,14 @@ enum FailLevel {
 }
 
 #[derive(Clone, ValueEnum)]
-enum DepsFormat {
+pub(crate) enum DepsFormat {
     Dot,
     Json,
     Mermaid,
 }
 
 #[derive(Clone, ValueEnum)]
-enum DepsDepth {
+pub(crate) enum DepsDepth {
     File,
     Dir,
 }
@@ -165,6 +162,13 @@ impl DiffMode {
 
 fn main() {
     let cli = Cli::parse();
+    let code = dispatch(cli);
+    if code != 0 {
+        process::exit(code);
+    }
+}
+
+fn dispatch(cli: Cli) -> i32 {
     match cli {
         Cli::Analyze {
             paths,
@@ -182,7 +186,7 @@ fn main() {
                 let cwd = std::env::current_dir().unwrap_or_default();
                 let _ = std::fs::remove_dir_all(cwd.join(".cha/cache"));
             }
-            let code = cmd_analyze(
+            analyze::cmd_analyze(
                 &paths,
                 &format,
                 fail_on.as_ref(),
@@ -190,13 +194,20 @@ fn main() {
                 &plugin,
                 baseline.as_deref(),
                 output.as_deref(),
-            );
-            process::exit(code);
+            )
         }
+        other => {
+            run_other(other);
+            0
+        }
+    }
+}
+
+fn run_other(cli: Cli) {
+    match cli {
         Cli::Baseline { paths, output } => cmd_baseline(&paths, output.as_deref()),
         Cli::Parse { paths } => cmd_parse(&paths),
-        Cli::Init => cmd_init(),
-        Cli::Schema => println!("{}", cha_core::findings_json_schema()),
+        Cli::Init | Cli::Schema => cmd_init_or_schema(cli),
         Cli::Fix {
             paths,
             diff,
@@ -207,11 +218,20 @@ fn main() {
             paths,
             format,
             depth,
-        } => cmd_deps(&paths, &format, &depth),
+        } => deps::cmd_deps(&paths, &format, &depth),
         Cli::Completions { shell } => {
             let mut cmd = Cli::command();
             clap_complete::generate(shell, &mut cmd, "cha", &mut std::io::stdout());
         }
+        _ => unreachable!(),
+    }
+}
+
+fn cmd_init_or_schema(cli: Cli) {
+    match cli {
+        Cli::Init => cmd_init(),
+        Cli::Schema => println!("{}", cha_core::findings_json_schema()),
+        _ => unreachable!(),
     }
 }
 
@@ -226,7 +246,7 @@ fn cmd_plugin(cmd: PluginCmd) {
 }
 
 /// Recursively collect source files, respecting .gitignore and skipping common build dirs.
-fn collect_files(paths: &[String]) -> Vec<PathBuf> {
+pub(crate) fn collect_files(paths: &[String]) -> Vec<PathBuf> {
     let targets: Vec<&str> = if paths.is_empty() {
         vec!["."]
     } else {
@@ -264,7 +284,7 @@ fn walk_directory(root: &Path, files: &mut Vec<PathBuf>) {
 }
 
 /// Get changed files from git diff.
-fn git_diff_files() -> Vec<PathBuf> {
+pub(crate) fn git_diff_files() -> Vec<PathBuf> {
     let output = std::process::Command::new("git")
         .args(["diff", "--name-only", "--diff-filter=ACMR", "HEAD"])
         .output();
@@ -287,375 +307,11 @@ enum DiffMode {
     Stdin,
 }
 
-fn cmd_analyze(
-    paths: &[String],
-    format: &Format,
-    fail_on: Option<&FailLevel>,
-    diff_mode: DiffMode,
-    plugin_filter: &[String],
-    baseline_path: Option<&str>,
-    output_path: Option<&str>,
-) -> i32 {
-    let cwd = std::env::current_dir().unwrap_or_default();
-    let root_config = Config::load(&cwd);
-    let (files, diff_map) = resolve_diff_files(paths, &diff_mode, &cwd);
-    let files = filter_excluded(files, &root_config.exclude, &cwd);
-
-    if files.is_empty() {
-        println!("No files to analyze.");
-        return 0;
-    }
-
-    let all_findings = run_analysis(&files, &cwd, plugin_filter);
-    let all_findings = match diff_map {
-        Some(ref dm) => diff::filter_by_diff(all_findings, dm),
-        None => all_findings,
-    };
-    let all_findings = if let Some(bp) = baseline_path {
-        match cha_core::Baseline::load(Path::new(bp)) {
-            Some(bl) => bl.filter_new(all_findings, &cwd),
-            None => {
-                eprintln!("warning: baseline file not found: {bp}");
-                all_findings
-            }
-        }
-    } else {
-        all_findings
-    };
-    if matches!(format, Format::Html) {
-        print_html_report(
-            &all_findings,
-            &files,
-            output_path,
-            &root_config.debt_weights,
-        );
-    } else {
-        print_report(&all_findings, format, &files, &root_config.debt_weights);
-    }
-    exit_code(&all_findings, fail_on)
-}
-
-/// Resolve file list and optional diff map based on diff mode.
-fn resolve_diff_files(
-    paths: &[String],
-    mode: &DiffMode,
-    cwd: &Path,
-) -> (Vec<PathBuf>, Option<diff::DiffMap>) {
-    match mode {
-        DiffMode::Stdin => {
-            let dm = diff::parse_unified_diff(&read_stdin());
-            let files = dm.keys().map(|p| cwd.join(p)).collect();
-            (files, Some(dm))
-        }
-        DiffMode::Git => {
-            let dm = diff::git_diff_ranges();
-            let files = if dm.is_empty() {
-                collect_files(paths)
-            } else {
-                dm.keys().map(|p| cwd.join(p)).collect()
-            };
-            (files, Some(dm))
-        }
-        DiffMode::None => (resolve_files(paths, false), None),
-    }
-}
-
-/// Filter out files matching exclude glob patterns from config.
-fn filter_excluded(files: Vec<PathBuf>, patterns: &[String], root: &Path) -> Vec<PathBuf> {
-    if patterns.is_empty() {
-        return files;
-    }
-    let matchers: Vec<glob::Pattern> = patterns
-        .iter()
-        .filter_map(|p| glob::Pattern::new(p).ok())
-        .collect();
-    files
-        .into_iter()
-        .filter(|f| {
-            let rel = f.strip_prefix(root).unwrap_or(f);
-            let s = rel.to_string_lossy();
-            !matchers.iter().any(|m| m.matches(&s))
-        })
-        .collect()
-}
-
-/// Read all of stdin into a string.
-fn read_stdin() -> String {
-    use std::io::Read;
-    let mut buf = String::new();
-    std::io::stdin()
-        .read_to_string(&mut buf)
-        .unwrap_or_default();
-    buf
-}
-
-fn resolve_files(paths: &[String], diff: bool) -> Vec<PathBuf> {
-    if diff {
-        let diff_files = git_diff_files();
-        if diff_files.is_empty() {
-            collect_files(paths)
-        } else {
-            diff_files
-        }
-    } else {
-        collect_files(paths)
-    }
-}
-
-/// Analyze files in parallel using rayon, with per-file config inheritance.
-fn run_analysis(files: &[PathBuf], project_root: &Path, plugin_filter: &[String]) -> Vec<Finding> {
-    let cache = open_cache(project_root, !plugin_filter.is_empty());
-
-    let pb = ProgressBar::new(files.len() as u64);
-    pb.set_style(
-        ProgressStyle::default_bar()
-            .template("{spinner:.green} [{bar:40.cyan/blue}] {pos}/{len} {msg}")
-            .unwrap()
-            .progress_chars("█▓░"),
-    );
-    let results: Vec<Finding> = files
-        .par_iter()
-        .flat_map(|path| {
-            let findings = analyze_one(path, project_root, plugin_filter, &cache);
-            pb.inc(1);
-            findings
-        })
-        .collect();
-    pb.finish_and_clear();
-
-    if let Some(cache) = cache
-        && let Ok(c) = cache.into_inner()
-    {
-        c.flush();
-    }
-    results
-}
-
-fn open_cache(
-    project_root: &Path,
-    no_cache: bool,
-) -> Option<std::sync::Mutex<cha_core::AnalysisCache>> {
-    use cha_core::AnalysisCache;
-    if no_cache {
-        return None;
-    }
-    let plugin_dirs = vec![
-        project_root.join(".cha/plugins"),
-        dirs::home_dir().unwrap_or_default().join(".cha/plugins"),
-    ];
-    let env_hash = AnalysisCache::env_hash(project_root, &plugin_dirs);
-    Some(std::sync::Mutex::new(AnalysisCache::open(
-        project_root,
-        env_hash,
-    )))
-}
-
-fn analyze_one(
-    path: &Path,
-    project_root: &Path,
-    plugin_filter: &[String],
-    cache: &Option<std::sync::Mutex<cha_core::AnalysisCache>>,
-) -> Vec<Finding> {
-    use cha_core::AnalysisCache;
-
-    let content = match std::fs::read_to_string(path) {
-        Ok(c) => c,
-        Err(_) => return vec![],
-    };
-    let rel = path
-        .strip_prefix(project_root)
-        .unwrap_or(path)
-        .to_string_lossy()
-        .to_string();
-    let content_hash = AnalysisCache::hash_content(&content);
-
-    if let Some(cache) = cache
-        && let Ok(c) = cache.lock()
-        && let Some(cached) = c.get(&rel, content_hash)
-    {
-        return cached.to_vec();
-    }
-
-    let findings = analyze_file_with_content(path, &content, project_root, plugin_filter);
-
-    if let Some(cache) = cache
-        && let Ok(mut c) = cache.lock()
-    {
-        c.put(rel, content_hash, findings.clone());
-    }
-    findings
-}
-
-fn analyze_file_with_content(
-    path: &Path,
-    content: &str,
-    project_root: &Path,
-    plugin_filter: &[String],
-) -> Vec<Finding> {
-    let file = SourceFile::new(path.to_path_buf(), content.to_string());
-    let model = match cha_parser::parse_file(&file) {
-        Some(m) => m,
-        None => return vec![],
-    };
-    let config = Config::load_for_file(path, project_root);
-    let registry = PluginRegistry::from_config(&config, project_root);
-    let ctx = AnalysisContext {
-        file: &file,
-        model: &model,
-    };
-    registry
-        .plugins()
-        .par_iter()
-        .filter(|p| plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == p.name()))
-        .flat_map(|p| p.analyze(&ctx))
-        .collect()
-}
-
-fn print_html_report(
-    findings: &[Finding],
-    files: &[PathBuf],
-    output_path: Option<&str>,
-    weights: &cha_core::DebtWeights,
-) {
-    let file_data: Vec<(String, usize)> = files
-        .iter()
-        .filter_map(|p| {
-            let c = std::fs::read_to_string(p).ok()?;
-            Some((p.to_string_lossy().to_string(), c.lines().count()))
-        })
-        .collect();
-    let mut scores = cha_core::score_files(findings, &file_data, weights);
-    scores.sort_by(|a, b| {
-        b.grade
-            .cmp(&a.grade)
-            .then(b.debt_minutes.cmp(&a.debt_minutes))
-    });
-    let file_contents: Vec<(String, String)> = files
-        .iter()
-        .filter_map(|p| {
-            let c = std::fs::read_to_string(p).ok()?;
-            Some((p.to_string_lossy().to_string(), c))
-        })
-        .collect();
-    let html = cha_core::html_reporter::render_html(findings, &scores, &file_contents);
-    match output_path {
-        Some(path) => {
-            std::fs::write(path, &html).unwrap_or_else(|e| eprintln!("Failed to write: {e}"));
-            println!("Report written to {path}");
-        }
-        None => println!("{html}"),
-    }
-}
-
-fn print_report(
-    findings: &[Finding],
-    format: &Format,
-    files: &[PathBuf],
-    weights: &cha_core::DebtWeights,
-) {
-    match format {
-        Format::Json | Format::Sarif => {
-            let file_lines: Vec<(String, usize)> = files
-                .iter()
-                .filter_map(|p| {
-                    let c = std::fs::read_to_string(p).ok()?;
-                    Some((p.to_string_lossy().to_string(), c.lines().count()))
-                })
-                .collect();
-            let scores = cha_core::score_files(findings, &file_lines, weights);
-            let output = match format {
-                Format::Json => JsonReporter.render_with_scores(findings, &scores),
-                Format::Sarif => SarifReporter.render_with_scores(findings, &scores),
-                _ => unreachable!(),
-            };
-            println!("{output}");
-        }
-        _ => {
-            let reporter: Box<dyn Reporter> = match format {
-                Format::Terminal => Box::new(TerminalReporter),
-                Format::Llm => Box::new(LlmContextReporter),
-                _ => unreachable!(),
-            };
-            println!("{}", reporter.render(findings));
-        }
-    }
-    if matches!(format, Format::Terminal) && !findings.is_empty() {
-        print_health_scores(findings, files, weights);
-    }
-}
-
-fn print_health_scores(findings: &[Finding], files: &[PathBuf], weights: &cha_core::DebtWeights) {
-    let file_lines: Vec<(String, usize)> = files
-        .iter()
-        .filter_map(|p| {
-            let content = std::fs::read_to_string(p).ok()?;
-            Some((p.to_string_lossy().to_string(), content.lines().count()))
-        })
-        .collect();
-    let mut scores = cha_core::score_files(findings, &file_lines, weights);
-    scores.sort_by(|a, b| {
-        b.grade
-            .cmp(&a.grade)
-            .then(b.debt_minutes.cmp(&a.debt_minutes))
-    });
-    let worst: Vec<_> = scores
-        .iter()
-        .filter(|s| s.grade > cha_core::Grade::A)
-        .collect();
-    if !worst.is_empty() {
-        println!("\nHealth scores:");
-        for s in &worst {
-            println!("  {} {} (~{}min debt)", s.grade, s.path, s.debt_minutes);
-        }
-    }
-    let total: u32 = scores.iter().map(|s| s.debt_minutes).sum();
-    if total > 0 {
-        let grade_count = |g: cha_core::Grade| scores.iter().filter(|s| s.grade == g).count();
-        println!(
-            "\nTech debt: ~{} | A:{} B:{} C:{} D:{} F:{}",
-            format_duration(total),
-            grade_count(cha_core::Grade::A),
-            grade_count(cha_core::Grade::B),
-            grade_count(cha_core::Grade::C),
-            grade_count(cha_core::Grade::D),
-            grade_count(cha_core::Grade::F),
-        );
-    }
-}
-
-fn format_duration(minutes: u32) -> String {
-    if minutes < 60 {
-        format!("{minutes}min")
-    } else {
-        let h = minutes / 60;
-        let m = minutes % 60;
-        if m == 0 {
-            format!("{h}h")
-        } else {
-            format!("{h}h {m}min")
-        }
-    }
-}
-
-fn exit_code(findings: &[Finding], fail_on: Option<&FailLevel>) -> i32 {
-    if let Some(level) = fail_on {
-        let threshold = match level {
-            FailLevel::Hint => Severity::Hint,
-            FailLevel::Warning => Severity::Warning,
-            FailLevel::Error => Severity::Error,
-        };
-        if findings.iter().any(|f| f.severity >= threshold) {
-            return 1;
-        }
-    }
-    0
-}
-
 fn cmd_baseline(paths: &[String], output: Option<&str>) {
     let cwd = std::env::current_dir().unwrap_or_default();
     let root_config = Config::load(&cwd);
-    let files = filter_excluded(collect_files(paths), &root_config.exclude, &cwd);
-    let findings = run_analysis(&files, &cwd, &[]);
+    let files = analyze::filter_excluded(collect_files(paths), &root_config.exclude, &cwd);
+    let findings = analyze::run_analysis(&files, &cwd, &[]);
     let baseline = cha_core::Baseline::from_findings(&findings, &cwd);
     let out = Path::new(output.unwrap_or(".cha/baseline.json"));
     match baseline.save(out) {
@@ -720,14 +376,14 @@ fn cmd_init() {
 }
 
 fn cmd_fix(paths: &[String], diff: bool, dry_run: bool) {
-    let files = resolve_files(paths, diff);
+    let files = analyze::resolve_files(paths, diff);
     if files.is_empty() {
         println!("No files to fix.");
         return;
     }
     let project_root = std::env::current_dir().unwrap_or_default();
     let filter = vec!["naming".to_string()];
-    let findings = run_analysis(&files, &project_root, &filter);
+    let findings = analyze::run_analysis(&files, &project_root, &filter);
 
     let fixable: Vec<&Finding> = findings
         .iter()
@@ -746,179 +402,6 @@ fn cmd_fix(paths: &[String], diff: bool, dry_run: bool) {
         "applied"
     };
     println!("{fixed} fix(es) {label}.");
-}
-
-fn cmd_deps(paths: &[String], format: &DepsFormat, depth: &DepsDepth) {
-    let cwd = std::env::current_dir().unwrap_or_default();
-    let root_config = Config::load(&cwd);
-    let files = filter_excluded(collect_files(paths), &root_config.exclude, &cwd);
-
-    let mut edges = build_dep_edges(&files, &cwd);
-
-    if matches!(depth, DepsDepth::Dir) {
-        edges = aggregate_to_dirs(edges);
-    }
-
-    let cycles = detect_cycles(&edges);
-
-    match format {
-        DepsFormat::Dot => print_dot(&edges, &cycles),
-        DepsFormat::Json => print_deps_json(&edges, &cycles),
-        DepsFormat::Mermaid => print_mermaid(&edges, &cycles),
-    }
-
-    if !cycles.is_empty() {
-        eprintln!("\n⚠ {} circular dependency(ies) detected", cycles.len());
-    }
-}
-
-const SKIP_PREFIXES: &[&str] = &["std::", "core::", "alloc::", "crate::", "super::", "self::"];
-
-fn build_dep_edges(files: &[PathBuf], cwd: &Path) -> Vec<(String, String)> {
-    let mut edges = Vec::new();
-    for path in files {
-        let content = match std::fs::read_to_string(path) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
-        let file = SourceFile::new(path.clone(), content);
-        let model = match cha_parser::parse_file(&file) {
-            Some(m) => m,
-            None => continue,
-        };
-        let src = path
-            .strip_prefix(cwd)
-            .unwrap_or(path)
-            .to_string_lossy()
-            .to_string();
-        for imp in &model.imports {
-            if SKIP_PREFIXES.iter().any(|p| imp.source.starts_with(p)) {
-                continue;
-            }
-            edges.push((src.clone(), imp.source.clone()));
-        }
-    }
-    edges
-}
-
-fn aggregate_to_dirs(edges: Vec<(String, String)>) -> Vec<(String, String)> {
-    let dir_of = |p: &str| {
-        Path::new(p)
-            .parent()
-            .unwrap_or(Path::new("."))
-            .to_string_lossy()
-            .to_string()
-    };
-    let known: std::collections::HashSet<String> = edges.iter().map(|(a, _)| a.clone()).collect();
-    let mut result: Vec<(String, String)> = edges
-        .into_iter()
-        .filter(|(_, b)| known.contains(b))
-        .map(|(a, b)| (dir_of(&a), dir_of(&b)))
-        .filter(|(a, b)| a != b)
-        .collect();
-    result.sort();
-    result.dedup();
-    result
-}
-
-fn detect_cycles(edges: &[(String, String)]) -> Vec<(String, String)> {
-    use std::collections::{HashMap, HashSet};
-    let mut adj: HashMap<&str, Vec<&str>> = HashMap::new();
-    for (a, b) in edges {
-        adj.entry(a.as_str()).or_default().push(b.as_str());
-    }
-    let mut cycle_edges = Vec::new();
-    let mut visited = HashSet::new();
-    let mut on_stack = HashSet::new();
-    for node in adj.keys() {
-        dfs_cycle(node, &adj, &mut visited, &mut on_stack, &mut cycle_edges);
-    }
-    cycle_edges
-}
-
-fn dfs_cycle<'a>(
-    node: &'a str,
-    adj: &std::collections::HashMap<&'a str, Vec<&'a str>>,
-    visited: &mut std::collections::HashSet<&'a str>,
-    on_stack: &mut std::collections::HashSet<&'a str>,
-    cycles: &mut Vec<(String, String)>,
-) {
-    if on_stack.contains(node) {
-        return;
-    }
-    if visited.contains(node) {
-        return;
-    }
-    visited.insert(node);
-    on_stack.insert(node);
-    if let Some(neighbors) = adj.get(node) {
-        for &next in neighbors {
-            if on_stack.contains(next) {
-                cycles.push((node.to_string(), next.to_string()));
-            } else if !visited.contains(next) {
-                dfs_cycle(next, adj, visited, on_stack, cycles);
-            }
-        }
-    }
-    on_stack.remove(node);
-}
-
-fn print_dot(edges: &[(String, String)], cycles: &[(String, String)]) {
-    use std::collections::HashSet;
-    let cycle_set: HashSet<(&str, &str)> = cycles
-        .iter()
-        .map(|(a, b)| (a.as_str(), b.as_str()))
-        .collect();
-    println!("digraph deps {{");
-    println!("  rankdir=LR;");
-    for (a, b) in edges {
-        let attr = if cycle_set.contains(&(a.as_str(), b.as_str())) {
-            " [color=red, penwidth=2]"
-        } else {
-            ""
-        };
-        println!("  \"{}\" -> \"{}\"{};", a, b, attr);
-    }
-    println!("}}");
-}
-
-fn print_deps_json(edges: &[(String, String)], cycles: &[(String, String)]) {
-    use std::collections::BTreeSet;
-    let nodes: BTreeSet<&str> = edges
-        .iter()
-        .flat_map(|(a, b)| [a.as_str(), b.as_str()])
-        .collect();
-    let json = serde_json::json!({
-        "nodes": nodes,
-        "edges": edges.iter().map(|(a, b)| serde_json::json!({"from": a, "to": b})).collect::<Vec<_>>(),
-        "cycles": cycles.iter().map(|(a, b)| serde_json::json!({"from": a, "to": b})).collect::<Vec<_>>(),
-    });
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json).unwrap_or_default()
-    );
-}
-
-fn print_mermaid(edges: &[(String, String)], cycles: &[(String, String)]) {
-    use std::collections::HashSet;
-    let cycle_set: HashSet<(&str, &str)> = cycles
-        .iter()
-        .map(|(a, b)| (a.as_str(), b.as_str()))
-        .collect();
-    let sanitize = |s: &str| s.replace(|c: char| !c.is_alphanumeric(), "_");
-    println!("graph LR");
-    for (i, (a, b)) in edges.iter().enumerate() {
-        println!(
-            "  {}[\"{}\"] --> {}[\"{}\"]",
-            sanitize(a),
-            a,
-            sanitize(b),
-            b
-        );
-        if cycle_set.contains(&(a.as_str(), b.as_str())) {
-            println!("  linkStyle {} stroke:red,stroke-width:3", i);
-        }
-    }
 }
 
 /// Apply a single naming convention fix. Returns Some(()) if applied.
