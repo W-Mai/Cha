@@ -72,6 +72,26 @@ impl Reporter for JsonReporter {
     }
 }
 
+impl JsonReporter {
+    /// Render findings with health scores.
+    pub fn render_with_scores(
+        &self,
+        findings: &[Finding],
+        scores: &[crate::health::HealthScore],
+    ) -> String {
+        let report = serde_json::json!({
+            "findings": findings,
+            "health_scores": scores.iter().map(|s| serde_json::json!({
+                "path": s.path,
+                "grade": s.grade.to_string(),
+                "debt_minutes": s.debt_minutes,
+                "lines": s.lines,
+            })).collect::<Vec<_>>(),
+        });
+        serde_json::to_string_pretty(&report).unwrap_or_default()
+    }
+}
+
 /// Structured context for LLM-assisted refactoring.
 pub struct LlmContextReporter;
 
@@ -120,21 +140,43 @@ pub struct SarifReporter;
 
 impl Reporter for SarifReporter {
     fn render(&self, findings: &[Finding]) -> String {
+        self.render_with_scores(findings, &[])
+    }
+}
+
+impl SarifReporter {
+    /// Render SARIF with optional health score properties.
+    pub fn render_with_scores(
+        &self,
+        findings: &[Finding],
+        scores: &[crate::health::HealthScore],
+    ) -> String {
         let rules = build_sarif_rules(findings);
         let results = build_sarif_results(findings);
+        let mut run = serde_json::json!({
+            "tool": {
+                "driver": {
+                    "name": "cha",
+                    "version": env!("CARGO_PKG_VERSION"),
+                    "rules": rules,
+                }
+            },
+            "results": results,
+        });
+        if !scores.is_empty() {
+            run["properties"] = serde_json::json!({
+                "health_scores": scores.iter().map(|s| serde_json::json!({
+                    "path": s.path,
+                    "grade": s.grade.to_string(),
+                    "debt_minutes": s.debt_minutes,
+                    "lines": s.lines,
+                })).collect::<Vec<_>>(),
+            });
+        }
         let sarif = serde_json::json!({
             "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
             "version": "2.1.0",
-            "runs": [{
-                "tool": {
-                    "driver": {
-                        "name": "cha",
-                        "version": env!("CARGO_PKG_VERSION"),
-                        "rules": rules,
-                    }
-                },
-                "results": results,
-            }]
+            "runs": [run],
         });
         serde_json::to_string_pretty(&sarif).unwrap_or_default()
     }

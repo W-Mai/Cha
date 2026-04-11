@@ -294,9 +294,14 @@ fn cmd_analyze(
         all_findings
     };
     if matches!(format, Format::Html) {
-        print_html_report(&all_findings, &files, output_path);
+        print_html_report(
+            &all_findings,
+            &files,
+            output_path,
+            &root_config.debt_weights,
+        );
     } else {
-        print_report(&all_findings, format, &files);
+        print_report(&all_findings, format, &files, &root_config.debt_weights);
     }
     exit_code(&all_findings, fail_on)
 }
@@ -477,7 +482,12 @@ fn analyze_file_with_content(
         .collect()
 }
 
-fn print_html_report(findings: &[Finding], files: &[PathBuf], output_path: Option<&str>) {
+fn print_html_report(
+    findings: &[Finding],
+    files: &[PathBuf],
+    output_path: Option<&str>,
+    weights: &cha_core::DebtWeights,
+) {
     let file_data: Vec<(String, usize)> = files
         .iter()
         .filter_map(|p| {
@@ -485,7 +495,7 @@ fn print_html_report(findings: &[Finding], files: &[PathBuf], output_path: Optio
             Some((p.to_string_lossy().to_string(), c.lines().count()))
         })
         .collect();
-    let mut scores = cha_core::score_files(findings, &file_data);
+    let mut scores = cha_core::score_files(findings, &file_data, weights);
     scores.sort_by(|a, b| {
         b.grade
             .cmp(&a.grade)
@@ -508,21 +518,44 @@ fn print_html_report(findings: &[Finding], files: &[PathBuf], output_path: Optio
     }
 }
 
-fn print_report(findings: &[Finding], format: &Format, files: &[PathBuf]) {
-    let reporter: Box<dyn Reporter> = match format {
-        Format::Terminal => Box::new(TerminalReporter),
-        Format::Json => Box::new(JsonReporter),
-        Format::Llm => Box::new(LlmContextReporter),
-        Format::Sarif => Box::new(SarifReporter),
-        Format::Html => unreachable!("HTML handled separately"),
-    };
-    println!("{}", reporter.render(findings));
+fn print_report(
+    findings: &[Finding],
+    format: &Format,
+    files: &[PathBuf],
+    weights: &cha_core::DebtWeights,
+) {
+    match format {
+        Format::Json | Format::Sarif => {
+            let file_lines: Vec<(String, usize)> = files
+                .iter()
+                .filter_map(|p| {
+                    let c = std::fs::read_to_string(p).ok()?;
+                    Some((p.to_string_lossy().to_string(), c.lines().count()))
+                })
+                .collect();
+            let scores = cha_core::score_files(findings, &file_lines, weights);
+            let output = match format {
+                Format::Json => JsonReporter.render_with_scores(findings, &scores),
+                Format::Sarif => SarifReporter.render_with_scores(findings, &scores),
+                _ => unreachable!(),
+            };
+            println!("{output}");
+        }
+        _ => {
+            let reporter: Box<dyn Reporter> = match format {
+                Format::Terminal => Box::new(TerminalReporter),
+                Format::Llm => Box::new(LlmContextReporter),
+                _ => unreachable!(),
+            };
+            println!("{}", reporter.render(findings));
+        }
+    }
     if matches!(format, Format::Terminal) && !findings.is_empty() {
-        print_health_scores(findings, files);
+        print_health_scores(findings, files, weights);
     }
 }
 
-fn print_health_scores(findings: &[Finding], files: &[PathBuf]) {
+fn print_health_scores(findings: &[Finding], files: &[PathBuf], weights: &cha_core::DebtWeights) {
     let file_lines: Vec<(String, usize)> = files
         .iter()
         .filter_map(|p| {
@@ -530,7 +563,7 @@ fn print_health_scores(findings: &[Finding], files: &[PathBuf]) {
             Some((p.to_string_lossy().to_string(), content.lines().count()))
         })
         .collect();
-    let mut scores = cha_core::score_files(findings, &file_lines);
+    let mut scores = cha_core::score_files(findings, &file_lines, weights);
     scores.sort_by(|a, b| {
         b.grade
             .cmp(&a.grade)

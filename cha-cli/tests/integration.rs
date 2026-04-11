@@ -65,14 +65,21 @@ fn clean_file_has_no_warnings() {
 fn json_output_is_valid() {
     let (_, out) = run_analyze(&fixture("smelly.ts"), "json");
     let parsed: serde_json::Value = serde_json::from_str(&out).expect("invalid JSON output");
-    assert!(parsed.is_array(), "JSON output should be an array");
-    let arr = parsed.as_array().unwrap();
+    assert!(parsed.is_object(), "JSON output should be an object");
+    let findings = parsed.get("findings").expect("missing findings key");
+    assert!(findings.is_array());
+    let arr = findings.as_array().unwrap();
     assert!(!arr.is_empty(), "expected at least one finding");
     // Each finding should have required fields
     let first = &arr[0];
     assert!(first.get("smell_name").is_some());
     assert!(first.get("severity").is_some());
     assert!(first.get("message").is_some());
+    // Health scores should be present
+    let scores = parsed
+        .get("health_scores")
+        .expect("missing health_scores key");
+    assert!(scores.is_array());
 }
 
 #[test]
@@ -120,9 +127,10 @@ fn plugin_filter_limits_output() {
         .output()
         .expect("failed to run cha");
     let out = String::from_utf8_lossy(&output.stdout);
-    let findings: Vec<serde_json::Value> = serde_json::from_str(&out).expect("invalid JSON");
+    let parsed: serde_json::Value = serde_json::from_str(&out).expect("invalid JSON");
+    let findings = parsed["findings"].as_array().expect("missing findings");
     // All findings must come from the naming plugin
-    for f in &findings {
+    for f in findings {
         let name = f["smell_name"].as_str().unwrap_or("");
         assert!(
             name.starts_with("naming"),
@@ -145,7 +153,8 @@ fn plugin_filter_unknown_plugin_produces_no_findings() {
         .output()
         .expect("failed to run cha");
     let out = String::from_utf8_lossy(&output.stdout);
-    let findings: Vec<serde_json::Value> = serde_json::from_str(&out).expect("invalid JSON");
+    let parsed: serde_json::Value = serde_json::from_str(&out).expect("invalid JSON");
+    let findings = parsed["findings"].as_array().expect("missing findings");
     assert!(
         findings.is_empty(),
         "expected no findings for unknown plugin"

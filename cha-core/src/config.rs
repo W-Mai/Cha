@@ -10,6 +10,40 @@ pub struct Config {
     /// Glob patterns for paths to exclude from analysis.
     #[serde(default)]
     pub exclude: Vec<String>,
+    /// Custom remediation time weights (minutes per severity).
+    #[serde(default)]
+    pub debt_weights: DebtWeights,
+}
+
+/// Custom debt estimation weights (minutes per severity level).
+#[derive(Debug, Clone, Deserialize)]
+pub struct DebtWeights {
+    #[serde(default = "default_hint_debt")]
+    pub hint: u32,
+    #[serde(default = "default_warning_debt")]
+    pub warning: u32,
+    #[serde(default = "default_error_debt")]
+    pub error: u32,
+}
+
+fn default_hint_debt() -> u32 {
+    5
+}
+fn default_warning_debt() -> u32 {
+    15
+}
+fn default_error_debt() -> u32 {
+    30
+}
+
+impl Default for DebtWeights {
+    fn default() -> Self {
+        Self {
+            hint: 5,
+            warning: 15,
+            error: 30,
+        }
+    }
 }
 
 /// Per-plugin config section.
@@ -71,6 +105,7 @@ impl Config {
             }
         }
         self.exclude.extend(other.exclude);
+        self.debt_weights = other.debt_weights;
     }
 
     /// Check if a plugin is enabled (default: true if not mentioned).

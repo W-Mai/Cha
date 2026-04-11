@@ -13,7 +13,7 @@ pub mod wasm;
 
 pub use baseline::Baseline;
 pub use cache::AnalysisCache;
-pub use config::Config;
+pub use config::{Config, DebtWeights};
 pub use health::{Grade, HealthScore, score_files};
 pub use model::*;
 pub use plugin::*;

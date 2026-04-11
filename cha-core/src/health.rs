@@ -1,3 +1,4 @@
+use crate::config::DebtWeights;
 use crate::{Finding, Severity};
 
 /// Health grade A–F for a file, based on issue density.
@@ -33,12 +34,16 @@ pub struct HealthScore {
 }
 
 /// Compute health scores grouped by file.
-pub fn score_files(findings: &[Finding], file_lines: &[(String, usize)]) -> Vec<HealthScore> {
+pub fn score_files(
+    findings: &[Finding],
+    file_lines: &[(String, usize)],
+    weights: &DebtWeights,
+) -> Vec<HealthScore> {
     use std::collections::HashMap;
     let mut debt: HashMap<String, u32> = HashMap::new();
     for f in findings {
         let path = f.location.path.to_string_lossy().to_string();
-        *debt.entry(path).or_default() += debt_minutes(f.severity);
+        *debt.entry(path).or_default() += debt_minutes(f.severity, weights);
     }
     file_lines
         .iter()
@@ -56,11 +61,11 @@ pub fn score_files(findings: &[Finding], file_lines: &[(String, usize)]) -> Vec<
 }
 
 /// Estimated fix time per severity (minutes).
-fn debt_minutes(s: Severity) -> u32 {
+fn debt_minutes(s: Severity, w: &DebtWeights) -> u32 {
     match s {
-        Severity::Hint => 5,
-        Severity::Warning => 15,
-        Severity::Error => 30,
+        Severity::Hint => w.hint,
+        Severity::Warning => w.warning,
+        Severity::Error => w.error,
     }
 }
 
