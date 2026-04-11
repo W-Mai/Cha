@@ -177,3 +177,69 @@ fn python_delegating() {
         .unwrap();
     assert!(del_fn.is_delegating);
 }
+
+// -- Go fixtures --
+
+#[test]
+fn go_simple() {
+    let model = parse_file(&fixture("simple.go")).unwrap();
+    assert_eq!(model.language, "go");
+    assert_eq!(model.functions.len(), 2);
+    assert_eq!(model.functions[0].name, "Hello");
+    assert!(model.functions[0].is_exported);
+    assert_eq!(model.functions[1].name, "add");
+    assert!(!model.functions[1].is_exported);
+    assert_eq!(model.imports.len(), 1);
+}
+
+#[test]
+fn go_structs() {
+    let model = parse_file(&fixture("structs.go")).unwrap();
+    assert!(model.classes.len() >= 2);
+    let server = model.classes.iter().find(|c| c.name == "Server").unwrap();
+    assert!(server.is_exported);
+    assert_eq!(server.field_count, 2);
+    let handler = model.classes.iter().find(|c| c.name == "Handler").unwrap();
+    assert!(handler.is_interface);
+    // method declaration
+    assert!(model.functions.iter().any(|f| f.name == "Start"));
+}
+
+#[test]
+fn go_complex() {
+    let model = parse_file(&fixture("complex.go")).unwrap();
+    let f = &model.functions[0];
+    assert_eq!(f.name, "Complex");
+    assert!(f.complexity > 1);
+    assert!(f.switch_arms >= 4);
+}
+
+// -- C fixtures --
+
+#[test]
+fn c_simple() {
+    let model = parse_file(&fixture("simple.c")).unwrap();
+    assert_eq!(model.language, "c");
+    assert_eq!(model.functions.len(), 2);
+    assert_eq!(model.functions[0].name, "add");
+    assert_eq!(model.functions[0].parameter_count, 2);
+    assert_eq!(model.imports.len(), 2);
+}
+
+// -- C++ fixtures --
+
+#[test]
+fn cpp_simple() {
+    let model = parse_file(&fixture("simple.cpp")).unwrap();
+    assert_eq!(model.language, "cpp");
+    assert!(model.functions.len() >= 1);
+    let factorial = model
+        .functions
+        .iter()
+        .find(|f| f.name == "factorial")
+        .unwrap();
+    assert!(factorial.complexity > 1);
+    assert!(model.classes.len() >= 1);
+    let animal = model.classes.iter().find(|c| c.name == "Animal").unwrap();
+    assert!(animal.field_count >= 2);
+}

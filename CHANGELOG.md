@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `cha deps` subcommand — import dependency graph with `--format dot|json|mermaid`, `--depth file|dir`, cycle detection with red highlighting
+- Go language support (.go) — functions, structs, interfaces, imports, complexity, chain depth
+- C language support (.c/.h) — functions, structs, includes, complexity
+- C++ language support (.cpp/.cc/.cxx/.hpp/.hxx) — functions, classes, includes, complexity
 - Health scores in JSON output (`health_scores` field) and SARIF output (`properties.health_scores`)
 - `[debt_weights]` config section in `.cha.toml` — customize remediation time per severity (hint/warning/error)
 - Plugin-level parallel analysis via rayon `par_iter`

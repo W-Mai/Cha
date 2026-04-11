@@ -133,7 +133,7 @@ Requires [Rust](https://www.rust-lang.org/tools/install) (edition 2024).
 | **DesignPatternAdvisor** | Suggests Strategy, State, Builder, Null Object, Template Method, Observer | OO Abusers | Hint |
 | **HardcodedSecretAnalyzer** | API keys, tokens, passwords, private keys, JWTs in source code | Security | Warning |
 
-Supported languages: Python (.py), TypeScript (.ts/.tsx), Rust (.rs).
+Supported languages: Python (.py), TypeScript (.ts/.tsx), Rust (.rs), Go (.go), C (.c/.h), C++ (.cpp/.cc/.cxx/.hpp/.hxx).
 
 ## ⚙️ Configuration
 
@@ -247,7 +247,7 @@ cargo xtask release
 
 ```
 cha-core/       Core traits, plugin registry, reporters, WASM runtime
-cha-parser/     Tree-sitter parsing (Python, TypeScript, Rust)
+cha-parser/     Tree-sitter parsing (Python, TypeScript, Rust, Go, C, C++)
 cha-cli/        CLI binary (analyze, parse)
 cha-lsp/        LSP server binary
 xtask/          CI automation (cargo xtask)
