@@ -476,7 +476,7 @@ fn analyze_file_with_content(
     };
     registry
         .plugins()
-        .iter()
+        .par_iter()
         .filter(|p| plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == p.name()))
         .flat_map(|p| p.analyze(&ctx))
         .collect()
