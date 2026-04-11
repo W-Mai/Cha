@@ -84,6 +84,10 @@ cha plugin remove my_plugin
 
 # Generate shell completions (fish/bash/zsh/powershell)
 cha completions fish > ~/.config/fish/completions/cha.fish
+
+# Show import dependency graph (DOT/JSON/Mermaid)
+cha deps --format dot
+cha deps --format mermaid --depth dir
 ```
 
 ## 📦 Installation
@@ -127,6 +131,7 @@ Requires [Rust](https://www.rust-lang.org/tools/install) (edition 2024).
 | **DivergentChangeAnalyzer** | Files changed for many distinct reasons (git log) | Change Preventers | Hint |
 | **InappropriateIntimacyAnalyzer** | Bidirectional imports between files | Couplers | Warning |
 | **DesignPatternAdvisor** | Suggests Strategy, State, Builder, Null Object, Template Method, Observer | OO Abusers | Hint |
+| **HardcodedSecretAnalyzer** | API keys, tokens, passwords, private keys, JWTs in source code | Security | Warning |
 
 Supported languages: Python (.py), TypeScript (.ts/.tsx), Rust (.rs).
 
@@ -153,6 +158,12 @@ max_imports = 15
 [plugins.layer_violation]
 enabled = true
 layers = "domain:0,service:1,controller:2"
+
+# Custom tech debt estimation weights (minutes per severity)
+[debt_weights]
+hint = 5
+warning = 15
+error = 30
 ```
 
 All plugins are enabled by default. Set `enabled = false` to disable.

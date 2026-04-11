@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `cha deps` subcommand — import dependency graph with `--format dot|json|mermaid`, `--depth file|dir`, cycle detection with red highlighting
+- Health scores in JSON output (`health_scores` field) and SARIF output (`properties.health_scores`)
+- `[debt_weights]` config section in `.cha.toml` — customize remediation time per severity (hint/warning/error)
+- Plugin-level parallel analysis via rayon `par_iter`
+
+### Fixed
+- HTML report: show only ±5 context lines around findings instead of full file source, collapse file sections by default
+
 ## [0.4.0] - 2026-04-11
 
 ### Added
