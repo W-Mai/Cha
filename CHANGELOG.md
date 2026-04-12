@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-04-13
+
+### Added
+- `cha trend` subcommand — analyze recent git commits via worktree, show issue count trend (terminal ASCII + JSON)
+- `// cha:ignore` comment directive — suppress findings per function/line, supports `//`, `#`, `--`, `/* */` styles
+- `cha deps --type classes` — class hierarchy graph (extends/implements)
+- `cha deps --type calls` — function call graph with recursion detection (blue dashed)
+- `cha deps --filter <name>` — filter graph to specific class/function
+
+### Fixed
+- Cache invalidation now scans all `.cha.toml` files in subdirectories, not just root
+
 ## [0.5.1] - 2026-04-12
 
 ### Added
