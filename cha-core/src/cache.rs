@@ -29,6 +29,27 @@ pub struct AnalysisCache {
     dirty: bool,
 }
 
+fn hash_all_configs(dir: &Path, h: &mut impl std::hash::Hasher) {
+    use std::hash::Hash;
+    let cfg = dir.join(".cha.toml");
+    if let Ok(content) = std::fs::read_to_string(&cfg) {
+        content.hash(h);
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            let name = entry.file_name();
+            let s = name.to_string_lossy();
+            if !s.starts_with('.') && !matches!(s.as_ref(), "target" | "node_modules" | "dist") {
+                hash_all_configs(&path, h);
+            }
+        }
+    }
+}
+
 impl AnalysisCache {
     /// Open (or create) a cache for the given project root.
     pub fn open(project_root: &Path, env_hash: u64) -> Self {
@@ -100,9 +121,8 @@ impl AnalysisCache {
     pub fn env_hash(project_root: &Path, plugin_dirs: &[PathBuf]) -> u64 {
         use std::hash::{Hash, Hasher};
         let mut h = std::collections::hash_map::DefaultHasher::new();
-        if let Ok(cfg) = std::fs::read_to_string(project_root.join(".cha.toml")) {
-            cfg.hash(&mut h);
-        }
+        // Hash all .cha.toml files (root + subdirectories)
+        hash_all_configs(project_root, &mut h);
         for dir in plugin_dirs {
             if let Ok(entries) = std::fs::read_dir(dir) {
                 for entry in entries.flatten() {

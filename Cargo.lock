@@ -317,6 +317,7 @@ dependencies = [
  "ignore",
  "indicatif",
  "rayon",
+ "serde",
  "serde_json",
  "wasi-preview1-component-adapter-provider",
  "wit-component 0.246.2",

@@ -5,6 +5,7 @@ mod analyze;
 mod deps;
 mod diff;
 mod plugin;
+mod trend;
 
 use cha_core::{Config, Finding, SourceFile};
 use clap::{CommandFactory, Parser, ValueEnum};
@@ -132,6 +133,15 @@ enum Cli {
         #[arg(long)]
         filter: Option<String>,
     },
+    /// Analyze recent git commits to show issue trend
+    Trend {
+        /// Number of commits to analyze (default: 10)
+        #[arg(short, long, default_value = "10")]
+        count: usize,
+        /// Output format (terminal or json)
+        #[arg(long, default_value = "terminal")]
+        format: Format,
+    },
     /// Generate shell completion scripts
     Completions {
         /// Shell to generate completions for
@@ -228,6 +238,7 @@ fn run_other(cli: Cli) {
             dry_run,
         } => cmd_fix(&paths, diff, dry_run),
         Cli::Plugin { cmd } => cmd_plugin(cmd),
+        Cli::Trend { count, format } => trend::cmd_trend(count, &format),
         Cli::Deps {
             paths,
             format,
