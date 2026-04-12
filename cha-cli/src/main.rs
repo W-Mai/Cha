@@ -227,6 +227,7 @@ fn dispatch(cli: Cli) -> i32 {
     }
 }
 
+// cha:ignore switch_statement
 fn run_other(cli: Cli) {
     match cli {
         Cli::Baseline { paths, output } => cmd_baseline(&paths, output.as_deref()),

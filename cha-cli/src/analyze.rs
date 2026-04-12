@@ -233,12 +233,13 @@ fn analyze_file_with_content(
         file: &file,
         model: &model,
     };
-    registry
+    let findings: Vec<Finding> = registry
         .plugins()
         .par_iter()
         .filter(|p| plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == p.name()))
         .flat_map(|p| p.analyze(&ctx))
-        .collect()
+        .collect();
+    cha_core::filter_ignored(findings, content)
 }
 
 fn print_html_report(
