@@ -110,6 +110,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         null_check_fields: Vec::new(),
         switch_dispatch_target: None,
         optional_param_count: 0,
+        called_functions: Vec::new(),
     })
 }
 

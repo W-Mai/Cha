@@ -33,6 +33,8 @@ pub struct FunctionInfo {
     pub switch_dispatch_target: Option<String>,
     /// Number of optional parameters (for Builder pattern).
     pub optional_param_count: usize,
+    /// Names of functions/methods called in this function body (for call graph).
+    pub called_functions: Vec<String>,
 }
 
 /// Extracted class/struct info from AST.

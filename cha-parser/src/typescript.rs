@@ -155,6 +155,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         null_check_fields: collect_null_checks_ts(body, src),
         switch_dispatch_target: extract_switch_target_ts(body, src),
         optional_param_count: count_optional_params_ts(node, src),
+        called_functions: collect_calls_ts(body, src),
     })
 }
 
@@ -208,6 +209,7 @@ fn try_extract_arrow(child: Node, decl: Node, src: &[u8], exported: bool) -> Opt
         null_check_fields: collect_null_checks_ts(body, src),
         switch_dispatch_target: extract_switch_target_ts(body, src),
         optional_param_count: count_optional_params_ts(value, src),
+        called_functions: collect_calls_ts(Some(value), src),
     })
 }
 
@@ -683,4 +685,36 @@ fn has_call_expression_ts(node: Node) -> bool {
         }
     }
     false
+}
+
+fn collect_calls_ts(body: Option<tree_sitter::Node>, src: &[u8]) -> Vec<String> {
+    let Some(body) = body else { return Vec::new() };
+    let mut calls = Vec::new();
+    let mut cursor = body.walk();
+    visit_all(body, &mut cursor, &mut |n| {
+        if n.kind() == "call_expression"
+            && let Some(func) = n.child(0)
+        {
+            let name = node_text(func, src).to_string();
+            if !calls.contains(&name) {
+                calls.push(name);
+            }
+        }
+    });
+    calls
+}
+
+fn visit_all<F: FnMut(Node)>(node: Node, cursor: &mut tree_sitter::TreeCursor, f: &mut F) {
+    f(node);
+    if cursor.goto_first_child() {
+        loop {
+            let child_node = cursor.node();
+            let mut child_cursor = child_node.walk();
+            visit_all(child_node, &mut child_cursor, f);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+        cursor.goto_parent();
+    }
 }

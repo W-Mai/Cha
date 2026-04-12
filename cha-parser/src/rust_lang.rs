@@ -263,6 +263,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         null_check_fields: collect_null_checks(body, src),
         switch_dispatch_target: extract_switch_target(body, src),
         optional_param_count: count_optional_params(node, src),
+        called_functions: collect_calls_rs(body, src),
     })
 }
 
@@ -703,6 +704,36 @@ fn walk_for_iterate_call(node: Node, src: &[u8], self_field: &str) -> bool {
         }
     }
     false
+}
+
+fn collect_calls_rs(body: Option<tree_sitter::Node>, src: &[u8]) -> Vec<String> {
+    let Some(body) = body else { return Vec::new() };
+    let mut calls = Vec::new();
+    let mut cursor = body.walk();
+    visit_all(body, &mut cursor, &mut |n| {
+        if n.kind() == "call_expression"
+            && let Some(func) = n.child(0)
+        {
+            let name = node_text(func, src).to_string();
+            if !calls.contains(&name) {
+                calls.push(name);
+            }
+        }
+    });
+    calls
+}
+
+fn visit_all<F: FnMut(Node)>(node: Node, cursor: &mut tree_sitter::TreeCursor, f: &mut F) {
+    f(node);
+    if cursor.goto_first_child() {
+        loop {
+            visit_all(cursor.node(), cursor, f);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+        cursor.goto_parent();
+    }
 }
 
 fn has_call_expression(node: Node) -> bool {

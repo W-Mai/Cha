@@ -19,22 +19,33 @@ pub fn cmd_deps(
     let edges = match graph_type {
         DepsType::Imports => build_import_graph(&files, &cwd, depth),
         DepsType::Classes => build_class_graph(&files),
-        DepsType::Calls => {
-            eprintln!("--type calls is not yet implemented");
-            return;
-        }
+        DepsType::Calls => build_call_graph(&files),
     };
 
     let edges = apply_filter(edges, filter);
     let cycles = detect_cycles(&edges);
-    render(&edges, &cycles, format);
+    let style = match graph_type {
+        DepsType::Imports => CycleStyle::CircularDep,
+        DepsType::Calls => CycleStyle::Recursion,
+        DepsType::Classes => CycleStyle::CircularDep,
+    };
+    render(&edges, &cycles, format, &style);
 
     if !cycles.is_empty() {
-        eprintln!("\n⚠ {} circular dependency(ies) detected", cycles.len());
+        let label = match style {
+            CycleStyle::CircularDep => "circular dependency(ies)",
+            CycleStyle::Recursion => "recursive call(s)",
+        };
+        eprintln!("\n⚠ {} {label} detected", cycles.len());
     }
 }
 
 // ── Edge with optional label ──
+
+enum CycleStyle {
+    CircularDep,
+    Recursion,
+}
 
 struct Edge {
     from: String,
@@ -164,6 +175,35 @@ fn build_class_graph(files: &[PathBuf]) -> Vec<Edge> {
         .collect()
 }
 
+// ── Call graph ──
+
+fn build_call_graph(files: &[PathBuf]) -> Vec<Edge> {
+    let models = parse_all_models(files);
+    let known: HashSet<String> = models
+        .iter()
+        .flat_map(|m| &m.functions)
+        .map(|f| f.name.clone())
+        .collect();
+    models
+        .iter()
+        .flat_map(|m| &m.functions)
+        .flat_map(|f| {
+            f.called_functions
+                .iter()
+                .filter_map(|callee| {
+                    // Extract the last segment (e.g. "obj.method" -> "method", "func" -> "func")
+                    let name = callee.rsplit('.').next().unwrap_or(callee);
+                    known.contains(name).then(|| Edge {
+                        from: f.name.clone(),
+                        to: name.to_string(),
+                        label: None,
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
 // ── Cycle detection ──
 
 fn detect_cycles(edges: &[Edge]) -> Vec<(String, String)> {
@@ -206,15 +246,15 @@ fn dfs_cycle<'a>(
 
 // ── Rendering ──
 
-fn render(edges: &[Edge], cycles: &[(String, String)], format: &DepsFormat) {
+fn render(edges: &[Edge], cycles: &[(String, String)], format: &DepsFormat, style: &CycleStyle) {
     match format {
-        DepsFormat::Dot => print_dot(edges, cycles),
+        DepsFormat::Dot => print_dot(edges, cycles, style),
         DepsFormat::Json => print_json(edges, cycles),
-        DepsFormat::Mermaid => print_mermaid(edges, cycles),
+        DepsFormat::Mermaid => print_mermaid(edges, cycles, style),
     }
 }
 
-fn print_dot(edges: &[Edge], cycles: &[(String, String)]) {
+fn print_dot(edges: &[Edge], cycles: &[(String, String)], style: &CycleStyle) {
     let cycle_set: HashSet<(&str, &str)> = cycles
         .iter()
         .map(|(a, b)| (a.as_str(), b.as_str()))
@@ -224,8 +264,16 @@ fn print_dot(edges: &[Edge], cycles: &[(String, String)]) {
     for e in edges {
         let mut attrs = Vec::new();
         if cycle_set.contains(&(e.from.as_str(), e.to.as_str())) {
-            attrs.push("color=red".to_string());
-            attrs.push("penwidth=2".to_string());
+            match style {
+                CycleStyle::CircularDep => {
+                    attrs.push("color=red".into());
+                    attrs.push("penwidth=2".into());
+                }
+                CycleStyle::Recursion => {
+                    attrs.push("color=blue".into());
+                    attrs.push("style=dashed".into());
+                }
+            }
         }
         if let Some(label) = &e.label {
             attrs.push(format!("label=\"{label}\""));
@@ -262,19 +310,28 @@ fn print_json(edges: &[Edge], cycles: &[(String, String)]) {
     );
 }
 
-fn print_mermaid(edges: &[Edge], cycles: &[(String, String)]) {
+fn mermaid_arrow(label: &Option<String>, is_recursion: bool) -> String {
+    match (label, is_recursion) {
+        (Some(l), _) => format!("-->|{l}|"),
+        (None, true) => "-.->".into(),
+        (None, false) => "-->".into(),
+    }
+}
+
+fn print_mermaid(edges: &[Edge], cycles: &[(String, String)], style: &CycleStyle) {
     let cycle_set: HashSet<(&str, &str)> = cycles
         .iter()
         .map(|(a, b)| (a.as_str(), b.as_str()))
         .collect();
     let sanitize = |s: &str| s.replace(|c: char| !c.is_alphanumeric(), "_");
+    let color = match style {
+        CycleStyle::CircularDep => "red",
+        CycleStyle::Recursion => "blue",
+    };
     println!("graph LR");
     for (i, e) in edges.iter().enumerate() {
-        let arrow = if e.label.is_some() {
-            format!("-->|{}|", e.label.as_deref().unwrap_or(""))
-        } else {
-            "-->".to_string()
-        };
+        let is_cycle = cycle_set.contains(&(e.from.as_str(), e.to.as_str()));
+        let arrow = mermaid_arrow(&e.label, is_cycle && matches!(style, CycleStyle::Recursion));
         println!(
             "  {}[\"{}\"] {} {}[\"{}\"]",
             sanitize(&e.from),
@@ -283,8 +340,8 @@ fn print_mermaid(edges: &[Edge], cycles: &[(String, String)]) {
             sanitize(&e.to),
             e.to
         );
-        if cycle_set.contains(&(e.from.as_str(), e.to.as_str())) {
-            println!("  linkStyle {} stroke:red,stroke-width:3", i);
+        if is_cycle {
+            println!("  linkStyle {} stroke:{color},stroke-width:2", i);
         }
     }
 }

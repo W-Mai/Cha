@@ -90,6 +90,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         null_check_fields: body.map(|b| collect_nil_checks(b, src)).unwrap_or_default(),
         switch_dispatch_target: None,
         optional_param_count: 0,
+        called_functions: collect_calls(body, src),
     })
 }
 
@@ -326,6 +327,23 @@ fn hash_node(node: Node, hasher: &mut DefaultHasher) {
     for child in node.children(&mut cursor) {
         hash_node(child, hasher);
     }
+}
+
+fn collect_calls(body: Option<Node>, src: &[u8]) -> Vec<String> {
+    let Some(body) = body else { return Vec::new() };
+    let mut calls = Vec::new();
+    let mut cursor = body.walk();
+    visit_all(body, &mut cursor, &mut |n| {
+        if n.kind() == "call_expression"
+            && let Some(func) = n.child(0)
+        {
+            let name = node_text(func, src).to_string();
+            if !calls.contains(&name) {
+                calls.push(name);
+            }
+        }
+    });
+    calls
 }
 
 fn node_text<'a>(node: Node, src: &'a [u8]) -> &'a str {

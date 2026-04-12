@@ -35,6 +35,7 @@ fn arb_function_info() -> impl Strategy<Value = FunctionInfo> {
                 null_check_fields: vec![],
                 switch_dispatch_target: None,
                 optional_param_count: 0,
+                called_functions: Vec::new(),
             },
         )
 }

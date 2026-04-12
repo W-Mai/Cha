@@ -118,6 +118,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
             .unwrap_or_default(),
         switch_dispatch_target: None,
         optional_param_count: params.map(count_optional).unwrap_or(0),
+        called_functions: body.map(|b| collect_calls_py(b, src)).unwrap_or_default(),
     })
 }
 
@@ -628,6 +629,22 @@ fn has_only_pass_or_ellipsis(body: Node, src: &[u8]) -> bool {
         }
     }
     true
+}
+
+fn collect_calls_py(body: tree_sitter::Node, src: &[u8]) -> Vec<String> {
+    let mut calls = Vec::new();
+    let mut cursor = body.walk();
+    visit_all(body, &mut cursor, &mut |n| {
+        if n.kind() == "call"
+            && let Some(func) = n.child(0)
+        {
+            let name = node_text(func, src).to_string();
+            if !calls.contains(&name) {
+                calls.push(name);
+            }
+        }
+    });
+    calls
 }
 
 fn visit_all<F: FnMut(Node)>(node: Node, cursor: &mut tree_sitter::TreeCursor, f: &mut F) {

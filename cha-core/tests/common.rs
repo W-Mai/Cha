@@ -42,6 +42,7 @@ pub fn func(name: &str, lines: usize, complexity: usize, exported: bool) -> Func
         null_check_fields: vec![],
         switch_dispatch_target: None,
         optional_param_count: 0,
+        called_functions: Vec::new(),
     }
 }
 
@@ -65,6 +66,7 @@ pub fn func_with_hash(name: &str, lines: usize, hash: u64) -> FunctionInfo {
         null_check_fields: vec![],
         switch_dispatch_target: None,
         optional_param_count: 0,
+        called_functions: Vec::new(),
     }
 }
 

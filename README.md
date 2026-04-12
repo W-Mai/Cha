@@ -92,6 +92,10 @@ cha deps --format mermaid --depth dir
 # Show class hierarchy
 cha deps --type classes --format dot
 cha deps --type classes --filter Plugin --format mermaid
+
+# Show function call graph
+cha deps --type calls --format dot
+cha deps --type calls --filter analyze --format mermaid
 ```
 
 ## 📦 Installation

@@ -237,6 +237,7 @@ fn e2e_scaffold_and_build(cha: &str, tmp: &str) -> Result<String> {
         }]"#,
         );
     std::fs::write(&lib_rs, patched)?;
+    patch_cargo_toml_for_local_sdk(&plugin_dir)?;
     let status = Command::new("cargo")
         .args(["build", "--target", "wasm32-wasip1", "--release"])
         .current_dir(&plugin_dir)
@@ -246,6 +247,17 @@ fn e2e_scaffold_and_build(cha: &str, tmp: &str) -> Result<String> {
     }
     run_cmd_in(cha, &["plugin", "build"], &plugin_dir)?;
     Ok(plugin_dir)
+}
+
+fn patch_cargo_toml_for_local_sdk(plugin_dir: &str) -> Result {
+    let cargo_toml = format!("{plugin_dir}/Cargo.toml");
+    let root = project_root();
+    let content = std::fs::read_to_string(&cargo_toml)?;
+    let patched = format!(
+        "{content}\n[patch.\"https://github.com/W-Mai/Cha\"]\ncha-plugin-sdk = {{ path = \"{root}/cha-plugin-sdk\" }}\n"
+    );
+    std::fs::write(&cargo_toml, patched)?;
+    Ok(())
 }
 
 fn e2e_verify_and_cleanup(cha: &str, tmp: &str) -> Result {
