@@ -88,6 +88,10 @@ cha completions fish > ~/.config/fish/completions/cha.fish
 # Show import dependency graph (DOT/JSON/Mermaid)
 cha deps --format dot
 cha deps --format mermaid --depth dir
+
+# Show class hierarchy
+cha deps --type classes --format dot
+cha deps --type classes --filter Plugin --format mermaid
 ```
 
 ## 📦 Installation

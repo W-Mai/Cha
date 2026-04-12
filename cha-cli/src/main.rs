@@ -38,6 +38,14 @@ pub(crate) enum DepsDepth {
     Dir,
 }
 
+#[derive(Clone, ValueEnum, Default)]
+pub(crate) enum DepsType {
+    #[default]
+    Imports,
+    Classes,
+    Calls,
+}
+
 #[derive(Parser)]
 #[command(
     name = "cha",
@@ -107,16 +115,22 @@ enum Cli {
         #[command(subcommand)]
         cmd: PluginCmd,
     },
-    /// Show import dependency graph
+    /// Show dependency graph (imports, classes, or calls)
     Deps {
         /// Files or directories (defaults to current directory)
         paths: Vec<String>,
         /// Output format
         #[arg(long, default_value = "dot")]
         format: DepsFormat,
-        /// Aggregation depth: "file" (default) or "dir"
+        /// Aggregation depth: "file" (default) or "dir" (imports only)
         #[arg(long, default_value = "file")]
         depth: DepsDepth,
+        /// Graph type: imports (default), classes, or calls
+        #[arg(long, default_value = "imports")]
+        r#type: DepsType,
+        /// Filter to specific class/function name
+        #[arg(long)]
+        filter: Option<String>,
     },
     /// Generate shell completion scripts
     Completions {
@@ -218,7 +232,9 @@ fn run_other(cli: Cli) {
             paths,
             format,
             depth,
-        } => deps::cmd_deps(&paths, &format, &depth),
+            r#type,
+            filter,
+        } => deps::cmd_deps(&paths, &format, &depth, &r#type, filter.as_deref()),
         Cli::Completions { shell } => {
             let mut cmd = Cli::command();
             clap_complete::generate(shell, &mut cmd, "cha", &mut std::io::stdout());
