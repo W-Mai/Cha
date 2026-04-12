@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-04-12
+
+### Added
+- `cha deps --type classes` — class/struct/trait hierarchy graph (extends/implements)
+- `cha deps --type calls` — function call graph with recursion detection (blue dashed lines)
+- `cha deps --filter <name>` — filter graph to specific class/function
+- `FunctionInfo.called_functions` field in parser output and WIT interface
+
 ## [0.5.0] - 2026-04-12
 
 ### Added
