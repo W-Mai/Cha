@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `unstable_dependency` — post-analysis pass using Martin's instability metric I=Ce/(Ca+Ce)
 - `cognitive_complexity` plugin — nesting-aware complexity metric based on SonarSource 2017 white paper, threshold 15
 - `todo_tracker` plugin — detect leftover TODO/FIXME/HACK/XXX comments with severity levels
+- `unsafe_api` plugin — detect dangerous function calls per language (eval/exec/system/unsafe/innerHTML) [CWE-676]
 - Fixed duplicate plugin registration bug in `register_advanced_plugins`
 
 ## [0.5.2] - 2026-04-13

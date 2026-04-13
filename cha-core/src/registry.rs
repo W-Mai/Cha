@@ -12,7 +12,7 @@ use crate::{
         LazyClassAnalyzer, LengthAnalyzer, LongParameterListAnalyzer, MessageChainAnalyzer,
         MiddleManAnalyzer, NamingAnalyzer, PrimitiveObsessionAnalyzer, RefusedBequestAnalyzer,
         ShotgunSurgeryAnalyzer, SpeculativeGeneralityAnalyzer, SwitchStatementAnalyzer,
-        TemporaryFieldAnalyzer, TodoTrackerAnalyzer,
+        TemporaryFieldAnalyzer, TodoTrackerAnalyzer, UnsafeApiAnalyzer,
     },
     wasm,
 };
@@ -241,6 +241,9 @@ fn register_advanced_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config
     });
     register_if_enabled(plugins, config, "todo_tracker", || {
         Box::new(TodoTrackerAnalyzer)
+    });
+    register_if_enabled(plugins, config, "unsafe_api", || {
+        Box::new(UnsafeApiAnalyzer)
     });
 }
 

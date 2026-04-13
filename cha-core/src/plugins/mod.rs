@@ -30,6 +30,7 @@ mod speculative_generality;
 mod switch_statement;
 mod temporary_field;
 mod todo_tracker;
+mod unsafe_api;
 
 pub use api_surface::ApiSurfaceAnalyzer;
 pub use brain_method::BrainMethodAnalyzer;
@@ -63,3 +64,4 @@ pub use speculative_generality::SpeculativeGeneralityAnalyzer;
 pub use switch_statement::SwitchStatementAnalyzer;
 pub use temporary_field::TemporaryFieldAnalyzer;
 pub use todo_tracker::TodoTrackerAnalyzer;
+pub use unsafe_api::UnsafeApiAnalyzer;
