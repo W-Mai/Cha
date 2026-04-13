@@ -1,5 +1,6 @@
 mod api_surface;
 mod brain_method;
+mod cognitive_complexity;
 mod comments;
 mod complexity;
 mod coupling;
@@ -31,6 +32,7 @@ mod temporary_field;
 
 pub use api_surface::ApiSurfaceAnalyzer;
 pub use brain_method::BrainMethodAnalyzer;
+pub use cognitive_complexity::CognitiveComplexityAnalyzer;
 pub use comments::CommentsAnalyzer;
 pub use complexity::ComplexityAnalyzer;
 pub use coupling::CouplingAnalyzer;

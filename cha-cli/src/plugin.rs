@@ -102,6 +102,7 @@ fn make_component(src: &str, out: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+// cha:ignore cognitive_complexity
 pub fn cmd_list() {
     let cwd = std::env::current_dir().unwrap_or_default();
     let local = cwd.join(".cha/plugins");

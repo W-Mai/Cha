@@ -161,6 +161,7 @@ fn convert_functions(funcs: &[crate::model::FunctionInfo]) -> Vec<wit::FunctionI
         switch_dispatch_target: f.switch_dispatch_target.clone(),
         optional_param_count: f.optional_param_count as u32,
         called_functions: f.called_functions.clone(),
+        cognitive_complexity: f.cognitive_complexity as u32,
         body_hash: f.body_hash.map(|h| format!("{h:016x}")),
     })
 }

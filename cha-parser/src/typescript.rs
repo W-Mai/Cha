@@ -156,6 +156,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         switch_dispatch_target: extract_switch_target_ts(body, src),
         optional_param_count: count_optional_params_ts(node, src),
         called_functions: collect_calls_ts(body, src),
+        cognitive_complexity: body.map(cognitive_complexity_ts).unwrap_or(0),
     })
 }
 
@@ -210,6 +211,7 @@ fn try_extract_arrow(child: Node, decl: Node, src: &[u8], exported: bool) -> Opt
         switch_dispatch_target: extract_switch_target_ts(body, src),
         optional_param_count: count_optional_params_ts(value, src),
         called_functions: collect_calls_ts(Some(value), src),
+        cognitive_complexity: cognitive_complexity_ts(value),
     })
 }
 
@@ -525,6 +527,7 @@ fn is_accessor_name(name: &str) -> bool {
 }
 
 /// Extract parent class name from `extends` clause.
+// cha:ignore cognitive_complexity
 fn extract_parent_name(node: Node, src: &[u8]) -> Option<String> {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
@@ -685,6 +688,60 @@ fn has_call_expression_ts(node: Node) -> bool {
         }
     }
     false
+}
+
+fn cognitive_complexity_ts(node: tree_sitter::Node) -> usize {
+    let mut score = 0;
+    cc_walk_ts(node, 0, &mut score);
+    score
+}
+
+fn cc_walk_ts(node: tree_sitter::Node, nesting: usize, score: &mut usize) {
+    match node.kind() {
+        "if_statement" => {
+            *score += 1 + nesting;
+            cc_children_ts(node, nesting + 1, score);
+            return;
+        }
+        "for_statement" | "for_in_statement" | "while_statement" | "do_statement" => {
+            *score += 1 + nesting;
+            cc_children_ts(node, nesting + 1, score);
+            return;
+        }
+        "switch_statement" => {
+            *score += 1 + nesting;
+            cc_children_ts(node, nesting + 1, score);
+            return;
+        }
+        "else_clause" => {
+            *score += 1;
+        }
+        "binary_expression" => {
+            if let Some(op) = node.child_by_field_name("operator")
+                && (op.kind() == "&&" || op.kind() == "||")
+            {
+                *score += 1;
+            }
+        }
+        "catch_clause" => {
+            *score += 1 + nesting;
+            cc_children_ts(node, nesting + 1, score);
+            return;
+        }
+        "arrow_function" | "function_expression" => {
+            cc_children_ts(node, nesting + 1, score);
+            return;
+        }
+        _ => {}
+    }
+    cc_children_ts(node, nesting, score);
+}
+
+fn cc_children_ts(node: tree_sitter::Node, nesting: usize, score: &mut usize) {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        cc_walk_ts(child, nesting, score);
+    }
 }
 
 fn collect_calls_ts(body: Option<tree_sitter::Node>, src: &[u8]) -> Vec<String> {

@@ -91,6 +91,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         switch_dispatch_target: None,
         optional_param_count: 0,
         called_functions: collect_calls(body, src),
+        cognitive_complexity: body.map(|b| cognitive_complexity_go(b)).unwrap_or(0),
     })
 }
 
@@ -326,6 +327,51 @@ fn hash_node(node: Node, hasher: &mut DefaultHasher) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         hash_node(child, hasher);
+    }
+}
+
+fn cognitive_complexity_go(node: Node) -> usize {
+    let mut score = 0;
+    cc_walk(node, 0, &mut score);
+    score
+}
+
+fn cc_walk(node: Node, nesting: usize, score: &mut usize) {
+    match node.kind() {
+        "if_statement" => {
+            *score += 1 + nesting;
+            cc_children(node, nesting + 1, score);
+            return;
+        }
+        "for_statement" => {
+            *score += 1 + nesting;
+            cc_children(node, nesting + 1, score);
+            return;
+        }
+        "expression_switch_statement" | "type_switch_statement" | "select_statement" => {
+            *score += 1 + nesting;
+            cc_children(node, nesting + 1, score);
+            return;
+        }
+        "else_clause" => {
+            *score += 1; // no nesting increment for else
+        }
+        "binary_expression" => {
+            if let Some(op) = node.child_by_field_name("operator")
+                && (op.kind() == "&&" || op.kind() == "||")
+            {
+                *score += 1;
+            }
+        }
+        _ => {}
+    }
+    cc_children(node, nesting, score);
+}
+
+fn cc_children(node: Node, nesting: usize, score: &mut usize) {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        cc_walk(child, nesting, score);
     }
 }
 

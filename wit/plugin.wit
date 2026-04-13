@@ -57,6 +57,7 @@ interface types {
         switch-dispatch-target: option<string>,
         optional-param-count: u32,
         called-functions: list<string>,
+        cognitive-complexity: u32,
         body-hash: option<string>,
     }
 

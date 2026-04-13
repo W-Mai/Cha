@@ -111,6 +111,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         switch_dispatch_target: None,
         optional_param_count: 0,
         called_functions: Vec::new(),
+        cognitive_complexity: body.map(cognitive_complexity_c).unwrap_or(0),
     })
 }
 
@@ -268,6 +269,56 @@ fn count_case_labels(node: Node) -> usize {
         }
     });
     count
+}
+
+fn cognitive_complexity_c(node: tree_sitter::Node) -> usize {
+    let mut score = 0;
+    cc_walk_c(node, 0, &mut score);
+    score
+}
+
+fn cc_walk_c(node: tree_sitter::Node, nesting: usize, score: &mut usize) {
+    match node.kind() {
+        "if_statement" => {
+            *score += 1 + nesting;
+            cc_children_c(node, nesting + 1, score);
+            return;
+        }
+        "for_statement" | "while_statement" | "do_statement" => {
+            *score += 1 + nesting;
+            cc_children_c(node, nesting + 1, score);
+            return;
+        }
+        "switch_statement" => {
+            *score += 1 + nesting;
+            cc_children_c(node, nesting + 1, score);
+            return;
+        }
+        "else_clause" => {
+            *score += 1;
+        }
+        "binary_expression" => {
+            if let Some(op) = node.child_by_field_name("operator")
+                && (op.kind() == "&&" || op.kind() == "||")
+            {
+                *score += 1;
+            }
+        }
+        "catch_clause" => {
+            *score += 1 + nesting;
+            cc_children_c(node, nesting + 1, score);
+            return;
+        }
+        _ => {}
+    }
+    cc_children_c(node, nesting, score);
+}
+
+fn cc_children_c(node: tree_sitter::Node, nesting: usize, score: &mut usize) {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        cc_walk_c(child, nesting, score);
+    }
 }
 
 fn count_comment_lines(node: Node, src: &[u8]) -> usize {

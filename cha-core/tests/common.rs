@@ -43,6 +43,7 @@ pub fn func(name: &str, lines: usize, complexity: usize, exported: bool) -> Func
         switch_dispatch_target: None,
         optional_param_count: 0,
         called_functions: Vec::new(),
+        cognitive_complexity: 0,
     }
 }
 
@@ -67,6 +68,7 @@ pub fn func_with_hash(name: &str, lines: usize, hash: u64) -> FunctionInfo {
         switch_dispatch_target: None,
         optional_param_count: 0,
         called_functions: Vec::new(),
+        cognitive_complexity: 0,
     }
 }
 

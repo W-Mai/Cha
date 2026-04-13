@@ -264,6 +264,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         switch_dispatch_target: extract_switch_target(body, src),
         optional_param_count: count_optional_params(node, src),
         called_functions: collect_calls_rs(body, src),
+        cognitive_complexity: body.map(cognitive_complexity_rs).unwrap_or(0),
     })
 }
 
@@ -704,6 +705,55 @@ fn walk_for_iterate_call(node: Node, src: &[u8], self_field: &str) -> bool {
         }
     }
     false
+}
+
+fn cognitive_complexity_rs(node: Node) -> usize {
+    let mut score = 0;
+    cc_walk_rs(node, 0, &mut score);
+    score
+}
+
+fn cc_walk_rs(node: Node, nesting: usize, score: &mut usize) {
+    match node.kind() {
+        "if_expression" => {
+            *score += 1 + nesting;
+            cc_children_rs(node, nesting + 1, score);
+            return;
+        }
+        "for_expression" | "while_expression" | "loop_expression" => {
+            *score += 1 + nesting;
+            cc_children_rs(node, nesting + 1, score);
+            return;
+        }
+        "match_expression" => {
+            *score += 1 + nesting;
+            cc_children_rs(node, nesting + 1, score);
+            return;
+        }
+        "else_clause" => {
+            *score += 1;
+        }
+        "binary_expression" => {
+            if let Some(op) = node.child_by_field_name("operator")
+                && (op.kind() == "&&" || op.kind() == "||")
+            {
+                *score += 1;
+            }
+        }
+        "closure_expression" => {
+            cc_children_rs(node, nesting + 1, score);
+            return;
+        }
+        _ => {}
+    }
+    cc_children_rs(node, nesting, score);
+}
+
+fn cc_children_rs(node: Node, nesting: usize, score: &mut usize) {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        cc_walk_rs(child, nesting, score);
+    }
 }
 
 fn collect_calls_rs(body: Option<tree_sitter::Node>, src: &[u8]) -> Vec<String> {

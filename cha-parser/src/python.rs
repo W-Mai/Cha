@@ -119,6 +119,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         switch_dispatch_target: None,
         optional_param_count: params.map(count_optional).unwrap_or(0),
         called_functions: body.map(|b| collect_calls_py(b, src)).unwrap_or_default(),
+        cognitive_complexity: body.map(cognitive_complexity_py).unwrap_or(0),
     })
 }
 
@@ -629,6 +630,56 @@ fn has_only_pass_or_ellipsis(body: Node, src: &[u8]) -> bool {
         }
     }
     true
+}
+
+fn cognitive_complexity_py(node: tree_sitter::Node) -> usize {
+    let mut score = 0;
+    cc_walk_py(node, 0, &mut score);
+    score
+}
+
+fn cc_walk_py(node: tree_sitter::Node, nesting: usize, score: &mut usize) {
+    match node.kind() {
+        "if_statement" => {
+            *score += 1 + nesting;
+            cc_children_py(node, nesting + 1, score);
+            return;
+        }
+        "for_statement" | "while_statement" => {
+            *score += 1 + nesting;
+            cc_children_py(node, nesting + 1, score);
+            return;
+        }
+        "match_statement" => {
+            *score += 1 + nesting;
+            cc_children_py(node, nesting + 1, score);
+            return;
+        }
+        "elif_clause" | "else_clause" => {
+            *score += 1;
+        }
+        "boolean_operator" => {
+            *score += 1;
+        }
+        "except_clause" => {
+            *score += 1 + nesting;
+            cc_children_py(node, nesting + 1, score);
+            return;
+        }
+        "lambda" => {
+            cc_children_py(node, nesting + 1, score);
+            return;
+        }
+        _ => {}
+    }
+    cc_children_py(node, nesting, score);
+}
+
+fn cc_children_py(node: tree_sitter::Node, nesting: usize, score: &mut usize) {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        cc_walk_py(child, nesting, score);
+    }
 }
 
 fn collect_calls_py(body: tree_sitter::Node, src: &[u8]) -> Vec<String> {

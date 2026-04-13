@@ -116,6 +116,7 @@ Requires [Rust](https://www.rust-lang.org/tools/install) (edition 2024).
 |--------|---------|----------|----------|
 | **LengthAnalyzer** | Long methods (>50 lines), large classes, large files | Bloaters | Warning |
 | **ComplexityAnalyzer** | High cyclomatic complexity | Bloaters | Warning/Error |
+| **CognitiveComplexityAnalyzer** | Cognitive complexity — nesting-aware understandability metric (>15) | Bloaters | Warning/Error |
 | **DuplicateCodeAnalyzer** | Structural duplication via AST hash (>10 lines) | Dispensables | Warning |
 | **CouplingAnalyzer** | Excessive imports / dependencies | Couplers | Warning |
 | **NamingAnalyzer** | Too-short names, convention violations | Bloaters | Hint/Warning |

@@ -4,9 +4,9 @@ use crate::{
     Plugin,
     config::Config,
     plugins::{
-        ApiSurfaceAnalyzer, BrainMethodAnalyzer, CommentsAnalyzer, ComplexityAnalyzer,
-        CouplingAnalyzer, DataClassAnalyzer, DataClumpsAnalyzer, DeadCodeAnalyzer,
-        DesignPatternAdvisor, DivergentChangeAnalyzer, DuplicateCodeAnalyzer,
+        ApiSurfaceAnalyzer, BrainMethodAnalyzer, CognitiveComplexityAnalyzer, CommentsAnalyzer,
+        ComplexityAnalyzer, CouplingAnalyzer, DataClassAnalyzer, DataClumpsAnalyzer,
+        DeadCodeAnalyzer, DesignPatternAdvisor, DivergentChangeAnalyzer, DuplicateCodeAnalyzer,
         ErrorHandlingAnalyzer, FeatureEnvyAnalyzer, GodClassAnalyzer, HardcodedSecretAnalyzer,
         HubLikeDependencyAnalyzer, InappropriateIntimacyAnalyzer, LayerViolationAnalyzer,
         LazyClassAnalyzer, LengthAnalyzer, LongParameterListAnalyzer, MessageChainAnalyzer,
@@ -164,6 +164,7 @@ fn register_extended_smell_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &
         Box::new(SpeculativeGeneralityAnalyzer)
     });
     register_change_preventer_plugins(plugins, config);
+    register_advanced_plugins(plugins, config);
 }
 
 fn register_change_preventer_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) {
@@ -185,7 +186,18 @@ fn register_change_preventer_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config:
     register_advanced_plugins(plugins, config);
 }
 
+// cha:ignore long_method
 fn register_advanced_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) {
+    register_if_enabled(plugins, config, "cognitive_complexity", || {
+        let mut p = CognitiveComplexityAnalyzer::default();
+        apply_usize(
+            config,
+            "cognitive_complexity",
+            "threshold",
+            &mut p.threshold,
+        );
+        Box::new(p)
+    });
     register_if_enabled(plugins, config, "god_class", || {
         let mut p = GodClassAnalyzer::default();
         apply_usize(

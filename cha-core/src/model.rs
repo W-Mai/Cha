@@ -35,6 +35,8 @@ pub struct FunctionInfo {
     pub optional_param_count: usize,
     /// Names of functions/methods called in this function body (for call graph).
     pub called_functions: Vec<String>,
+    /// Cognitive complexity score [SonarSource 2017] — nesting-aware understandability metric.
+    pub cognitive_complexity: usize,
 }
 
 /// Extracted class/struct info from AST.

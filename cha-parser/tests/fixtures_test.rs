@@ -243,3 +243,23 @@ fn cpp_simple() {
     let animal = model.classes.iter().find(|c| c.name == "Animal").unwrap();
     assert!(animal.field_count >= 2);
 }
+
+// -- Cognitive complexity --
+
+#[test]
+fn go_cognitive_complexity() {
+    let model = parse_file(&fixture("cognitive.go")).unwrap();
+    let f = model.functions.iter().find(|f| f.name == "SumOfPrimes").unwrap();
+    // for(+1) + for(+2,nest=1) + if(+3,nest=2) + continue_label(+1) = 7
+    assert!(
+        f.cognitive_complexity >= 5,
+        "expected cognitive complexity >= 5, got {}",
+        f.cognitive_complexity
+    );
+    assert!(
+        f.cognitive_complexity > f.complexity || f.cognitive_complexity == f.complexity,
+        "cognitive should generally be >= cyclomatic for nested code"
+    );
+}
+
+// -- Cognitive complexity --
