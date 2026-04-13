@@ -498,6 +498,7 @@ fn count_comment_lines_recursive(node: Node, _src: &[u8]) -> usize {
     count
 }
 
+// cha:ignore todo_comment
 /// Collect field references (self.xxx) from a function body.
 fn collect_field_refs(body: Option<Node>, src: &[u8]) -> Vec<String> {
     let Some(body) = body else { return vec![] };

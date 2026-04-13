@@ -12,7 +12,7 @@ use crate::{
         LazyClassAnalyzer, LengthAnalyzer, LongParameterListAnalyzer, MessageChainAnalyzer,
         MiddleManAnalyzer, NamingAnalyzer, PrimitiveObsessionAnalyzer, RefusedBequestAnalyzer,
         ShotgunSurgeryAnalyzer, SpeculativeGeneralityAnalyzer, SwitchStatementAnalyzer,
-        TemporaryFieldAnalyzer,
+        TemporaryFieldAnalyzer, TodoTrackerAnalyzer,
     },
     wasm,
 };
@@ -183,7 +183,6 @@ fn register_change_preventer_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config:
     register_if_enabled(plugins, config, "hardcoded_secret", || {
         Box::new(HardcodedSecretAnalyzer)
     });
-    register_advanced_plugins(plugins, config);
 }
 
 // cha:ignore long_method
@@ -239,6 +238,9 @@ fn register_advanced_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config
             &mut p.max_unwraps_per_function,
         );
         Box::new(p)
+    });
+    register_if_enabled(plugins, config, "todo_tracker", || {
+        Box::new(TodoTrackerAnalyzer)
     });
 }
 

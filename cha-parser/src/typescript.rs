@@ -496,6 +496,7 @@ fn count_comment_lines(node: Node) -> usize {
     count
 }
 
+// cha:ignore todo_comment
 /// Collect `this.xxx` field references from a function body.
 fn collect_this_fields(body: Option<Node>, src: &[u8]) -> Vec<String> {
     let Some(body) = body else { return vec![] };

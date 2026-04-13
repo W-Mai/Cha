@@ -145,6 +145,7 @@ Requires [Rust](https://www.rust-lang.org/tools/install) (edition 2024).
 | **BrainMethodAnalyzer** | Functions that are long (>65L), complex (≥4), and reference many externals (>7) | Bloaters | Warning |
 | **HubLikeDependencyAnalyzer** | Files with >20 imports, acting as dependency hubs | Couplers | Warning |
 | **ErrorHandlingAnalyzer** | Empty catch/except blocks, excessive unwrap()/expect() calls | Security | Warning |
+| **TodoTrackerAnalyzer** | Leftover TODO/FIXME/HACK/XXX comments in source code | Dispensables | Hint/Warning |
 | **UnstableDependency** | Files depending on less stable modules (Martin's instability metric) | Couplers | Hint |
 
 Supported languages: Python (.py), TypeScript (.ts/.tsx), Rust (.rs), Go (.go), C (.c/.h), C++ (.cpp/.cc/.cxx/.hpp/.hxx).

@@ -29,6 +29,7 @@ mod shotgun_surgery;
 mod speculative_generality;
 mod switch_statement;
 mod temporary_field;
+mod todo_tracker;
 
 pub use api_surface::ApiSurfaceAnalyzer;
 pub use brain_method::BrainMethodAnalyzer;
@@ -61,3 +62,4 @@ pub use shotgun_surgery::ShotgunSurgeryAnalyzer;
 pub use speculative_generality::SpeculativeGeneralityAnalyzer;
 pub use switch_statement::SwitchStatementAnalyzer;
 pub use temporary_field::TemporaryFieldAnalyzer;
+pub use todo_tracker::TodoTrackerAnalyzer;
