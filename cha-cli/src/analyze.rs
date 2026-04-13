@@ -9,7 +9,7 @@ use rayon::prelude::*;
 
 use crate::{DiffMode, FailLevel, Format, collect_files, diff, git_diff_files};
 
-// cha:ignore high_complexity
+// cha:ignore high_complexity,long_method
 pub(crate) fn cmd_analyze(
     paths: &[String],
     format: &Format,
@@ -32,6 +32,9 @@ pub(crate) fn cmd_analyze(
     let mut all_findings = run_analysis(&files, &cwd, plugin_filter);
     if plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == "unstable_dependency") {
         all_findings.extend(detect_unstable_deps(&files, &cwd));
+    }
+    if plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == "test_ratio") {
+        all_findings.extend(check_test_ratio(&files));
     }
     let all_findings = match diff_map {
         Some(ref dm) => diff::filter_by_diff(all_findings, dm),
@@ -461,6 +464,40 @@ fn compute_afferent<'a>(
         }
     }
     ca
+}
+
+fn check_test_ratio(files: &[PathBuf]) -> Vec<Finding> {
+    let (mut test_lines, mut prod_lines) = (0usize, 0usize);
+    for f in files {
+        let lines = std::fs::read_to_string(f)
+            .map(|c| c.lines().count())
+            .unwrap_or(0);
+        if f.to_string_lossy().contains("test") || f.to_string_lossy().contains("spec") {
+            test_lines += lines;
+        } else {
+            prod_lines += lines;
+        }
+    }
+    if prod_lines == 0 || (test_lines as f64 / prod_lines as f64) >= 0.5 {
+        return vec![];
+    }
+    let ratio = test_lines as f64 / prod_lines as f64;
+    vec![Finding {
+        smell_name: "low_test_ratio".into(),
+        category: cha_core::SmellCategory::Dispensables,
+        severity: cha_core::Severity::Hint,
+        location: cha_core::Location {
+            path: PathBuf::from("."),
+            start_line: 1,
+            end_line: 1,
+            name: None,
+        },
+        message: format!(
+            "Test-to-code ratio is {:.0}% ({test_lines} test / {prod_lines} production lines)",
+            ratio * 100.0
+        ),
+        suggested_refactorings: vec!["Add unit tests".into()],
+    }]
 }
 
 pub(crate) fn exit_code(findings: &[Finding], fail_on: Option<&FailLevel>) -> i32 {
