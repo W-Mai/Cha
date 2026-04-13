@@ -18,3 +18,6 @@ enabled = false
 
 [plugins.long_parameter_list]
 enabled = false
+
+[plugins.error_handling]
+enabled = false

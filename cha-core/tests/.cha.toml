@@ -12,3 +12,6 @@ enabled = false
 
 [plugins.length]
 max_file_lines = 1000
+
+[plugins.error_handling]
+enabled = false

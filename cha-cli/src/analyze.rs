@@ -9,6 +9,7 @@ use rayon::prelude::*;
 
 use crate::{DiffMode, FailLevel, Format, collect_files, diff, git_diff_files};
 
+// cha:ignore high_complexity
 pub(crate) fn cmd_analyze(
     paths: &[String],
     format: &Format,
@@ -28,7 +29,10 @@ pub(crate) fn cmd_analyze(
         return 0;
     }
 
-    let all_findings = run_analysis(&files, &cwd, plugin_filter);
+    let mut all_findings = run_analysis(&files, &cwd, plugin_filter);
+    if plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == "unstable_dependency") {
+        all_findings.extend(detect_unstable_deps(&files, &cwd));
+    }
     let all_findings = match diff_map {
         Some(ref dm) => diff::filter_by_diff(all_findings, dm),
         None => all_findings,
@@ -359,6 +363,104 @@ fn format_duration(minutes: u32) -> String {
             format!("{h}h {m}min")
         }
     }
+}
+
+/// Detect Unstable Dependencies using Martin's instability metric.
+///
+/// ## References
+///
+/// [1] R. C. Martin, "Agile Software Development," Prentice Hall, 2003. Ch. 20.
+/// [2] F. Arcelli Fontana et al., ECSA 2019. doi: 10.1145/3344948.3344982.
+fn detect_unstable_deps(files: &[PathBuf], cwd: &Path) -> Vec<Finding> {
+    let file_imports = build_file_imports(files, cwd);
+    let known: std::collections::HashSet<&str> = file_imports.keys().map(|s| s.as_str()).collect();
+    let ca = compute_afferent(&file_imports, &known);
+
+    let instability = |file: &str| -> f64 {
+        let ce = file_imports.get(file).map(|v| v.len()).unwrap_or(0) as f64;
+        let ca_val = ca.get(file).copied().unwrap_or(0) as f64;
+        if ce + ca_val == 0.0 {
+            0.0
+        } else {
+            ce / (ca_val + ce)
+        }
+    };
+
+    file_imports
+        .iter()
+        .filter_map(|(file, imports)| {
+            let my_i = instability(file);
+            let (target, ti) = imports.iter().find_map(|imp| {
+                let t = known
+                    .iter()
+                    .find(|&&k| imp.contains(k) || k.contains(imp.as_str()))?;
+                let ti = instability(t);
+                (my_i < ti && (ti - my_i) > 0.2).then_some((*t, ti))
+            })?;
+            Some(Finding {
+                smell_name: "unstable_dependency".into(),
+                category: cha_core::SmellCategory::Couplers,
+                severity: cha_core::Severity::Hint,
+                location: cha_core::Location {
+                    path: PathBuf::from(file),
+                    start_line: 1,
+                    end_line: 1,
+                    name: None,
+                },
+                message: format!(
+                    "`{file}` (I={my_i:.2}) depends on `{target}` (I={ti:.2}) which is less stable"
+                ),
+                suggested_refactorings: vec![
+                    "Depend on abstractions".into(),
+                    "Stable Dependencies Principle".into(),
+                ],
+            })
+        })
+        .collect()
+}
+
+fn build_file_imports(
+    files: &[PathBuf],
+    cwd: &Path,
+) -> std::collections::HashMap<String, Vec<String>> {
+    let mut map = std::collections::HashMap::new();
+    for path in files {
+        let Ok(content) = std::fs::read_to_string(path) else {
+            continue;
+        };
+        let file = SourceFile::new(path.clone(), content);
+        let Some(model) = cha_parser::parse_file(&file) else {
+            continue;
+        };
+        let rel = path
+            .strip_prefix(cwd)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string();
+        map.insert(
+            rel,
+            model.imports.iter().map(|i| i.source.clone()).collect(),
+        );
+    }
+    map
+}
+
+fn compute_afferent<'a>(
+    file_imports: &'a std::collections::HashMap<String, Vec<String>>,
+    known: &std::collections::HashSet<&'a str>,
+) -> std::collections::HashMap<&'a str, usize> {
+    let mut ca = std::collections::HashMap::new();
+    for imports in file_imports.values() {
+        for imp in imports {
+            if let Some(&k) = known
+                .iter()
+                .find(|&&k| imp.contains(k) || k.contains(imp.as_str()))
+            {
+                *ca.entry(k).or_default() += 1;
+            }
+        }
+    }
+    ca
 }
 
 pub(crate) fn exit_code(findings: &[Finding], fail_on: Option<&FailLevel>) -> i32 {

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `god_class` plugin — God Class detection based on Lanza & Marinescu (ATFD, WMC, TCC)
+- `brain_method` plugin — Brain Method detection (LOC, CYCLO, NOAV thresholds from literature)
+- `hub_like_dependency` plugin — detect modules with excessive import fan-out
+- `error_handling` plugin — detect empty catch blocks and unwrap/expect abuse
+- `unstable_dependency` — post-analysis pass using Martin's instability metric I=Ce/(Ca+Ce)
+
 ## [0.5.2] - 2026-04-13
 
 ### Added

@@ -140,6 +140,11 @@ Requires [Rust](https://www.rust-lang.org/tools/install) (edition 2024).
 | **InappropriateIntimacyAnalyzer** | Bidirectional imports between files | Couplers | Warning |
 | **DesignPatternAdvisor** | Suggests Strategy, State, Builder, Null Object, Template Method, Observer | OO Abusers | Hint |
 | **HardcodedSecretAnalyzer** | API keys, tokens, passwords, private keys, JWTs in source code | Security | Warning |
+| **GodClassAnalyzer** | Classes with high coupling (ATFD>5), high complexity (WMC≥47), and low cohesion (TCC<0.33) | Bloaters | Warning |
+| **BrainMethodAnalyzer** | Functions that are long (>65L), complex (≥4), and reference many externals (>7) | Bloaters | Warning |
+| **HubLikeDependencyAnalyzer** | Files with >20 imports, acting as dependency hubs | Couplers | Warning |
+| **ErrorHandlingAnalyzer** | Empty catch/except blocks, excessive unwrap()/expect() calls | Security | Warning |
+| **UnstableDependency** | Files depending on less stable modules (Martin's instability metric) | Couplers | Hint |
 
 Supported languages: Python (.py), TypeScript (.ts/.tsx), Rust (.rs), Go (.go), C (.c/.h), C++ (.cpp/.cc/.cxx/.hpp/.hxx).
 

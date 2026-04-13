@@ -4,10 +4,11 @@ use crate::{
     Plugin,
     config::Config,
     plugins::{
-        ApiSurfaceAnalyzer, CommentsAnalyzer, ComplexityAnalyzer, CouplingAnalyzer,
-        DataClassAnalyzer, DataClumpsAnalyzer, DeadCodeAnalyzer, DesignPatternAdvisor,
-        DivergentChangeAnalyzer, DuplicateCodeAnalyzer, FeatureEnvyAnalyzer,
-        HardcodedSecretAnalyzer, InappropriateIntimacyAnalyzer, LayerViolationAnalyzer,
+        ApiSurfaceAnalyzer, BrainMethodAnalyzer, CommentsAnalyzer, ComplexityAnalyzer,
+        CouplingAnalyzer, DataClassAnalyzer, DataClumpsAnalyzer, DeadCodeAnalyzer,
+        DesignPatternAdvisor, DivergentChangeAnalyzer, DuplicateCodeAnalyzer,
+        ErrorHandlingAnalyzer, FeatureEnvyAnalyzer, GodClassAnalyzer, HardcodedSecretAnalyzer,
+        HubLikeDependencyAnalyzer, InappropriateIntimacyAnalyzer, LayerViolationAnalyzer,
         LazyClassAnalyzer, LengthAnalyzer, LongParameterListAnalyzer, MessageChainAnalyzer,
         MiddleManAnalyzer, NamingAnalyzer, PrimitiveObsessionAnalyzer, RefusedBequestAnalyzer,
         ShotgunSurgeryAnalyzer, SpeculativeGeneralityAnalyzer, SwitchStatementAnalyzer,
@@ -180,6 +181,52 @@ fn register_change_preventer_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config:
     });
     register_if_enabled(plugins, config, "hardcoded_secret", || {
         Box::new(HardcodedSecretAnalyzer)
+    });
+    register_advanced_plugins(plugins, config);
+}
+
+fn register_advanced_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) {
+    register_if_enabled(plugins, config, "god_class", || {
+        let mut p = GodClassAnalyzer::default();
+        apply_usize(
+            config,
+            "god_class",
+            "max_external_refs",
+            &mut p.max_external_refs,
+        );
+        apply_usize(config, "god_class", "min_wmc", &mut p.min_wmc);
+        Box::new(p)
+    });
+    register_if_enabled(plugins, config, "brain_method", || {
+        let mut p = BrainMethodAnalyzer::default();
+        apply_usize(config, "brain_method", "min_lines", &mut p.min_lines);
+        apply_usize(
+            config,
+            "brain_method",
+            "min_complexity",
+            &mut p.min_complexity,
+        );
+        Box::new(p)
+    });
+    register_if_enabled(plugins, config, "hub_like_dependency", || {
+        let mut p = HubLikeDependencyAnalyzer::default();
+        apply_usize(
+            config,
+            "hub_like_dependency",
+            "max_imports",
+            &mut p.max_imports,
+        );
+        Box::new(p)
+    });
+    register_if_enabled(plugins, config, "error_handling", || {
+        let mut p = ErrorHandlingAnalyzer::default();
+        apply_usize(
+            config,
+            "error_handling",
+            "max_unwraps_per_function",
+            &mut p.max_unwraps_per_function,
+        );
+        Box::new(p)
     });
 }
 
