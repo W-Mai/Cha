@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `cha hotspot` subcommand — identify refactoring priorities via git change frequency × code complexity [Tornhill 2015]
 - `god_class` plugin — God Class detection based on Lanza & Marinescu (ATFD, WMC, TCC)
 - `brain_method` plugin — Brain Method detection (LOC, CYCLO, NOAV thresholds from literature)
 - `hub_like_dependency` plugin — detect modules with excessive import fan-out

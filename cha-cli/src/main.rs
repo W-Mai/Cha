@@ -4,6 +4,7 @@ use std::process;
 mod analyze;
 mod deps;
 mod diff;
+mod hotspot;
 mod plugin;
 mod trend;
 
@@ -142,6 +143,18 @@ enum Cli {
         #[arg(long, default_value = "terminal")]
         format: Format,
     },
+    /// Show hotspots: files with high change frequency × complexity
+    Hotspot {
+        /// Number of recent commits to analyze (default: 100)
+        #[arg(short, long, default_value = "100")]
+        count: usize,
+        /// Show top N files (default: 20)
+        #[arg(short, long, default_value = "20")]
+        top: usize,
+        /// Output format (terminal or json)
+        #[arg(long, default_value = "terminal")]
+        format: Format,
+    },
     /// Generate shell completion scripts
     Completions {
         /// Shell to generate completions for
@@ -240,6 +253,7 @@ fn run_other(cli: Cli) {
         } => cmd_fix(&paths, diff, dry_run),
         Cli::Plugin { cmd } => cmd_plugin(cmd),
         Cli::Trend { count, format } => trend::cmd_trend(count, &format),
+        Cli::Hotspot { count, top, format } => hotspot::cmd_hotspot(count, top, &format),
         Cli::Deps {
             paths,
             format,

@@ -96,6 +96,10 @@ cha deps --type classes --filter Plugin --format mermaid
 # Show function call graph
 cha deps --type calls --format dot
 cha deps --type calls --filter analyze --format mermaid
+
+# Show refactoring hotspots (change frequency × complexity)
+cha hotspot
+cha hotspot -c 200 -t 10 --format json
 ```
 
 ## 📦 Installation
