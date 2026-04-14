@@ -288,6 +288,19 @@ fn cmd_plugin(cmd: PluginCmd) {
     }
 }
 
+pub(crate) fn new_progress_bar(len: u64) -> indicatif::ProgressBar {
+    let pb = indicatif::ProgressBar::new(len);
+    pb.set_style(
+        indicatif::ProgressStyle::default_bar()
+            .template("{spinner:.green} [{bar:40.cyan/blue}] {pos}/{len}")
+            .unwrap()
+            .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏", "✓"])
+            .progress_chars("█▓░"),
+    );
+    pb.enable_steady_tick(std::time::Duration::from_millis(80));
+    pb
+}
+
 /// Recursively collect source files, respecting .gitignore and skipping common build dirs.
 pub(crate) fn collect_files(paths: &[String]) -> Vec<PathBuf> {
     let targets: Vec<&str> = if paths.is_empty() {

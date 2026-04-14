@@ -68,16 +68,23 @@ fn apply_filter(edges: Vec<Edge>, filter: Option<&str>) -> Vec<Edge> {
 const SKIP_PREFIXES: &[&str] = &["std::", "core::", "alloc::", "crate::", "super::", "self::"];
 
 fn build_import_graph(files: &[PathBuf], cwd: &Path, depth: &DepsDepth) -> Vec<Edge> {
+    let pb = crate::new_progress_bar(files.len() as u64);
     let mut edges = Vec::new();
     for path in files {
         let content = match std::fs::read_to_string(path) {
             Ok(c) => c,
-            Err(_) => continue,
+            Err(_) => {
+                pb.inc(1);
+                continue;
+            }
         };
         let file = SourceFile::new(path.clone(), content);
         let model = match cha_parser::parse_file(&file) {
             Some(m) => m,
-            None => continue,
+            None => {
+                pb.inc(1);
+                continue;
+            }
         };
         let src = path
             .strip_prefix(cwd)
@@ -94,7 +101,9 @@ fn build_import_graph(files: &[PathBuf], cwd: &Path, depth: &DepsDepth) -> Vec<E
                 label: None,
             });
         }
+        pb.inc(1);
     }
+    pb.finish_and_clear();
     if matches!(depth, DepsDepth::Dir) {
         aggregate_to_dirs(edges)
     } else {
@@ -138,14 +147,19 @@ fn aggregate_to_dirs(edges: Vec<Edge>) -> Vec<Edge> {
 // ── Class graph ──
 
 fn parse_all_models(files: &[PathBuf]) -> Vec<cha_core::SourceModel> {
-    files
+    let pb = crate::new_progress_bar(files.len() as u64);
+    let result = files
         .iter()
         .filter_map(|path| {
             let content = std::fs::read_to_string(path).ok()?;
             let file = SourceFile::new(path.clone(), content);
-            cha_parser::parse_file(&file)
+            let model = cha_parser::parse_file(&file);
+            pb.inc(1);
+            model
         })
-        .collect()
+        .collect();
+    pb.finish_and_clear();
+    result
 }
 
 fn build_class_graph(files: &[PathBuf]) -> Vec<Edge> {

@@ -4,7 +4,6 @@ use cha_core::{
     AnalysisContext, Config, Finding, JsonReporter, LlmContextReporter, PluginRegistry, Reporter,
     SarifReporter, Severity, SourceFile, TerminalReporter,
 };
-use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 
 use crate::{DiffMode, FailLevel, Format, collect_files, diff, git_diff_files};
@@ -149,13 +148,7 @@ pub(crate) fn run_analysis(
 ) -> Vec<Finding> {
     let cache = open_cache(project_root, !plugin_filter.is_empty());
 
-    let pb = ProgressBar::new(files.len() as u64);
-    pb.set_style(
-        ProgressStyle::default_bar()
-            .template("{spinner:.green} [{bar:40.cyan/blue}] {pos}/{len} {msg}")
-            .unwrap()
-            .progress_chars("█▓░"),
-    );
+    let pb = crate::new_progress_bar(files.len() as u64);
     let results: Vec<Finding> = files
         .par_iter()
         .flat_map(|path| {
