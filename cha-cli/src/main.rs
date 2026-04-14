@@ -131,9 +131,12 @@ enum Cli {
         /// Graph type: imports (default), classes, or calls
         #[arg(long, default_value = "imports")]
         r#type: DepsType,
-        /// Filter to specific class/function name
+        /// Filter to specific class/function name (shows connected subgraph)
         #[arg(long)]
         filter: Option<String>,
+        /// Exact match: only show edges directly involving the filter name
+        #[arg(long)]
+        exact: bool,
     },
     /// Analyze recent git commits to show issue trend
     Trend {
@@ -261,7 +264,8 @@ fn run_other(cli: Cli) {
             depth,
             r#type,
             filter,
-        } => deps::cmd_deps(&paths, &format, &depth, &r#type, filter.as_deref()),
+            exact,
+        } => deps::cmd_deps(&paths, &format, &depth, &r#type, filter.as_deref(), exact),
         Cli::Completions { shell } => {
             let mut cmd = Cli::command();
             clap_complete::generate(shell, &mut cmd, "cha", &mut std::io::stdout());

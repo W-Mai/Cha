@@ -11,6 +11,7 @@ pub fn cmd_deps(
     depth: &DepsDepth,
     graph_type: &DepsType,
     filter: Option<&str>,
+    exact: bool,
 ) {
     let cwd = std::env::current_dir().unwrap_or_default();
     let root_config = cha_core::Config::load(&cwd);
@@ -22,7 +23,7 @@ pub fn cmd_deps(
         DepsType::Calls => build_call_graph(&files),
     };
 
-    let edges = apply_filter(edges, filter);
+    let edges = apply_filter(edges, filter, exact);
     let cycles = detect_cycles(&edges);
     let style = match graph_type {
         DepsType::Imports => CycleStyle::CircularDep,
@@ -53,14 +54,46 @@ struct Edge {
     label: Option<String>,
 }
 
-fn apply_filter(edges: Vec<Edge>, filter: Option<&str>) -> Vec<Edge> {
+fn apply_filter(edges: Vec<Edge>, filter: Option<&str>, exact: bool) -> Vec<Edge> {
     let Some(name) = filter else {
         return edges;
     };
+    if exact {
+        return edges
+            .into_iter()
+            .filter(|e| e.from.contains(name) || e.to.contains(name))
+            .collect();
+    }
+    let matched = expand_connected(&edges, name);
     edges
         .into_iter()
-        .filter(|e| e.from.contains(name) || e.to.contains(name))
+        .filter(|e| matched.contains(&e.from) && matched.contains(&e.to))
         .collect()
+}
+
+/// Expand from seed nodes (matching name) to all transitively connected nodes.
+fn expand_connected(edges: &[Edge], name: &str) -> HashSet<String> {
+    let mut matched: HashSet<String> = edges
+        .iter()
+        .filter(|e| e.from.contains(name) || e.to.contains(name))
+        .flat_map(|e| [e.from.clone(), e.to.clone()])
+        .collect();
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for e in edges {
+            let has_from = matched.contains(&e.from);
+            let has_to = matched.contains(&e.to);
+            if has_from && !has_to {
+                matched.insert(e.to.clone());
+                changed = true;
+            } else if has_to && !has_from {
+                matched.insert(e.from.clone());
+                changed = true;
+            }
+        }
+    }
+    matched
 }
 
 // ── Import graph (existing) ──
