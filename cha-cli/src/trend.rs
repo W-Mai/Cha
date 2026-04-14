@@ -56,6 +56,7 @@ fn analyze_commit(hash: &str, message: &str) -> TrendPoint {
     // Create worktree
     let ok = Command::new("git")
         .args(["worktree", "add", "--detach", tmp.to_str().unwrap(), hash])
+        .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status()
         .is_ok_and(|s| s.success());
@@ -85,10 +86,11 @@ fn analyze_commit(hash: &str, message: &str) -> TrendPoint {
 
 fn analyze_dir(dir: &Path, hash: &str, message: &str) -> TrendPoint {
     let short = &hash[..7];
-    eprint!("  analyzing {short}… ");
 
     let files = collect_source_files(dir);
     let findings = analyze::run_analysis(&files, dir, &[]);
+
+    eprintln!("  {short} — {} issues", findings.len());
 
     let errors = findings
         .iter()
@@ -99,8 +101,6 @@ fn analyze_dir(dir: &Path, hash: &str, message: &str) -> TrendPoint {
         .filter(|f| f.severity == cha_core::Severity::Warning)
         .count();
     let hints = findings.len() - errors - warnings;
-
-    eprintln!("{} issues", findings.len());
 
     TrendPoint {
         hash: hash.to_string(),
