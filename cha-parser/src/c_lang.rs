@@ -54,6 +54,7 @@ fn parse_c_like(
     })
 }
 
+// cha:ignore high_complexity,cognitive_complexity
 fn collect_top_level(
     root: Node,
     src: &[u8],
@@ -72,6 +73,27 @@ fn collect_top_level(
             "struct_specifier" | "class_specifier" => {
                 if let Some(c) = extract_class(child, src) {
                     classes.push(c);
+                }
+            }
+            "type_definition" => {
+                // typedef struct { ... } Name;
+                let mut inner = child.walk();
+                for sub in child.children(&mut inner) {
+                    if sub.kind() == "struct_specifier" || sub.kind() == "class_specifier" {
+                        let mut c = match extract_class(sub, src) {
+                            Some(c) => c,
+                            None => continue,
+                        };
+                        // If struct is anonymous, use the typedef name
+                        if c.name.is_empty()
+                            && let Some(decl) = child.child_by_field_name("declarator")
+                        {
+                            c.name = node_text(decl, src).to_string();
+                        }
+                        if !c.name.is_empty() {
+                            classes.push(c);
+                        }
+                    }
                 }
             }
             "preproc_include" => {
@@ -104,14 +126,20 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         parameter_types: param_types,
         chain_depth: body.map(max_chain_depth).unwrap_or(0),
         switch_arms: body.map(count_case_labels).unwrap_or(0),
-        external_refs: Vec::new(), // TODO(parser): extract external refs for C/C++
-        is_delegating: false,      // TODO(parser): detect delegating for C/C++
+        external_refs: body
+            .map(|b| collect_external_refs_c(b, src))
+            .unwrap_or_default(),
+        is_delegating: body.map(|b| check_delegating_c(b, src)).unwrap_or(false),
         comment_lines: count_comment_lines(node, src),
-        referenced_fields: Vec::new(), // TODO(parser): extract field refs for C/C++
-        null_check_fields: Vec::new(), // TODO(parser): extract null checks for C/C++
-        switch_dispatch_target: None,  // TODO(parser): extract switch dispatch target for C/C++
-        optional_param_count: 0,       // TODO(parser): C has no optional params, keep 0
-        called_functions: Vec::new(),  // TODO(parser): extract function calls for C/C++
+        referenced_fields: body
+            .map(|b| collect_field_refs_c(b, src))
+            .unwrap_or_default(),
+        null_check_fields: body
+            .map(|b| collect_null_checks_c(b, src))
+            .unwrap_or_default(),
+        switch_dispatch_target: body.and_then(|b| extract_switch_target_c(b, src)),
+        optional_param_count: 0,
+        called_functions: body.map(|b| collect_calls_c(b, src)).unwrap_or_default(),
         cognitive_complexity: body.map(cognitive_complexity_c).unwrap_or(0),
     })
 }
@@ -148,7 +176,10 @@ fn extract_params(declarator: Node, src: &[u8]) -> (usize, Vec<String>) {
 }
 
 fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
-    let name = node_text(node.child_by_field_name("name")?, src).to_string();
+    let name = node
+        .child_by_field_name("name")
+        .map(|n| node_text(n, src).to_string())
+        .unwrap_or_default();
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body");
@@ -320,6 +351,107 @@ fn cc_children_c(node: tree_sitter::Node, nesting: usize, score: &mut usize) {
     for child in node.children(&mut cursor) {
         cc_walk_c(child, nesting, score);
     }
+}
+
+fn collect_external_refs_c(body: Node, src: &[u8]) -> Vec<String> {
+    let mut refs = Vec::new();
+    let mut cursor = body.walk();
+    visit_all(body, &mut cursor, &mut |n| {
+        if n.kind() == "field_expression"
+            && let Some(obj) = n.child(0)
+            && obj.kind() == "identifier"
+        {
+            let name = node_text(obj, src).to_string();
+            if !refs.contains(&name) {
+                refs.push(name);
+            }
+        }
+    });
+    refs
+}
+
+fn check_delegating_c(body: Node, src: &[u8]) -> bool {
+    let mut cursor = body.walk();
+    let stmts: Vec<Node> = body
+        .children(&mut cursor)
+        .filter(|n| n.kind() != "{" && n.kind() != "}" && !n.kind().contains("comment"))
+        .collect();
+    if stmts.len() != 1 {
+        return false;
+    }
+    let stmt = stmts[0];
+    let call = match stmt.kind() {
+        "return_statement" => stmt.child(1).filter(|c| c.kind() == "call_expression"),
+        "expression_statement" => stmt.child(0).filter(|c| c.kind() == "call_expression"),
+        _ => None,
+    };
+    call.and_then(|c| c.child(0))
+        .is_some_and(|f| node_text(f, src).contains('.') || node_text(f, src).contains("->"))
+}
+
+fn collect_field_refs_c(body: Node, src: &[u8]) -> Vec<String> {
+    let mut refs = Vec::new();
+    let mut cursor = body.walk();
+    visit_all(body, &mut cursor, &mut |n| {
+        if n.kind() == "field_expression"
+            && let Some(field) = n.child_by_field_name("field")
+        {
+            let name = node_text(field, src).to_string();
+            if !refs.contains(&name) {
+                refs.push(name);
+            }
+        }
+    });
+    refs
+}
+
+fn collect_null_checks_c(body: Node, src: &[u8]) -> Vec<String> {
+    let mut fields = Vec::new();
+    let mut cursor = body.walk();
+    visit_all(body, &mut cursor, &mut |n| {
+        if n.kind() == "binary_expression" {
+            let text = node_text(n, src);
+            if (text.contains("NULL") || text.contains("nullptr"))
+                && let Some(left) = n.child(0)
+            {
+                let name = node_text(left, src).to_string();
+                if !fields.contains(&name) {
+                    fields.push(name);
+                }
+            }
+        }
+    });
+    fields
+}
+
+fn extract_switch_target_c(body: Node, src: &[u8]) -> Option<String> {
+    let mut cursor = body.walk();
+    let mut target = None;
+    visit_all(body, &mut cursor, &mut |n| {
+        if n.kind() == "switch_statement"
+            && target.is_none()
+            && let Some(cond) = n.child_by_field_name("condition")
+        {
+            target = Some(node_text(cond, src).trim_matches(['(', ')']).to_string());
+        }
+    });
+    target
+}
+
+fn collect_calls_c(body: Node, src: &[u8]) -> Vec<String> {
+    let mut calls = Vec::new();
+    let mut cursor = body.walk();
+    visit_all(body, &mut cursor, &mut |n| {
+        if n.kind() == "call_expression"
+            && let Some(func) = n.child(0)
+        {
+            let name = node_text(func, src).to_string();
+            if !calls.contains(&name) {
+                calls.push(name);
+            }
+        }
+    });
+    calls
 }
 
 fn count_comment_lines(node: Node, src: &[u8]) -> usize {

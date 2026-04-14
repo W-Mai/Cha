@@ -87,10 +87,12 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
             .unwrap_or_default(),
         is_delegating: body.map(|b| check_delegating(b, src)).unwrap_or(false),
         comment_lines: count_comment_lines(node, src),
-        referenced_fields: Vec::new(), // TODO(parser): extract field refs for Go
+        referenced_fields: body
+            .map(|b| collect_field_refs_go(b, src))
+            .unwrap_or_default(),
         null_check_fields: body.map(|b| collect_nil_checks(b, src)).unwrap_or_default(),
-        switch_dispatch_target: None, // TODO(parser): extract switch dispatch target for Go
-        optional_param_count: 0,      // TODO(parser): Go has no optional params, keep 0
+        switch_dispatch_target: body.and_then(|b| extract_switch_target_go(b, src)),
+        optional_param_count: 0,
         called_functions: collect_calls(body, src),
         cognitive_complexity: body.map(|b| cognitive_complexity_go(b)).unwrap_or(0),
     })
@@ -374,6 +376,36 @@ fn cc_children(node: Node, nesting: usize, score: &mut usize) {
     for child in node.children(&mut cursor) {
         cc_walk(child, nesting, score);
     }
+}
+
+fn collect_field_refs_go(body: Node, src: &[u8]) -> Vec<String> {
+    let mut refs = Vec::new();
+    let mut cursor = body.walk();
+    visit_all(body, &mut cursor, &mut |n| {
+        if n.kind() == "selector_expression"
+            && let Some(field) = n.child_by_field_name("field")
+        {
+            let name = node_text(field, src).to_string();
+            if !refs.contains(&name) {
+                refs.push(name);
+            }
+        }
+    });
+    refs
+}
+
+fn extract_switch_target_go(body: Node, src: &[u8]) -> Option<String> {
+    let mut target = None;
+    let mut cursor = body.walk();
+    visit_all(body, &mut cursor, &mut |n| {
+        if (n.kind() == "expression_switch_statement" || n.kind() == "type_switch_statement")
+            && target.is_none()
+            && let Some(val) = n.child_by_field_name("value")
+        {
+            target = Some(node_text(val, src).to_string());
+        }
+    });
+    target
 }
 
 fn collect_calls(body: Option<Node>, src: &[u8]) -> Vec<String> {

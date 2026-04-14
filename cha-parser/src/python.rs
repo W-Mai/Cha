@@ -117,7 +117,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         null_check_fields: body
             .map(|b| collect_none_checks(b, src))
             .unwrap_or_default(),
-        switch_dispatch_target: None, // TODO(parser): extract match dispatch target for Python
+        switch_dispatch_target: body.and_then(|b| extract_match_target_py(b, src)),
         optional_param_count: params.map(count_optional).unwrap_or(0),
         called_functions: body.map(|b| collect_calls_py(b, src)).unwrap_or_default(),
         cognitive_complexity: body.map(cognitive_complexity_py).unwrap_or(0),
@@ -681,6 +681,20 @@ fn cc_children_py(node: tree_sitter::Node, nesting: usize, score: &mut usize) {
     for child in node.children(&mut cursor) {
         cc_walk_py(child, nesting, score);
     }
+}
+
+fn extract_match_target_py(body: tree_sitter::Node, src: &[u8]) -> Option<String> {
+    let mut target = None;
+    let mut cursor = body.walk();
+    visit_all(body, &mut cursor, &mut |n| {
+        if n.kind() == "match_statement"
+            && target.is_none()
+            && let Some(subj) = n.child_by_field_name("subject")
+        {
+            target = Some(node_text(subj, src).to_string());
+        }
+    });
+    target
 }
 
 fn collect_calls_py(body: tree_sitter::Node, src: &[u8]) -> Vec<String> {

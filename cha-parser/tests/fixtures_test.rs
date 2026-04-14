@@ -224,6 +224,20 @@ fn c_simple() {
     assert_eq!(model.functions[0].name, "add");
     assert_eq!(model.functions[0].parameter_count, 2);
     assert_eq!(model.imports.len(), 2);
+    // typedef struct + named struct
+    assert!(
+        model.classes.len() >= 2,
+        "expected >= 2 structs, got {}",
+        model.classes.len()
+    );
+    assert!(
+        model.classes.iter().any(|c| c.name == "Point"),
+        "missing typedef struct Point"
+    );
+    assert!(
+        model.classes.iter().any(|c| c.name == "Color"),
+        "missing struct Color"
+    );
 }
 
 // -- C++ fixtures --
