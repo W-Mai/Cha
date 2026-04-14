@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-04-14
+
+### Added
+- `SourceModel.comments` — parsers now extract comments via tree-sitter for language-aware analysis
+- `todo_tracker` now uses parsed comment nodes instead of raw text scanning
+
+### Fixed
+- `cha trend` — suppressed git worktree stdout leak; fixed progress bar overlap
+- Progress bar spinner now uses braille animation with steady tick
+- Extracted `new_progress_bar` helper; added progress bars to `cha deps`
+- Unimplemented parser fields marked with `TODO(parser)` comments for self-tracking
+
 ## [0.6.0] - 2026-04-14
 
 ### Added
