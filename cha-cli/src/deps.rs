@@ -85,27 +85,42 @@ fn apply_filter(edges: Vec<Edge>, filter: Option<&str>, exact: bool) -> Vec<Edge
 }
 
 fn expand_connected(edges: &[Edge], re: &regex::Regex) -> HashSet<String> {
-    let mut matched: HashSet<String> = edges
+    let seeds: HashSet<String> = edges
         .iter()
         .filter(|e| re.is_match(&e.from) || re.is_match(&e.to))
         .flat_map(|e| [e.from.clone(), e.to.clone()])
         .collect();
+    let mut matched = seeds.clone();
+    expand_down(edges, &mut matched);
+    expand_up(edges, &seeds, &mut matched);
+    matched
+}
+
+fn expand_down(edges: &[Edge], matched: &mut HashSet<String>) {
     let mut changed = true;
     while changed {
         changed = false;
         for e in edges {
-            let has_from = matched.contains(&e.from);
-            let has_to = matched.contains(&e.to);
-            if has_from && !has_to {
-                matched.insert(e.to.clone());
-                changed = true;
-            } else if has_to && !has_from {
-                matched.insert(e.from.clone());
+            if matched.contains(&e.from) && matched.insert(e.to.clone()) {
                 changed = true;
             }
         }
     }
-    matched
+}
+
+fn expand_up(edges: &[Edge], seeds: &HashSet<String>, matched: &mut HashSet<String>) {
+    for seed in seeds {
+        let mut current = seed.clone();
+        let mut visited = HashSet::new();
+        while visited.insert(current.clone()) {
+            if let Some(e) = edges.iter().find(|e| e.from == current) {
+                matched.insert(e.to.clone());
+                current = e.to.clone();
+            } else {
+                break;
+            }
+        }
+    }
 }
 
 // ── Import graph (existing) ──
