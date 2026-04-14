@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-04-15
+
+### Added
+- All parser fields implemented for C/C++, Go, Python (zero TODO(parser) remaining)
+- C-style struct inheritance detection via first-field type + typedef alias resolution
+- `--filter` now shows connected subgraph (children + parent chain, no siblings)
+- `--exact` flag for direct-match-only filtering
+- `--filter` supports regex patterns
+- `--detail` flag for UML class diagrams with fields, types, and methods
+- `ClassInfo.field_types` field across all parsers and WIT interface
+
+### Fixed
+- C parser: recurse into `#ifdef`/`#if` preprocessor blocks for struct/include detection
+- C parser: `typedef struct { ... } Name` now correctly parsed
+- Filter traversal: parent chain walk without sibling expansion; fixed infinite loop
+
 ## [0.6.1] - 2026-04-14
 
 ### Added
