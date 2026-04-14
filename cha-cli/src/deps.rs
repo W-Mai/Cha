@@ -55,27 +55,31 @@ struct Edge {
 }
 
 fn apply_filter(edges: Vec<Edge>, filter: Option<&str>, exact: bool) -> Vec<Edge> {
-    let Some(name) = filter else {
+    let Some(pattern) = filter else {
         return edges;
     };
+    let re = regex::Regex::new(pattern).unwrap_or_else(|_| {
+        // Fallback: treat as literal if invalid regex
+        regex::Regex::new(&regex::escape(pattern)).unwrap()
+    });
+    let matches = |s: &str| re.is_match(s);
     if exact {
         return edges
             .into_iter()
-            .filter(|e| e.from.contains(name) || e.to.contains(name))
+            .filter(|e| matches(&e.from) || matches(&e.to))
             .collect();
     }
-    let matched = expand_connected(&edges, name);
+    let matched = expand_connected(&edges, &re);
     edges
         .into_iter()
         .filter(|e| matched.contains(&e.from) && matched.contains(&e.to))
         .collect()
 }
 
-/// Expand from seed nodes (matching name) to all transitively connected nodes.
-fn expand_connected(edges: &[Edge], name: &str) -> HashSet<String> {
+fn expand_connected(edges: &[Edge], re: &regex::Regex) -> HashSet<String> {
     let mut matched: HashSet<String> = edges
         .iter()
-        .filter(|e| e.from.contains(name) || e.to.contains(name))
+        .filter(|e| re.is_match(&e.from) || re.is_match(&e.to))
         .flat_map(|e| [e.from.clone(), e.to.clone()])
         .collect();
     let mut changed = true;

@@ -131,10 +131,10 @@ enum Cli {
         /// Graph type: imports (default), classes, or calls
         #[arg(long, default_value = "imports")]
         r#type: DepsType,
-        /// Filter to specific class/function name (shows connected subgraph)
+        /// Filter by regex pattern (shows connected subgraph)
         #[arg(long)]
         filter: Option<String>,
-        /// Exact match: only show edges directly involving the filter name
+        /// Exact match: only show edges directly matching the filter
         #[arg(long)]
         exact: bool,
     },

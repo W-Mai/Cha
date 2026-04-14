@@ -317,6 +317,7 @@ dependencies = [
  "ignore",
  "indicatif",
  "rayon",
+ "regex",
  "serde",
  "serde_json",
  "wasi-preview1-component-adapter-provider",

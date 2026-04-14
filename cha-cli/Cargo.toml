@@ -30,6 +30,7 @@ dirs = "5"
 ignore = "0.4"
 indicatif = "0.18.4"
 rayon = "1"
+regex = "1"
 serde.workspace = true
 serde_json.workspace = true
 wasi-preview1-component-adapter-provider = "43.0.0"
