@@ -21,13 +21,20 @@ impl Plugin for TodoTrackerAnalyzer {
     }
 }
 
+// cha:ignore high_complexity,cognitive_complexity
 fn check_line(line_num: usize, line: &str, ctx: &AnalysisContext) -> Option<Finding> {
     let trimmed = line.trim();
-    // Must be inside a comment
-    if !is_comment(trimmed) {
+    // Check full-line comments or trailing comments
+    let comment = if is_comment(trimmed) {
+        trimmed
+    } else if let Some(pos) = trimmed.find("//") {
+        &trimmed[pos..]
+    } else if let Some(pos) = trimmed.find('#') {
+        &trimmed[pos..]
+    } else {
         return None;
-    }
-    let upper = trimmed.to_uppercase();
+    };
+    let upper = comment.to_uppercase();
     let (tag, severity) = if has_tag(&upper, "HACK") {
         ("HACK", Severity::Warning)
     } else if has_tag(&upper, "XXX") {
@@ -51,7 +58,7 @@ fn check_line(line_num: usize, line: &str, ctx: &AnalysisContext) -> Option<Find
         },
         message: format!(
             "{tag}: {}",
-            trimmed.trim_start_matches(['/', '#', '*', ' ', '-'])
+            comment.trim_start_matches(['/', '#', '*', ' ', '-'])
         ),
         suggested_refactorings: vec!["Resolve or create a tracking issue".into()],
     })

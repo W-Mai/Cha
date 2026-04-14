@@ -103,14 +103,14 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         parameter_types: param_types,
         chain_depth: body.map(max_chain_depth).unwrap_or(0),
         switch_arms: body.map(count_case_labels).unwrap_or(0),
-        external_refs: Vec::new(),
-        is_delegating: false,
+        external_refs: Vec::new(), // TODO(parser): extract external refs for C/C++
+        is_delegating: false,      // TODO(parser): detect delegating for C/C++
         comment_lines: count_comment_lines(node, src),
-        referenced_fields: Vec::new(),
-        null_check_fields: Vec::new(),
-        switch_dispatch_target: None,
-        optional_param_count: 0,
-        called_functions: Vec::new(),
+        referenced_fields: Vec::new(), // TODO(parser): extract field refs for C/C++
+        null_check_fields: Vec::new(), // TODO(parser): extract null checks for C/C++
+        switch_dispatch_target: None,  // TODO(parser): extract switch dispatch target for C/C++
+        optional_param_count: 0,       // TODO(parser): C has no optional params, keep 0
+        called_functions: Vec::new(),  // TODO(parser): extract function calls for C/C++
         cognitive_complexity: body.map(cognitive_complexity_c).unwrap_or(0),
     })
 }

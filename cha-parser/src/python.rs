@@ -116,7 +116,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         null_check_fields: body
             .map(|b| collect_none_checks(b, src))
             .unwrap_or_default(),
-        switch_dispatch_target: None,
+        switch_dispatch_target: None, // TODO(parser): extract match dispatch target for Python
         optional_param_count: params.map(count_optional).unwrap_or(0),
         called_functions: body.map(|b| collect_calls_py(b, src)).unwrap_or_default(),
         cognitive_complexity: body.map(cognitive_complexity_py).unwrap_or(0),

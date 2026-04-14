@@ -86,10 +86,10 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
             .unwrap_or_default(),
         is_delegating: body.map(|b| check_delegating(b, src)).unwrap_or(false),
         comment_lines: count_comment_lines(node, src),
-        referenced_fields: Vec::new(),
+        referenced_fields: Vec::new(), // TODO(parser): extract field refs for Go
         null_check_fields: body.map(|b| collect_nil_checks(b, src)).unwrap_or_default(),
-        switch_dispatch_target: None,
-        optional_param_count: 0,
+        switch_dispatch_target: None, // TODO(parser): extract switch dispatch target for Go
+        optional_param_count: 0,      // TODO(parser): Go has no optional params, keep 0
         called_functions: collect_calls(body, src),
         cognitive_complexity: body.map(|b| cognitive_complexity_go(b)).unwrap_or(0),
     })
