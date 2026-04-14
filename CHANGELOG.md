@@ -7,17 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-04-14
+
 ### Added
-- `cha hotspot` subcommand — identify refactoring priorities via git change frequency × code complexity [Tornhill 2015]
-- `god_class` plugin — God Class detection based on Lanza & Marinescu (ATFD, WMC, TCC)
-- `brain_method` plugin — Brain Method detection (LOC, CYCLO, NOAV thresholds from literature)
-- `hub_like_dependency` plugin — detect modules with excessive import fan-out
-- `error_handling` plugin — detect empty catch blocks and unwrap/expect abuse
+- `god_class` plugin — God Class detection (ATFD>5, WMC>=47, TCC<0.33) [Lanza & Marinescu 2006]
+- `brain_method` plugin — Brain Method detection (LOC>65, CYCLO>=4, NOAV>7) [Lanza & Marinescu 2006]
+- `hub_like_dependency` plugin — detect modules with excessive import fan-out [Arcelli Fontana et al. 2019]
+- `error_handling` plugin — detect empty catch blocks and unwrap/expect abuse [Padua & Shang 2018]
 - `unstable_dependency` — post-analysis pass using Martin's instability metric I=Ce/(Ca+Ce)
-- `cognitive_complexity` plugin — nesting-aware complexity metric based on SonarSource 2017 white paper, threshold 15
-- `todo_tracker` plugin — detect leftover TODO/FIXME/HACK/XXX comments with severity levels
-- `unsafe_api` plugin — detect dangerous function calls per language (eval/exec/system/unsafe/innerHTML) [CWE-676]
-- Fixed duplicate plugin registration bug in `register_advanced_plugins`
+- `cognitive_complexity` plugin — nesting-aware complexity metric, threshold 15 [SonarSource 2017]
+- `todo_tracker` plugin — detect leftover TODO/FIXME/HACK/XXX comments
+- `unsafe_api` plugin — detect dangerous function calls per language [CWE-676]
+- `low_test_ratio` — warn when test code < 50% of production code
+- `tangled_change` — detect commits touching unrelated modules [Tornhill 2015]
+- `bus_factor` — knowledge distribution risk detection [Nagappan et al. 2008]
+- `cha hotspot` subcommand — git change frequency × complexity [Tornhill 2015]
+
+### Fixed
+- Duplicate plugin registration bug in `register_advanced_plugins`
 
 ## [0.5.2] - 2026-04-13
 
