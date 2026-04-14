@@ -251,6 +251,7 @@ fn extract_class(
         field_count: s.field_names.len(),
         has_listener_field: s.field_names.iter().any(|n| has_listener_name(n)),
         field_names: s.field_names,
+        field_types: Vec::new(),
         has_behavior: s.has_behavior,
         is_interface: has_only_pass_or_ellipsis(body, src),
         parent_name: extract_parent_name(node, src),

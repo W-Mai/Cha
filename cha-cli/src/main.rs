@@ -137,6 +137,9 @@ enum Cli {
         /// Exact match: only show edges directly matching the filter
         #[arg(long)]
         exact: bool,
+        /// Show detailed class diagram (fields and methods)
+        #[arg(long)]
+        detail: bool,
     },
     /// Analyze recent git commits to show issue trend
     Trend {
@@ -265,7 +268,16 @@ fn run_other(cli: Cli) {
             r#type,
             filter,
             exact,
-        } => deps::cmd_deps(&paths, &format, &depth, &r#type, filter.as_deref(), exact),
+            detail,
+        } => deps::cmd_deps(
+            &paths,
+            &format,
+            &depth,
+            &r#type,
+            filter.as_deref(),
+            exact,
+            detail,
+        ),
         Cli::Completions { shell } => {
             let mut cmd = Cli::command();
             clap_complete::generate(shell, &mut cmd, "cha", &mut std::io::stdout());

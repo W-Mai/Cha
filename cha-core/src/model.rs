@@ -55,6 +55,8 @@ pub struct ClassInfo {
     pub field_count: usize,
     /// Field names declared in this class.
     pub field_names: Vec<String>,
+    /// Field types (parallel to field_names).
+    pub field_types: Vec<String>,
     /// Whether the class has non-accessor methods (business logic).
     pub has_behavior: bool,
     /// Whether this is an interface or abstract class.

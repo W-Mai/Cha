@@ -187,7 +187,7 @@ fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body");
     let method_count = body.map(count_methods).unwrap_or(0);
-    let (field_names, first_field_type) =
+    let (field_names, field_types, first_field_type) =
         body.map(|b| extract_field_info(b, src)).unwrap_or_default();
 
     Some(ClassInfo {
@@ -200,6 +200,7 @@ fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
         delegating_method_count: 0,
         field_count: field_names.len(),
         field_names,
+        field_types,
         has_behavior: method_count > 0,
         is_interface: false,
         // First field type stored as parent candidate;
@@ -212,8 +213,9 @@ fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
     })
 }
 
-fn extract_field_info(body: Node, src: &[u8]) -> (Vec<String>, Option<String>) {
+fn extract_field_info(body: Node, src: &[u8]) -> (Vec<String>, Vec<String>, Option<String>) {
     let mut names = Vec::new();
+    let mut types = Vec::new();
     let mut first_type = None;
     let mut cursor = body.walk();
     for child in body.children(&mut cursor) {
@@ -221,14 +223,16 @@ fn extract_field_info(body: Node, src: &[u8]) -> (Vec<String>, Option<String>) {
             if let Some(decl) = child.child_by_field_name("declarator") {
                 names.push(node_text(decl, src).to_string());
             }
+            let ty = child
+                .child_by_field_name("type")
+                .map(|t| node_text(t, src).to_string());
             if first_type.is_none() {
-                first_type = child
-                    .child_by_field_name("type")
-                    .map(|t| node_text(t, src).to_string());
+                first_type = ty.clone();
             }
+            types.push(ty.unwrap_or_default());
         }
     }
-    (names, first_type)
+    (names, types, first_type)
 }
 
 fn count_methods(body: Node) -> usize {

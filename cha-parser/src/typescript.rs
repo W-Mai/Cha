@@ -238,6 +238,7 @@ fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
         delegating_method_count: delegating,
         field_count: fields.len(),
         field_names: fields,
+        field_types: Vec::new(),
         has_behavior,
         is_interface,
         parent_name: extract_parent_name(node, src),

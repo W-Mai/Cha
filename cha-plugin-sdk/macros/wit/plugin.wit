@@ -71,6 +71,7 @@ interface types {
         delegating-method-count: u32,
         field-count: u32,
         field-names: list<string>,
+        field-types: list<string>,
         is-exported: bool,
         has-behavior: bool,
         is-interface: bool,

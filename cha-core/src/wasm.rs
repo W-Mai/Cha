@@ -176,6 +176,7 @@ fn convert_classes(classes: &[crate::model::ClassInfo]) -> Vec<wit::ClassInfo> {
         delegating_method_count: c.delegating_method_count as u32,
         field_count: c.field_count as u32,
         field_names: c.field_names.clone(),
+        field_types: c.field_types.clone(),
         is_exported: c.is_exported,
         has_behavior: c.has_behavior,
         is_interface: c.is_interface,

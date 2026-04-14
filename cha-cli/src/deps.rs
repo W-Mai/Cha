@@ -5,6 +5,7 @@ use cha_core::SourceFile;
 
 use crate::{DepsDepth, DepsFormat, DepsType, analyze::filter_excluded, collect_files};
 
+// cha:ignore high_complexity
 pub fn cmd_deps(
     paths: &[String],
     format: &DepsFormat,
@@ -12,6 +13,7 @@ pub fn cmd_deps(
     graph_type: &DepsType,
     filter: Option<&str>,
     exact: bool,
+    detail: bool,
 ) {
     let cwd = std::env::current_dir().unwrap_or_default();
     let root_config = cha_core::Config::load(&cwd);
@@ -30,7 +32,13 @@ pub fn cmd_deps(
         DepsType::Calls => CycleStyle::Recursion,
         DepsType::Classes => CycleStyle::CircularDep,
     };
-    render(&edges, &cycles, format, &style);
+
+    if detail && matches!(graph_type, DepsType::Classes) {
+        let models = parse_all_models(&files);
+        render_detail_classes(&edges, &models, &files, format);
+    } else {
+        render(&edges, &cycles, format, &style);
+    }
 
     if !cycles.is_empty() {
         let label = match style {
@@ -358,6 +366,155 @@ fn dfs_cycle<'a>(
 }
 
 // ── Rendering ──
+
+struct DetailClass {
+    name: String,
+    fields: Vec<(String, String)>,
+    methods: Vec<String>,
+}
+
+// cha:ignore long_method,high_complexity,brain_method
+fn render_detail_classes(
+    edges: &[Edge],
+    models: &[cha_core::SourceModel],
+    files: &[PathBuf],
+    format: &DepsFormat,
+) {
+    let aliases = collect_typedef_aliases(files);
+    let reverse: HashMap<&str, &str> = aliases
+        .iter()
+        .map(|(a, o)| (o.as_str(), a.as_str()))
+        .collect();
+    let display = |name: &str| -> String { reverse.get(name).unwrap_or(&name).to_string() };
+    let edge_names: HashSet<String> = edges
+        .iter()
+        .flat_map(|e| {
+            let mut v = vec![e.from.clone(), e.to.clone()];
+            if let Some(o) = aliases.get(&e.from) {
+                v.push(o.clone());
+            }
+            if let Some(o) = aliases.get(&e.to) {
+                v.push(o.clone());
+            }
+            v
+        })
+        .collect();
+
+    let mut detail_classes: HashMap<String, DetailClass> = HashMap::new();
+    for m in models {
+        for c in &m.classes {
+            if !edge_names.contains(&c.name) {
+                continue;
+            }
+            let dn = display(&c.name);
+            let existing_fields = detail_classes.get(&dn).map(|d| d.fields.len()).unwrap_or(0);
+            if c.field_count >= existing_fields {
+                let fields: Vec<(String, String)> = c
+                    .field_names
+                    .iter()
+                    .zip(
+                        c.field_types
+                            .iter()
+                            .chain(std::iter::repeat(&String::new())),
+                    )
+                    .map(|(n, t)| (n.clone(), t.clone()))
+                    .collect();
+                let methods: Vec<String> = m
+                    .functions
+                    .iter()
+                    .filter(|f| f.start_line >= c.start_line && f.end_line <= c.end_line)
+                    .map(|f| f.name.clone())
+                    .collect();
+                detail_classes.insert(
+                    dn,
+                    DetailClass {
+                        name: display(&c.name),
+                        fields,
+                        methods,
+                    },
+                );
+            }
+        }
+    }
+    let classes: Vec<&DetailClass> = detail_classes.values().collect();
+
+    match format {
+        DepsFormat::Dot => render_detail_dot(&classes, edges),
+        DepsFormat::Mermaid => render_detail_mermaid(&classes, edges),
+        _ => render_detail_json(&classes, edges),
+    }
+}
+
+fn render_detail_dot(classes: &[&DetailClass], edges: &[Edge]) {
+    println!("digraph deps {{");
+    println!("  rankdir=LR;");
+    println!("  node [shape=record];");
+    for c in classes {
+        let fields: String = c
+            .fields
+            .iter()
+            .map(|(n, t)| {
+                if t.is_empty() {
+                    format!("+ {n}\\l")
+                } else {
+                    format!("+ {n}: {t}\\l")
+                }
+            })
+            .collect();
+        let meths: String = c.methods.iter().map(|m| format!("+ {m}()\\l")).collect();
+        println!(
+            "  \"{}\" [label=\"{{{}|{}|{}}}\"]; ",
+            c.name, c.name, fields, meths
+        );
+    }
+    for e in edges {
+        println!("  \"{}\" -> \"{}\" [arrowhead=empty];", e.from, e.to);
+    }
+    println!("}}");
+}
+
+fn render_detail_mermaid(classes: &[&DetailClass], edges: &[Edge]) {
+    println!("classDiagram");
+    for c in classes {
+        println!("    class {} {{", c.name);
+        for (n, t) in &c.fields {
+            if t.is_empty() {
+                println!("        +{n}");
+            } else {
+                println!("        +{t} {n}");
+            }
+        }
+        for m in &c.methods {
+            println!("        +{m}()");
+        }
+        println!("    }}");
+    }
+    for e in edges {
+        let arrow = match e.label.as_deref() {
+            Some("implements") => "..|>",
+            _ => "--|>",
+        };
+        println!("    {} {} {}", e.from, arrow, e.to);
+    }
+}
+
+fn render_detail_json(classes: &[&DetailClass], edges: &[Edge]) {
+    let nodes: Vec<serde_json::Value> = classes.iter().map(|c| {
+        serde_json::json!({
+            "name": c.name,
+            "fields": c.fields.iter().map(|(n, t)| serde_json::json!({"name": n, "type": t})).collect::<Vec<_>>(),
+            "methods": c.methods,
+        })
+    }).collect();
+    let json = serde_json::json!({
+        "classes": nodes,
+        "edges": edges.iter().map(|e| serde_json::json!({"from": e.from, "to": e.to, "label": e.label})).collect::<Vec<_>>(),
+    });
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json).unwrap_or_default()
+    );
+}
 
 fn render(edges: &[Edge], cycles: &[(String, String)], format: &DepsFormat, style: &CycleStyle) {
     match format {

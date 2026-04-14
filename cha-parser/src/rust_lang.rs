@@ -288,6 +288,7 @@ fn extract_struct(node: Node, src: &[u8]) -> Option<(ClassInfo, Vec<String>)> {
             delegating_method_count: 0,
             field_count,
             field_names,
+            field_types: Vec::new(),
             has_behavior: false,
             is_interface,
             parent_name: None,

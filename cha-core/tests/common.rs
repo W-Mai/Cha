@@ -84,6 +84,7 @@ pub fn class(name: &str, methods: usize, lines: usize, exported: bool) -> ClassI
         delegating_method_count: 0,
         field_count: 0,
         field_names: vec![],
+        field_types: vec![],
         has_behavior: false,
         is_interface: false,
         parent_name: None,
