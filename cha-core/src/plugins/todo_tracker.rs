@@ -12,29 +12,16 @@ impl Plugin for TodoTrackerAnalyzer {
     }
 
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
-        ctx.file
-            .content
-            .lines()
-            .enumerate()
-            .filter_map(|(i, line)| check_line(i + 1, line, ctx))
+        ctx.model
+            .comments
+            .iter()
+            .filter_map(|c| check_comment(c, ctx))
             .collect()
     }
 }
 
-// cha:ignore high_complexity,cognitive_complexity
-fn check_line(line_num: usize, line: &str, ctx: &AnalysisContext) -> Option<Finding> {
-    let trimmed = line.trim();
-    // Check full-line comments or trailing comments
-    let comment = if is_comment(trimmed) {
-        trimmed
-    } else if let Some(pos) = trimmed.find("//") {
-        &trimmed[pos..]
-    } else if let Some(pos) = trimmed.find('#') {
-        &trimmed[pos..]
-    } else {
-        return None;
-    };
-    let upper = comment.to_uppercase();
+fn check_comment(c: &crate::CommentInfo, ctx: &AnalysisContext) -> Option<Finding> {
+    let upper = c.text.to_uppercase();
     let (tag, severity) = if has_tag(&upper, "HACK") {
         ("HACK", Severity::Warning)
     } else if has_tag(&upper, "XXX") {
@@ -52,13 +39,13 @@ fn check_line(line_num: usize, line: &str, ctx: &AnalysisContext) -> Option<Find
         severity,
         location: Location {
             path: ctx.file.path.clone(),
-            start_line: line_num,
-            end_line: line_num,
+            start_line: c.line,
+            end_line: c.line,
             name: None,
         },
         message: format!(
             "{tag}: {}",
-            comment.trim_start_matches(['/', '#', '*', ' ', '-'])
+            c.text.trim_start_matches(['/', '#', '*', ' ', '-'])
         ),
         suggested_refactorings: vec!["Resolve or create a tracking issue".into()],
     })
@@ -72,12 +59,4 @@ fn has_tag(line: &str, tag: &str) -> bool {
     } else {
         false
     }
-}
-
-fn is_comment(line: &str) -> bool {
-    line.starts_with("//")
-        || line.starts_with('#')
-        || line.starts_with("/*")
-        || line.starts_with('*')
-        || line.starts_with("--")
 }

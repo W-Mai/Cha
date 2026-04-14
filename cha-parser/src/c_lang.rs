@@ -50,6 +50,7 @@ fn parse_c_like(
         functions,
         classes,
         imports,
+        comments: collect_comments(root, src),
     })
 }
 
@@ -348,6 +349,20 @@ fn hash_node(node: Node, hasher: &mut DefaultHasher) {
 
 fn node_text<'a>(node: Node, src: &'a [u8]) -> &'a str {
     node.utf8_text(src).unwrap_or("")
+}
+
+fn collect_comments(root: Node, src: &[u8]) -> Vec<cha_core::CommentInfo> {
+    let mut comments = Vec::new();
+    let mut cursor = root.walk();
+    visit_all(root, &mut cursor, &mut |n| {
+        if n.kind().contains("comment") {
+            comments.push(cha_core::CommentInfo {
+                text: node_text(n, src).to_string(),
+                line: n.start_position().row + 1,
+            });
+        }
+    });
+    comments
 }
 
 fn visit_all<F: FnMut(Node)>(node: Node, cursor: &mut tree_sitter::TreeCursor, f: &mut F) {

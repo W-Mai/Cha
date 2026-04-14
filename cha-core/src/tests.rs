@@ -86,6 +86,7 @@ fn arb_source_model() -> impl Strategy<Value = SourceModel> {
             functions,
             classes,
             imports,
+            comments: Vec::new(),
         })
 }
 

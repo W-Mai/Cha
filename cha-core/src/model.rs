@@ -78,6 +78,13 @@ pub struct ImportInfo {
     pub line: usize,
 }
 
+/// A comment extracted from source code by the language parser.
+#[derive(Debug, Clone)]
+pub struct CommentInfo {
+    pub text: String,
+    pub line: usize,
+}
+
 /// Unified source model produced by parsing.
 #[derive(Debug, Clone)]
 pub struct SourceModel {
@@ -86,4 +93,5 @@ pub struct SourceModel {
     pub functions: Vec<FunctionInfo>,
     pub classes: Vec<ClassInfo>,
     pub imports: Vec<ImportInfo>,
+    pub comments: Vec<CommentInfo>,
 }

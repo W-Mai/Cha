@@ -91,6 +91,7 @@ pub mod test_utils {
                 functions: vec![],
                 classes: vec![],
                 imports: vec![],
+                comments: vec![],
             });
             let ctx = AnalysisContext { file: &file, model: &model };
             plugin.analyze(&ctx)

@@ -31,6 +31,7 @@ impl LanguageParser for TypeScriptParser {
             functions: ctx.col.functions,
             classes: ctx.col.classes,
             imports: ctx.col.imports,
+            comments: collect_comments(root, src),
         })
     }
 }
@@ -676,6 +677,20 @@ fn walk_for_iterate_call_ts(node: Node, src: &[u8], this_field: &str) -> bool {
         }
     }
     false
+}
+
+fn collect_comments(root: Node, src: &[u8]) -> Vec<cha_core::CommentInfo> {
+    let mut comments = Vec::new();
+    let mut cursor = root.walk();
+    visit_all(root, &mut cursor, &mut |n| {
+        if n.kind().contains("comment") {
+            comments.push(cha_core::CommentInfo {
+                text: node_text(n, src).to_string(),
+                line: n.start_position().row + 1,
+            });
+        }
+    });
+    comments
 }
 
 fn has_call_expression_ts(node: Node) -> bool {

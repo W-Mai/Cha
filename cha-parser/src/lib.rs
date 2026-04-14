@@ -5,7 +5,7 @@ mod rust_lang;
 mod typescript;
 
 pub use c_lang::{CParser, CppParser};
-pub use cha_core::{ClassInfo, FunctionInfo, ImportInfo, SourceModel};
+pub use cha_core::{ClassInfo, CommentInfo, FunctionInfo, ImportInfo, SourceModel};
 pub use golang::GolangParser;
 pub use python::PythonParser;
 pub use rust_lang::RustParser;

@@ -19,6 +19,7 @@ pub fn make_model(
         functions,
         classes,
         imports,
+        comments: Vec::new(),
     }
 }
 

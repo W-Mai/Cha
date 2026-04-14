@@ -31,6 +31,7 @@ impl LanguageParser for RustParser {
             functions: ctx.col.functions,
             classes: ctx.col.classes,
             imports: ctx.col.imports,
+            comments: collect_comments(root, src),
         })
     }
 }
@@ -785,6 +786,20 @@ fn visit_all<F: FnMut(Node)>(node: Node, cursor: &mut tree_sitter::TreeCursor, f
         }
         cursor.goto_parent();
     }
+}
+
+fn collect_comments(root: Node, src: &[u8]) -> Vec<cha_core::CommentInfo> {
+    let mut comments = Vec::new();
+    let mut cursor = root.walk();
+    visit_all(root, &mut cursor, &mut |n| {
+        if n.kind().contains("comment") {
+            comments.push(cha_core::CommentInfo {
+                text: node_text(n, src).to_string(),
+                line: n.start_position().row + 1,
+            });
+        }
+    });
+    comments
 }
 
 fn has_call_expression(node: Node) -> bool {
