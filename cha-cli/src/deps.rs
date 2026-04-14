@@ -162,31 +162,93 @@ fn parse_all_models(files: &[PathBuf]) -> Vec<cha_core::SourceModel> {
     result
 }
 
+struct ClassContext {
+    all_names: HashSet<String>,
+    interfaces: HashSet<String>,
+    aliases: HashMap<String, String>,
+    reverse: HashMap<String, String>,
+}
+
+impl ClassContext {
+    fn from_files(files: &[PathBuf], models: &[cha_core::SourceModel]) -> Self {
+        let aliases = collect_typedef_aliases(files);
+        let reverse = aliases
+            .iter()
+            .map(|(a, o)| (o.clone(), a.clone()))
+            .collect();
+        let mut all_names: HashSet<String> = models
+            .iter()
+            .flat_map(|m| &m.classes)
+            .map(|c| c.name.clone())
+            .collect();
+        all_names.extend(aliases.keys().cloned());
+        let interfaces = models
+            .iter()
+            .flat_map(|m| &m.classes)
+            .filter(|c| c.is_interface)
+            .map(|c| c.name.clone())
+            .collect();
+        Self {
+            all_names,
+            interfaces,
+            aliases,
+            reverse,
+        }
+    }
+
+    fn display_name(&self, name: &str) -> String {
+        self.reverse
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| name.to_string())
+    }
+}
+
 fn build_class_graph(files: &[PathBuf]) -> Vec<Edge> {
     let models = parse_all_models(files);
-    let interfaces: HashSet<String> = models
-        .iter()
-        .flat_map(|m| &m.classes)
-        .filter(|c| c.is_interface)
-        .map(|c| c.name.clone())
-        .collect();
+    let ctx = ClassContext::from_files(files, &models);
     models
         .iter()
         .flat_map(|m| &m.classes)
         .filter_map(|class| {
             let parent = class.parent_name.as_ref()?;
-            let label = if interfaces.contains(parent) {
+            let resolved = ctx.aliases.get(parent.as_str()).unwrap_or(parent);
+            if !ctx.all_names.contains(resolved) && !ctx.all_names.contains(parent) {
+                return None;
+            }
+            let label = if ctx.interfaces.contains(resolved) || ctx.interfaces.contains(parent) {
                 "implements"
             } else {
                 "extends"
             };
             Some(Edge {
-                from: class.name.clone(),
+                from: ctx.display_name(&class.name),
                 to: parent.clone(),
                 label: Some(label.to_string()),
             })
         })
         .collect()
+}
+
+/// Scan files for `typedef struct X Y;` patterns to build alias map (Y -> X).
+fn collect_typedef_aliases(files: &[PathBuf]) -> HashMap<String, String> {
+    let mut aliases = HashMap::new();
+    for path in files {
+        let Ok(content) = std::fs::read_to_string(path) else {
+            continue;
+        };
+        for line in content.lines() {
+            let trimmed = line.trim();
+            // Match: typedef struct _X X;
+            if let Some(rest) = trimmed.strip_prefix("typedef struct ") {
+                let parts: Vec<&str> = rest.trim_end_matches(';').split_whitespace().collect();
+                if parts.len() == 2 {
+                    aliases.insert(parts[1].to_string(), parts[0].to_string());
+                }
+            }
+        }
+    }
+    aliases
 }
 
 // ── Call graph ──

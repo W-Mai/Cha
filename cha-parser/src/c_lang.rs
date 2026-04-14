@@ -54,7 +54,6 @@ fn parse_c_like(
     })
 }
 
-// cha:ignore high_complexity,cognitive_complexity
 fn collect_top_level(
     root: Node,
     src: &[u8],
@@ -75,33 +74,37 @@ fn collect_top_level(
                     classes.push(c);
                 }
             }
-            "type_definition" => {
-                // typedef struct { ... } Name;
-                let mut inner = child.walk();
-                for sub in child.children(&mut inner) {
-                    if sub.kind() == "struct_specifier" || sub.kind() == "class_specifier" {
-                        let mut c = match extract_class(sub, src) {
-                            Some(c) => c,
-                            None => continue,
-                        };
-                        // If struct is anonymous, use the typedef name
-                        if c.name.is_empty()
-                            && let Some(decl) = child.child_by_field_name("declarator")
-                        {
-                            c.name = node_text(decl, src).to_string();
-                        }
-                        if !c.name.is_empty() {
-                            classes.push(c);
-                        }
-                    }
-                }
-            }
+            "type_definition" => extract_typedef_struct(child, src, classes),
             "preproc_include" => {
                 if let Some(imp) = extract_include(child, src) {
                     imports.push(imp);
                 }
             }
-            _ => {}
+            _ => {
+                if child.child_count() > 0 {
+                    collect_top_level(child, src, functions, classes, imports);
+                }
+            }
+        }
+    }
+}
+
+fn extract_typedef_struct(node: Node, src: &[u8], classes: &mut Vec<ClassInfo>) {
+    let mut inner = node.walk();
+    for sub in node.children(&mut inner) {
+        if sub.kind() != "struct_specifier" && sub.kind() != "class_specifier" {
+            continue;
+        }
+        let Some(mut c) = extract_class(sub, src) else {
+            continue;
+        };
+        if c.name.is_empty()
+            && let Some(decl) = node.child_by_field_name("declarator")
+        {
+            c.name = node_text(decl, src).to_string();
+        }
+        if !c.name.is_empty() {
+            classes.push(c);
         }
     }
 }
@@ -183,8 +186,9 @@ fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body");
-    let field_count = body.map(count_fields).unwrap_or(0);
     let method_count = body.map(count_methods).unwrap_or(0);
+    let (field_names, first_field_type) =
+        body.map(|b| extract_field_info(b, src)).unwrap_or_default();
 
     Some(ClassInfo {
         name,
@@ -194,11 +198,13 @@ fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
         method_count,
         is_exported: true,
         delegating_method_count: 0,
-        field_count,
-        field_names: Vec::new(),
+        field_count: field_names.len(),
+        field_names,
         has_behavior: method_count > 0,
         is_interface: false,
-        parent_name: None,
+        // First field type stored as parent candidate;
+        // build_class_graph validates against known struct names.
+        parent_name: first_field_type,
         override_count: 0,
         self_call_count: 0,
         has_listener_field: false,
@@ -206,15 +212,23 @@ fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
     })
 }
 
-fn count_fields(body: Node) -> usize {
-    let mut count = 0;
+fn extract_field_info(body: Node, src: &[u8]) -> (Vec<String>, Option<String>) {
+    let mut names = Vec::new();
+    let mut first_type = None;
     let mut cursor = body.walk();
     for child in body.children(&mut cursor) {
         if child.kind() == "field_declaration" {
-            count += 1;
+            if let Some(decl) = child.child_by_field_name("declarator") {
+                names.push(node_text(decl, src).to_string());
+            }
+            if first_type.is_none() {
+                first_type = child
+                    .child_by_field_name("type")
+                    .map(|t| node_text(t, src).to_string());
+            }
         }
     }
-    count
+    (names, first_type)
 }
 
 fn count_methods(body: Node) -> usize {
