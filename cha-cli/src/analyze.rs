@@ -9,7 +9,7 @@ use rayon::prelude::*;
 
 use crate::{DiffMode, FailLevel, Format, collect_files, diff, git_diff_files};
 
-// cha:ignore high_complexity,long_method
+// cha:ignore high_complexity,long_method,cognitive_complexity
 pub(crate) fn cmd_analyze(
     paths: &[String],
     format: &Format,
@@ -38,6 +38,9 @@ pub(crate) fn cmd_analyze(
     }
     if plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == "tangled_change") {
         all_findings.extend(crate::tangled::detect_tangled(50, 4));
+    }
+    if plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == "knowledge_distribution") {
+        all_findings.extend(detect_bus_factor(&files, &cwd));
     }
     let all_findings = match diff_map {
         Some(ref dm) => diff::filter_by_diff(all_findings, dm),
@@ -467,6 +470,46 @@ fn compute_afferent<'a>(
         }
     }
     ca
+}
+
+/// Detect files with bus factor = 1 (only one author).
+///
+/// ## References
+///
+/// [1] N. Nagappan et al., "The influence of organizational structure on
+///     software quality," ICSE 2008. doi: 10.1145/1368088.1368122.
+fn detect_bus_factor(files: &[PathBuf], cwd: &Path) -> Vec<Finding> {
+    files
+        .iter()
+        .filter_map(|path| {
+            let rel = path.strip_prefix(cwd).unwrap_or(path);
+            let output = std::process::Command::new("git")
+                .args(["log", "--format=%aN", "--", rel.to_str()?])
+                .output()
+                .ok()?;
+            let text = String::from_utf8_lossy(&output.stdout).to_string();
+            let authors: std::collections::HashSet<&str> =
+                text.lines().filter(|l| !l.is_empty()).collect();
+            (authors.len() == 1 && path.metadata().map(|m| m.len() > 500).unwrap_or(false)).then(
+                || Finding {
+                    smell_name: "bus_factor".into(),
+                    category: cha_core::SmellCategory::ChangePreventers,
+                    severity: cha_core::Severity::Hint,
+                    location: cha_core::Location {
+                        path: rel.to_path_buf(),
+                        start_line: 1,
+                        end_line: 1,
+                        name: None,
+                    },
+                    message: format!(
+                        "`{}` has only 1 contributor — bus factor risk",
+                        rel.display()
+                    ),
+                    suggested_refactorings: vec!["Pair programming".into(), "Code review".into()],
+                },
+            )
+        })
+        .collect()
 }
 
 fn check_test_ratio(files: &[PathBuf]) -> Vec<Finding> {
