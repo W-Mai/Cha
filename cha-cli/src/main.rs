@@ -6,6 +6,7 @@ mod deps;
 mod diff;
 mod hotspot;
 mod plugin;
+mod tangled;
 mod trend;
 
 use cha_core::{Config, Finding, SourceFile};

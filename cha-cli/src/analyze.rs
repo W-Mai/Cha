@@ -36,6 +36,9 @@ pub(crate) fn cmd_analyze(
     if plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == "test_ratio") {
         all_findings.extend(check_test_ratio(&files));
     }
+    if plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == "tangled_change") {
+        all_findings.extend(crate::tangled::detect_tangled(50, 4));
+    }
     let all_findings = match diff_map {
         Some(ref dm) => diff::filter_by_diff(all_findings, dm),
         None => all_findings,
