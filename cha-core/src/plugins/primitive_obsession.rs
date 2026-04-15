@@ -25,6 +25,10 @@ impl Plugin for PrimitiveObsessionAnalyzer {
         "primitive_obsession"
     }
 
+    fn description(&self) -> &str {
+        "Too many primitive parameter types"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         ctx.model
             .functions

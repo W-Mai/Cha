@@ -11,6 +11,10 @@ impl Plugin for TodoTrackerAnalyzer {
         "todo_tracker"
     }
 
+    fn description(&self) -> &str {
+        "Leftover TODO/FIXME/HACK/XXX comments"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         ctx.model
             .comments

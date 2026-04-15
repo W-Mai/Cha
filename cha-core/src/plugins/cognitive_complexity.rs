@@ -26,6 +26,10 @@ impl Plugin for CognitiveComplexityAnalyzer {
         "cognitive_complexity"
     }
 
+    fn description(&self) -> &str {
+        "Cognitive complexity exceeds threshold"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         ctx.model
             .functions

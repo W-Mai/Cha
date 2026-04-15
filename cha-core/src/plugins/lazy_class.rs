@@ -20,6 +20,10 @@ impl Plugin for LazyClassAnalyzer {
         "lazy_class"
     }
 
+    fn description(&self) -> &str {
+        "Class too small to justify its existence"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         ctx.model
             .classes

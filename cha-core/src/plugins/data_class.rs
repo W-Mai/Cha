@@ -16,6 +16,10 @@ impl Plugin for DataClassAnalyzer {
         "data_class"
     }
 
+    fn description(&self) -> &str {
+        "Class with only data, no behavior"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         ctx.model
             .classes

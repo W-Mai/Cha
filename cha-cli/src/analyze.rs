@@ -58,12 +58,18 @@ pub(crate) fn cmd_analyze(opts: &AnalyzeOpts) -> i32 {
     exit_code(&all_findings, opts.fail_on)
 }
 
-/// Names of post-analysis passes (cross-file, not per-file Plugin trait).
-pub(crate) const POST_ANALYSIS_PASSES: &[&str] = &[
-    "unstable_dependency",
-    "test_ratio",
-    "tangled_change",
-    "knowledge_distribution",
+/// Post-analysis passes: name and description (cross-file, not per-file Plugin trait).
+pub(crate) const POST_ANALYSIS_PASSES: &[(&str, &str)] = &[
+    (
+        "unstable_dependency",
+        "Depends on less stable modules (Martin's instability)",
+    ),
+    ("test_ratio", "Low test-to-production code ratio"),
+    ("tangled_change", "Commit touches too many directories"),
+    (
+        "knowledge_distribution",
+        "File has only one contributor (bus factor)",
+    ),
 ];
 
 fn run_post_analysis(files: &[PathBuf], cwd: &Path, plugin_filter: &[String]) -> Vec<Finding> {

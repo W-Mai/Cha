@@ -10,6 +10,10 @@ impl Plugin for DuplicateCodeAnalyzer {
         "duplicate_code"
     }
 
+    fn description(&self) -> &str {
+        "Duplicate code blocks (AST hash)"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let hash_map = build_hash_groups(&ctx.model.functions);
         hash_map

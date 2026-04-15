@@ -166,10 +166,10 @@ enum Cli {
         #[arg(long, default_value = "terminal")]
         format: Format,
     },
-    /// Generate shell completion scripts
+    /// Generate shell completion scripts (supports dynamic plugin name completion)
     Completions {
-        /// Shell to generate completions for
-        shell: clap_complete::Shell,
+        /// Shell to generate completions for (bash, zsh, fish, powershell, elvish)
+        shell: Option<clap_complete::Shell>,
     },
 }
 
@@ -285,11 +285,43 @@ fn run_other(cli: Cli) {
             exact,
             detail,
         ),
-        Cli::Completions { shell } => {
+        Cli::Completions { shell } => cmd_completions(shell),
+        _ => unreachable!(),
+    }
+}
+
+fn cmd_completions(shell: Option<clap_complete::Shell>) {
+    let Some(shell) = shell else {
+        println!("Enable shell completions for cha (with dynamic plugin name support):\n");
+        println!("  bash:  eval \"$(cha completions bash)\"");
+        println!("  zsh:   eval \"$(cha completions zsh)\"");
+        println!("  fish:  cha completions fish | source");
+        println!("\nTo make it permanent, add the line to your shell config file:");
+        println!("  bash:  ~/.bashrc");
+        println!("  zsh:   ~/.zshrc");
+        println!("  fish:  ~/.config/fish/config.fish");
+        return;
+    };
+    let shell_name = match shell {
+        clap_complete::Shell::Bash => "bash",
+        clap_complete::Shell::Zsh => "zsh",
+        clap_complete::Shell::Fish => "fish",
+        clap_complete::Shell::PowerShell => "powershell",
+        clap_complete::Shell::Elvish => "elvish",
+        _ => {
+            eprintln!("Unsupported shell for dynamic completions, falling back to static");
             let mut cmd = Cli::command();
             clap_complete::generate(shell, &mut cmd, "cha", &mut std::io::stdout());
+            return;
         }
-        _ => unreachable!(),
+    };
+    let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("cha"));
+    let output = std::process::Command::new(&exe)
+        .env("COMPLETE", shell_name)
+        .output();
+    if let Ok(o) = output {
+        use std::io::Write;
+        std::io::stdout().write_all(&o.stdout).ok();
     }
 }
 
@@ -519,12 +551,24 @@ fn plugin_candidates() -> Vec<clap_complete::CompletionCandidate> {
     let config = Config::load(&cwd);
     let registry = PluginRegistry::from_config(&config, &cwd);
     let mut candidates: Vec<_> = registry
-        .plugin_names()
+        .plugin_info()
         .into_iter()
-        .map(clap_complete::CompletionCandidate::new)
+        .map(|(name, desc)| {
+            let c = clap_complete::CompletionCandidate::new(name);
+            if desc.is_empty() {
+                c
+            } else {
+                c.help(Some(desc.into()))
+            }
+        })
         .collect();
-    for name in analyze::POST_ANALYSIS_PASSES {
-        candidates.push(clap_complete::CompletionCandidate::new(name));
+    for &(name, desc) in analyze::POST_ANALYSIS_PASSES {
+        let c = clap_complete::CompletionCandidate::new(name);
+        candidates.push(if desc.is_empty() {
+            c
+        } else {
+            c.help(Some(desc.into()))
+        });
     }
     candidates
 }

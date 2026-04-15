@@ -55,9 +55,12 @@ impl PluginRegistry {
         &self.plugins
     }
 
-    /// Get all plugin names from this registry.
-    pub fn plugin_names(&self) -> Vec<String> {
-        self.plugins.iter().map(|p| p.name().to_string()).collect()
+    /// Get all plugin names and descriptions from this registry.
+    pub fn plugin_info(&self) -> Vec<(String, String)> {
+        self.plugins
+            .iter()
+            .map(|p| (p.name().to_string(), p.description().to_string()))
+            .collect()
     }
 }
 

@@ -16,6 +16,10 @@ impl Plugin for SwitchStatementAnalyzer {
         "switch_statement"
     }
 
+    fn description(&self) -> &str {
+        "Excessive switch/match arms"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         ctx.model
             .functions

@@ -40,6 +40,10 @@ impl Plugin for BrainMethodAnalyzer {
         "brain_method"
     }
 
+    fn description(&self) -> &str {
+        "Brain Method: too long, complex, and coupled"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         ctx.model
             .functions

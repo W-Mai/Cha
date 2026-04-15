@@ -71,6 +71,10 @@ impl Plugin for DivergentChangeAnalyzer {
         "divergent_change"
     }
 
+    fn description(&self) -> &str {
+        "File changed for many different reasons"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let cache = REASON_CACHE.get_or_init(|| build_reason_cache(self.max_commits));
         let path_str = ctx.file.path.to_string_lossy();

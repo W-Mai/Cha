@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
 
+use cha_core::Plugin;
+
 const CARGO_TOML_TEMPLATE: &str = r#"[package]
 name = "{name}"
 version = "0.1.0"

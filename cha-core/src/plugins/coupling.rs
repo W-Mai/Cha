@@ -16,6 +16,10 @@ impl Plugin for CouplingAnalyzer {
         "coupling"
     }
 
+    fn description(&self) -> &str {
+        "Too many imports (high coupling)"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let mut findings = Vec::new();
 

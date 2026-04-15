@@ -30,6 +30,10 @@ impl Plugin for HubLikeDependencyAnalyzer {
         "hub_like_dependency"
     }
 
+    fn description(&self) -> &str {
+        "Hub-like module with too many imports"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let count = ctx.model.imports.len();
         if count <= self.max_imports {

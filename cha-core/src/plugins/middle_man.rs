@@ -20,6 +20,10 @@ impl Plugin for MiddleManAnalyzer {
         "middle_man"
     }
 
+    fn description(&self) -> &str {
+        "Class that only delegates to others"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         ctx.model
             .classes

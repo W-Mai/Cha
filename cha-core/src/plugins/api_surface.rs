@@ -20,6 +20,10 @@ impl Plugin for ApiSurfaceAnalyzer {
         "api_surface"
     }
 
+    fn description(&self) -> &str {
+        "Exported ratio too high, narrow the public API"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let total = ctx.model.functions.len() + ctx.model.classes.len();
         if total < 5 {

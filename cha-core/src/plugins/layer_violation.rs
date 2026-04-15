@@ -20,6 +20,10 @@ impl Plugin for LayerViolationAnalyzer {
         "layer_violation"
     }
 
+    fn description(&self) -> &str {
+        "Cross-layer dependency violation"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         if self.layers.is_empty() {
             return vec![];

@@ -20,6 +20,10 @@ impl Plugin for TemporaryFieldAnalyzer {
         "temporary_field"
     }
 
+    fn description(&self) -> &str {
+        "Fields used in too few methods"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let mut findings = Vec::new();
         for class in &ctx.model.classes {

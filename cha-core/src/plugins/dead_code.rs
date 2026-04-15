@@ -9,6 +9,10 @@ impl Plugin for DeadCodeAnalyzer {
         "dead_code"
     }
 
+    fn description(&self) -> &str {
+        "Unexported and unreferenced code"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let mut findings = Vec::new();
         check_dead_functions(ctx, &mut findings);

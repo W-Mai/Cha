@@ -58,6 +58,21 @@ pub trait Plugin: Send + Sync {
     /// Unique identifier for this plugin.
     fn name(&self) -> &str;
 
+    /// Plugin version (e.g. "1.0.0").
+    fn version(&self) -> &str {
+        env!("CARGO_PKG_VERSION")
+    }
+
+    /// Short description of what the plugin detects.
+    fn description(&self) -> &str {
+        ""
+    }
+
+    /// List of authors.
+    fn authors(&self) -> Vec<String> {
+        vec![env!("CARGO_PKG_AUTHORS").to_string()]
+    }
+
     /// Run analysis on a single file and return findings.
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding>;
 }

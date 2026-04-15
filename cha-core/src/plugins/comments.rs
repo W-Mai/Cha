@@ -20,6 +20,10 @@ impl Plugin for CommentsAnalyzer {
         "comments"
     }
 
+    fn description(&self) -> &str {
+        "Excessive comment-to-code ratio"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         ctx.model
             .functions

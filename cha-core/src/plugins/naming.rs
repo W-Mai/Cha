@@ -20,6 +20,10 @@ impl Plugin for NamingAnalyzer {
         "naming"
     }
 
+    fn description(&self) -> &str {
+        "Naming convention violations"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let mut findings = Vec::new();
         self.check_functions(ctx, &mut findings);

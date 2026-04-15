@@ -30,6 +30,10 @@ impl Plugin for HardcodedSecretAnalyzer {
         "hardcoded_secret"
     }
 
+    fn description(&self) -> &str {
+        "Hardcoded API keys, tokens, passwords"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let mut findings = Vec::new();
         for (line_num, line) in ctx.file.content.lines().enumerate() {

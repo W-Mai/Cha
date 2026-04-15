@@ -17,6 +17,10 @@ impl Plugin for InappropriateIntimacyAnalyzer {
         "inappropriate_intimacy"
     }
 
+    fn description(&self) -> &str {
+        "Bidirectional imports between files"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let current = normalize_path(&ctx.file.path.to_string_lossy());
         let mut checked: HashMap<String, Vec<String>> = HashMap::new();

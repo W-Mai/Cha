@@ -20,6 +20,10 @@ impl Plugin for FeatureEnvyAnalyzer {
         "feature_envy"
     }
 
+    fn description(&self) -> &str {
+        "Method uses external data more than its own"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         ctx.model
             .functions

@@ -32,6 +32,10 @@ impl Plugin for ErrorHandlingAnalyzer {
         "error_handling"
     }
 
+    fn description(&self) -> &str {
+        "Empty catch blocks, unwrap/expect abuse"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let mut findings = Vec::new();
         let lines: Vec<&str> = ctx.file.content.lines().collect();

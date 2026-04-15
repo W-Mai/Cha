@@ -22,6 +22,10 @@ impl Plugin for DataClumpsAnalyzer {
         "data_clumps"
     }
 
+    fn description(&self) -> &str {
+        "Repeated parameter type signatures"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         // Build sorted param-type signatures per function
         let sigs: Vec<_> = ctx

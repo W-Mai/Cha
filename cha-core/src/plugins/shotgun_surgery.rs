@@ -86,6 +86,10 @@ impl Plugin for ShotgunSurgeryAnalyzer {
         "shotgun_surgery"
     }
 
+    fn description(&self) -> &str {
+        "Files that always change together"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let cache = CO_CHANGE_CACHE.get_or_init(|| build_co_change_cache(self.max_commits));
         let path_str = ctx.file.path.to_string_lossy();

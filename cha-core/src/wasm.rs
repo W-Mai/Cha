@@ -82,23 +82,23 @@ impl WasmPlugin {
     pub fn set_options(&mut self, options: Vec<(String, wit::OptionValue)>) {
         self.options = options;
     }
-
-    pub fn version(&self) -> &str {
-        &self.plugin_version
-    }
-
-    pub fn description(&self) -> &str {
-        &self.plugin_description
-    }
-
-    pub fn authors(&self) -> &[String] {
-        &self.plugin_authors
-    }
 }
 
 impl Plugin for WasmPlugin {
     fn name(&self) -> &str {
         &self.plugin_name
+    }
+
+    fn version(&self) -> &str {
+        &self.plugin_version
+    }
+
+    fn description(&self) -> &str {
+        &self.plugin_description
+    }
+
+    fn authors(&self) -> Vec<String> {
+        self.plugin_authors.clone()
     }
 
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {

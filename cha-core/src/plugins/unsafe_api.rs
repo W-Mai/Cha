@@ -13,6 +13,10 @@ impl Plugin for UnsafeApiAnalyzer {
         "unsafe_api"
     }
 
+    fn description(&self) -> &str {
+        "Dangerous function calls (eval/exec/system)"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let lang = &ctx.model.language;
         let patterns = patterns_for(lang);

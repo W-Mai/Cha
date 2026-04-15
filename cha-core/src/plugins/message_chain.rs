@@ -16,6 +16,10 @@ impl Plugin for MessageChainAnalyzer {
         "message_chain"
     }
 
+    fn description(&self) -> &str {
+        "Deep field access chains (a.b.c.d)"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         ctx.model
             .functions

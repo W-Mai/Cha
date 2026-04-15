@@ -20,6 +20,10 @@ impl Plugin for ComplexityAnalyzer {
         "complexity"
     }
 
+    fn description(&self) -> &str {
+        "Cyclomatic complexity exceeds threshold"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         ctx.model
             .functions

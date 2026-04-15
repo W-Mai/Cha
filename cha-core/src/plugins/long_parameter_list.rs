@@ -16,6 +16,10 @@ impl Plugin for LongParameterListAnalyzer {
         "long_parameter_list"
     }
 
+    fn description(&self) -> &str {
+        "Function has too many parameters"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         ctx.model
             .functions

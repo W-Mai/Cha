@@ -24,6 +24,10 @@ impl Plugin for LengthAnalyzer {
         "length"
     }
 
+    fn description(&self) -> &str {
+        "Long method, large class, or large file"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let mut findings = Vec::new();
         self.check_functions(ctx, &mut findings);

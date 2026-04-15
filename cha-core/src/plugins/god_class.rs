@@ -36,6 +36,10 @@ impl Plugin for GodClassAnalyzer {
         "god_class"
     }
 
+    fn description(&self) -> &str {
+        "God Class: high coupling, low cohesion"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         ctx.model
             .classes

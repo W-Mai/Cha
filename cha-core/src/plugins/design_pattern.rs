@@ -14,6 +14,10 @@ impl Plugin for DesignPatternAdvisor {
         "design_pattern"
     }
 
+    fn description(&self) -> &str {
+        "Suggest design patterns based on code structure"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let mut findings = Vec::new();
         check_strategy(ctx, &mut findings);

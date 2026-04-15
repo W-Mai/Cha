@@ -14,6 +14,10 @@ impl Plugin for SpeculativeGeneralityAnalyzer {
         "speculative_generality"
     }
 
+    fn description(&self) -> &str {
+        "Interface with too few implementations"
+    }
+
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         // Count how many classes extend/implement each interface in this file
         let interfaces: Vec<_> = ctx

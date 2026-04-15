@@ -9,7 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Dynamic shell completion for `--plugin` via `CompleteEnv` (unstable-dynamic): `eval "$(COMPLETE=zsh cha)"`
-- `PluginRegistry::plugin_names()` for runtime plugin discovery (includes WASM plugins)
+- `PluginRegistry::plugin_info()` for runtime plugin discovery with descriptions
+- `Plugin` trait unified: `version()`, `description()`, `authors()` with defaults from Cargo.toml
+- All 33 builtin plugins now have description text for shell completion
+- `completions` subcommand now outputs dynamic completion scripts; shows usage when called without args
 - `--strictness` flag: `relaxed` (2x), `default` (1x), `strict` (0.5x), or custom float — scales all numeric thresholds
 - Per-language plugin config: `[languages.c.plugins.naming]` overrides in `.cha.toml`
 - Builtin C language profile: disables naming, lazy_class, data_class, builder/null_object/strategy pattern by default
