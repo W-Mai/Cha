@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - C/C++ parser: `static` functions now correctly marked `is_exported = false`; header files always exported
 - Reduces `large_api_surface` false positives by ~51% and enables accurate `dead_code` detection for C
+- `shotgun_surgery`, `divergent_change`, `bus_factor` now use single batch `git log` call instead of per-file — fixes freeze on large repos (lvgl: >2min → 23s)
 
 ## [0.6.2] - 2026-04-15
 

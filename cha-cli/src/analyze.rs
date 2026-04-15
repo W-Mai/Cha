@@ -506,17 +506,13 @@ fn compute_afferent<'a>(
 /// [1] N. Nagappan et al., "The influence of organizational structure on
 ///     software quality," ICSE 2008. doi: 10.1145/1368088.1368122.
 fn detect_bus_factor(files: &[PathBuf], cwd: &Path) -> Vec<Finding> {
+    let file_authors = git_file_authors();
+
     files
         .iter()
         .filter_map(|path| {
             let rel = path.strip_prefix(cwd).unwrap_or(path);
-            let output = std::process::Command::new("git")
-                .args(["log", "--format=%aN", "--", rel.to_str()?])
-                .output()
-                .ok()?;
-            let text = String::from_utf8_lossy(&output.stdout).to_string();
-            let authors: std::collections::HashSet<&str> =
-                text.lines().filter(|l| !l.is_empty()).collect();
+            let authors = file_authors.get(rel.to_str()?)?;
             (authors.len() == 1 && path.metadata().map(|m| m.len() > 500).unwrap_or(false)).then(
                 || Finding {
                     smell_name: "bus_factor".into(),
@@ -537,6 +533,36 @@ fn detect_bus_factor(files: &[PathBuf], cwd: &Path) -> Vec<Finding> {
             )
         })
         .collect()
+}
+
+/// Single `git log` call to build file → authors map.
+fn git_file_authors() -> std::collections::HashMap<String, std::collections::HashSet<String>> {
+    let output = std::process::Command::new("git")
+        .args(["log", "--format=%aN", "-n", "200", "--name-only"])
+        .output()
+        .ok();
+    let Some(output) = output else {
+        return Default::default();
+    };
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut file_authors: std::collections::HashMap<String, std::collections::HashSet<String>> =
+        std::collections::HashMap::new();
+    let mut current_author = String::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if !line.contains('/') && !line.contains('.') {
+            current_author = line.to_string();
+        } else if !current_author.is_empty() {
+            file_authors
+                .entry(line.to_string())
+                .or_default()
+                .insert(current_author.clone());
+        }
+    }
+    file_authors
 }
 
 fn check_test_ratio(files: &[PathBuf]) -> Vec<Finding> {

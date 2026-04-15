@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::process::Command;
+use std::sync::OnceLock;
 
 use crate::{AnalysisContext, Finding, Location, Plugin, Severity, SmellCategory};
 
@@ -19,16 +20,81 @@ impl Default for ShotgunSurgeryAnalyzer {
     }
 }
 
+/// Cached co-change data: built once from a single `git log` call.
+static CO_CHANGE_CACHE: OnceLock<HashMap<String, Vec<(String, usize)>>> = OnceLock::new();
+
+fn build_co_change_cache(max_commits: usize) -> HashMap<String, Vec<(String, usize)>> {
+    let commits = parse_commit_file_groups(max_commits);
+    let mut per_file: HashMap<String, HashMap<String, usize>> = HashMap::new();
+    for files in &commits {
+        for f in files {
+            for other in files {
+                if f != other {
+                    *per_file
+                        .entry(f.clone())
+                        .or_default()
+                        .entry(other.clone())
+                        .or_default() += 1;
+                }
+            }
+        }
+    }
+    per_file
+        .into_iter()
+        .map(|(file, counts)| {
+            let mut top: Vec<_> = counts.into_iter().collect();
+            top.sort_by_key(|a| std::cmp::Reverse(a.1));
+            top.truncate(3);
+            (file, top)
+        })
+        .collect()
+}
+
+fn parse_commit_file_groups(max_commits: usize) -> Vec<Vec<String>> {
+    let output = Command::new("git")
+        .args([
+            "log",
+            "--pretty=format:",
+            "--name-only",
+            &format!("-{max_commits}"),
+        ])
+        .output();
+    let text = match output {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
+        _ => return Vec::new(),
+    };
+    let mut commits = Vec::new();
+    let mut current: Vec<String> = Vec::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            if !current.is_empty() {
+                commits.push(std::mem::take(&mut current));
+            }
+        } else {
+            current.push(line.to_string());
+        }
+    }
+    if !current.is_empty() {
+        commits.push(current);
+    }
+    commits
+}
+
 impl Plugin for ShotgunSurgeryAnalyzer {
     fn name(&self) -> &str {
         "shotgun_surgery"
     }
 
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
+        let cache = CO_CHANGE_CACHE.get_or_init(|| build_co_change_cache(self.max_commits));
         let path_str = ctx.file.path.to_string_lossy();
-        let co_changes = git_co_changes(&path_str, self.max_commits);
+        let co_changes = match cache.get(path_str.as_ref()) {
+            Some(v) => v,
+            None => return vec![],
+        };
         co_changes
-            .into_iter()
+            .iter()
             .filter(|(_, count)| *count >= self.min_co_changes)
             .map(|(other, count)| Finding {
                 smell_name: "shotgun_surgery".into(),
@@ -48,41 +114,4 @@ impl Plugin for ShotgunSurgeryAnalyzer {
             })
             .collect()
     }
-}
-
-/// Get files that frequently change together with the given file.
-fn git_co_changes(file: &str, max_commits: usize) -> Vec<(String, usize)> {
-    let output = Command::new("git")
-        .args([
-            "log",
-            "--pretty=format:%H",
-            &format!("-{max_commits}"),
-            "--",
-            file,
-        ])
-        .output();
-    let commits: Vec<String> = match output {
-        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
-            .lines()
-            .map(String::from)
-            .collect(),
-        _ => return vec![],
-    };
-    let mut co_change_count: HashMap<String, usize> = HashMap::new();
-    for commit in &commits {
-        let files_output = Command::new("git")
-            .args(["diff-tree", "--no-commit-id", "--name-only", "-r", commit])
-            .output();
-        if let Ok(o) = files_output {
-            for f in String::from_utf8_lossy(&o.stdout).lines() {
-                if f != file {
-                    *co_change_count.entry(f.to_string()).or_default() += 1;
-                }
-            }
-        }
-    }
-    let mut result: Vec<_> = co_change_count.into_iter().collect();
-    result.sort_by_key(|a| std::cmp::Reverse(a.1));
-    result.truncate(3); // Top 3 co-changed files
-    result
 }

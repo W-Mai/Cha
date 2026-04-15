@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::process::Command;
+use std::sync::OnceLock;
 
 use crate::{AnalysisContext, Finding, Location, Plugin, Severity, SmellCategory};
 
@@ -19,14 +20,61 @@ impl Default for DivergentChangeAnalyzer {
     }
 }
 
+/// Cached per-file distinct-reason counts: built once from a single `git log` call.
+static REASON_CACHE: OnceLock<HashMap<String, usize>> = OnceLock::new();
+
+fn build_reason_cache(max_commits: usize) -> HashMap<String, usize> {
+    let output = Command::new("git")
+        .args([
+            "log",
+            "--format=%s",
+            "--name-only",
+            &format!("-{max_commits}"),
+        ])
+        .output();
+    let text = match output {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
+        _ => return HashMap::new(),
+    };
+
+    // Parse: alternating subject line + file list, separated by blank lines
+    let mut file_scopes: HashMap<String, HashMap<String, usize>> = HashMap::new();
+    let mut current_scope = String::new();
+    let mut in_files = false;
+
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            in_files = false;
+            continue;
+        }
+        if !in_files {
+            current_scope = extract_scope(line);
+            in_files = true;
+        } else {
+            *file_scopes
+                .entry(line.to_string())
+                .or_default()
+                .entry(current_scope.clone())
+                .or_default() += 1;
+        }
+    }
+
+    file_scopes
+        .into_iter()
+        .map(|(file, scopes)| (file, scopes.len()))
+        .collect()
+}
+
 impl Plugin for DivergentChangeAnalyzer {
     fn name(&self) -> &str {
         "divergent_change"
     }
 
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
+        let cache = REASON_CACHE.get_or_init(|| build_reason_cache(self.max_commits));
         let path_str = ctx.file.path.to_string_lossy();
-        let reasons = git_change_reasons(&path_str, self.max_commits);
+        let reasons = cache.get(path_str.as_ref()).copied().unwrap_or(0);
         if reasons < self.min_distinct_reasons {
             return vec![];
         }
@@ -47,33 +95,6 @@ impl Plugin for DivergentChangeAnalyzer {
             suggested_refactorings: vec!["Extract Class".into()],
         }]
     }
-}
-
-/// Estimate distinct change reasons by extracting scope prefixes from commit messages.
-fn git_change_reasons(file: &str, max_commits: usize) -> usize {
-    let output = Command::new("git")
-        .args([
-            "log",
-            "--pretty=format:%s",
-            &format!("-{max_commits}"),
-            "--",
-            file,
-        ])
-        .output();
-    let messages: Vec<String> = match output {
-        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
-            .lines()
-            .map(String::from)
-            .collect(),
-        _ => return 0,
-    };
-    // Extract scope from conventional commit format: "type(scope): ..."
-    let mut scopes: HashMap<String, usize> = HashMap::new();
-    for msg in &messages {
-        let scope = extract_scope(msg);
-        *scopes.entry(scope).or_default() += 1;
-    }
-    scopes.len()
 }
 
 /// Extract scope/category from a commit message.
