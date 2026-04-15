@@ -8,19 +8,27 @@ use rayon::prelude::*;
 
 use crate::{DiffMode, FailLevel, Format, collect_files, diff, git_diff_files};
 
-// cha:ignore high_complexity,long_method,cognitive_complexity
-pub(crate) fn cmd_analyze(
-    paths: &[String],
-    format: &Format,
-    fail_on: Option<&FailLevel>,
-    diff_mode: DiffMode,
-    plugin_filter: &[String],
-    baseline_path: Option<&str>,
-    output_path: Option<&str>,
-) -> i32 {
+/// CLI --strictness override, applied to every file's config.
+static STRICTNESS_OVERRIDE: std::sync::OnceLock<cha_core::Strictness> = std::sync::OnceLock::new();
+
+pub(crate) struct AnalyzeOpts<'a> {
+    pub paths: &'a [String],
+    pub format: &'a Format,
+    pub fail_on: Option<&'a FailLevel>,
+    pub diff_mode: DiffMode,
+    pub plugin_filter: &'a [String],
+    pub baseline_path: Option<&'a str>,
+    pub output_path: Option<&'a str>,
+    pub strictness: Option<&'a str>,
+}
+
+pub(crate) fn cmd_analyze(opts: &AnalyzeOpts) -> i32 {
     let cwd = std::env::current_dir().unwrap_or_default();
     let root_config = Config::load(&cwd);
-    let (files, diff_map) = resolve_diff_files(paths, &diff_mode, &cwd);
+    if let Some(s) = opts.strictness.and_then(cha_core::Strictness::parse) {
+        let _ = STRICTNESS_OVERRIDE.set(s);
+    }
+    let (files, diff_map) = resolve_diff_files(opts.paths, &opts.diff_mode, &cwd);
     let files = filter_excluded(files, &root_config.exclude, &cwd);
 
     if files.is_empty() {
@@ -28,45 +36,67 @@ pub(crate) fn cmd_analyze(
         return 0;
     }
 
-    let mut all_findings = run_analysis(&files, &cwd, plugin_filter);
-    if plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == "unstable_dependency") {
-        all_findings.extend(detect_unstable_deps(&files, &cwd));
-    }
-    if plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == "test_ratio") {
-        all_findings.extend(check_test_ratio(&files));
-    }
-    if plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == "tangled_change") {
-        all_findings.extend(crate::tangled::detect_tangled(50, 4));
-    }
-    if plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == "knowledge_distribution") {
-        all_findings.extend(detect_bus_factor(&files, &cwd));
-    }
-    let all_findings = match diff_map {
-        Some(ref dm) => diff::filter_by_diff(all_findings, dm),
-        None => all_findings,
-    };
-    let all_findings = if let Some(bp) = baseline_path {
-        match cha_core::Baseline::load(Path::new(bp)) {
-            Some(bl) => bl.filter_new(all_findings, &cwd),
-            None => {
-                eprintln!("warning: baseline file not found: {bp}");
-                all_findings
-            }
-        }
-    } else {
-        all_findings
-    };
-    if matches!(format, Format::Html) {
+    let mut all_findings = run_analysis(&files, &cwd, opts.plugin_filter);
+    all_findings.extend(run_post_analysis(&files, &cwd, opts.plugin_filter));
+    let all_findings = apply_filters(all_findings, &diff_map, opts.baseline_path, &cwd);
+
+    if matches!(opts.format, Format::Html) {
         print_html_report(
             &all_findings,
             &files,
-            output_path,
+            opts.output_path,
             &root_config.debt_weights,
         );
     } else {
-        print_report(&all_findings, format, &files, &root_config.debt_weights);
+        print_report(
+            &all_findings,
+            opts.format,
+            &files,
+            &root_config.debt_weights,
+        );
     }
-    exit_code(&all_findings, fail_on)
+    exit_code(&all_findings, opts.fail_on)
+}
+
+fn run_post_analysis(files: &[PathBuf], cwd: &Path, plugin_filter: &[String]) -> Vec<Finding> {
+    let mut findings = Vec::new();
+    let pass = |name: &str| plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == name);
+    if pass("unstable_dependency") {
+        findings.extend(detect_unstable_deps(files, cwd));
+    }
+    if pass("test_ratio") {
+        findings.extend(check_test_ratio(files));
+    }
+    if pass("tangled_change") {
+        findings.extend(crate::tangled::detect_tangled(50, 4));
+    }
+    if pass("knowledge_distribution") {
+        findings.extend(detect_bus_factor(files, cwd));
+    }
+    findings
+}
+
+fn apply_filters(
+    findings: Vec<Finding>,
+    diff_map: &Option<diff::DiffMap>,
+    baseline_path: Option<&str>,
+    cwd: &Path,
+) -> Vec<Finding> {
+    let findings = match diff_map {
+        Some(dm) => diff::filter_by_diff(findings, dm),
+        None => findings,
+    };
+    if let Some(bp) = baseline_path {
+        match cha_core::Baseline::load(Path::new(bp)) {
+            Some(bl) => bl.filter_new(findings, cwd),
+            None => {
+                eprintln!("warning: baseline file not found: {bp}");
+                findings
+            }
+        }
+    } else {
+        findings
+    }
 }
 
 /// Resolve file list and optional diff map based on diff mode.
@@ -233,7 +263,11 @@ fn analyze_file_with_content(
         Some(m) => m,
         None => return vec![],
     };
-    let config = Config::load_for_file(path, project_root);
+    let mut config =
+        Config::load_for_file(path, project_root).resolve_for_language(&model.language);
+    if let Some(s) = STRICTNESS_OVERRIDE.get() {
+        config.set_strictness(s.clone());
+    }
     let registry = PluginRegistry::from_config(&config, project_root);
     let ctx = AnalysisContext {
         file: &file,

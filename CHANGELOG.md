@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `--strictness` flag: `relaxed` (2x), `default` (1x), `strict` (0.5x), or custom float — scales all numeric thresholds
+- Per-language plugin config: `[languages.c.plugins.naming]` overrides in `.cha.toml`
+- Builtin C language profile: disables naming, lazy_class, data_class, builder/null_object/strategy pattern by default
+- `AnalyzeOpts` struct replaces 8-parameter `cmd_analyze` (eliminates brain_method smell)
+
+### Changed
+- `Config` struct now has `strictness` and `languages` fields (fully backward compatible)
+- `get_usize()` applies strictness scaling factor automatically
+- `cmd_analyze` refactored into `run_post_analysis()` + `apply_filters()`
+
 ## [0.6.2] - 2026-04-15
 
 ### Added

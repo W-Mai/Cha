@@ -84,6 +84,9 @@ enum Cli {
         /// Write output to file (used with --format html)
         #[arg(long, short)]
         output: Option<String>,
+        /// Strictness level: relaxed (2x), default (1x), strict (0.5x), or a custom float
+        #[arg(long)]
+        strictness: Option<String>,
     },
     /// Generate a baseline file from current findings (suppresses known issues)
     Baseline {
@@ -224,21 +227,23 @@ fn dispatch(cli: Cli) -> i32 {
             no_cache,
             baseline,
             output,
+            strictness,
         } => {
             let mode = DiffMode::from_flags(diff, stdin_diff);
             if no_cache {
                 let cwd = std::env::current_dir().unwrap_or_default();
                 let _ = std::fs::remove_dir_all(cwd.join(".cha/cache"));
             }
-            analyze::cmd_analyze(
-                &paths,
-                &format,
-                fail_on.as_ref(),
-                mode,
-                &plugin,
-                baseline.as_deref(),
-                output.as_deref(),
-            )
+            analyze::cmd_analyze(&analyze::AnalyzeOpts {
+                paths: &paths,
+                format: &format,
+                fail_on: fail_on.as_ref(),
+                diff_mode: mode,
+                plugin_filter: &plugin,
+                baseline_path: baseline.as_deref(),
+                output_path: output.as_deref(),
+                strictness: strictness.as_deref(),
+            })
         }
         other => {
             run_other(other);

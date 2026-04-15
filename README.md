@@ -163,6 +163,9 @@ Create `.cha.toml` in your project root:
 # Exclude paths from analysis (glob patterns)
 exclude = ["*/tests/fixtures/*", "vendor/*"]
 
+# Strictness: relaxed (2x thresholds), default (1x), strict (0.5x), or custom float
+strictness = "default"
+
 [plugins.length]
 enabled = true
 max_function_lines = 30
@@ -179,6 +182,13 @@ max_imports = 15
 enabled = true
 layers = "domain:0,service:1,controller:2"
 
+# Per-language overrides (only write differences from global)
+[languages.c.plugins.naming]
+enabled = false  # C uses snake_case, skip PascalCase check
+
+[languages.c.plugins.length]
+max_function_lines = 80  # C functions tend to be longer
+
 # Custom tech debt estimation weights (minutes per severity)
 [debt_weights]
 hint = 5
@@ -187,6 +197,7 @@ error = 30
 ```
 
 All plugins are enabled by default. Set `enabled = false` to disable.
+C language has a builtin profile that disables OOP-specific rules (naming, lazy_class, data_class, design patterns).
 
 ## 🧩 WASM Plugins
 

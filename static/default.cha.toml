@@ -56,3 +56,13 @@ max_depth = 3
 
 # [plugins.hardcoded_secret]
 # enabled = true
+
+# Strictness: relaxed (2x thresholds), default (1x), strict (0.5x), or custom float
+# strictness = "default"
+
+# Per-language plugin overrides (only write differences from global)
+# C has a builtin profile that disables: naming, lazy_class, data_class,
+# builder_pattern, null_object_pattern, strategy_pattern.
+# You can re-enable them:
+# [languages.c.plugins.naming]
+# enabled = true

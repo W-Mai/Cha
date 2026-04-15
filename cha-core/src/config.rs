@@ -2,6 +2,59 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
 
+/// Strictness level — controls threshold scaling.
+/// `relaxed` = 2.0x (thresholds doubled, more lenient),
+/// `default` = 1.0x, `strict` = 0.5x (thresholds halved).
+/// Can also be a custom float like `0.7`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum Strictness {
+    Named(StrictnessLevel),
+    Custom(f64),
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum StrictnessLevel {
+    Relaxed,
+    Default,
+    Strict,
+}
+
+impl Default for Strictness {
+    fn default() -> Self {
+        Strictness::Named(StrictnessLevel::Default)
+    }
+}
+
+impl Strictness {
+    pub fn factor(&self) -> f64 {
+        match self {
+            Strictness::Named(StrictnessLevel::Relaxed) => 2.0,
+            Strictness::Named(StrictnessLevel::Default) => 1.0,
+            Strictness::Named(StrictnessLevel::Strict) => 0.5,
+            Strictness::Custom(v) => *v,
+        }
+    }
+
+    /// Parse from CLI string: "relaxed", "default", "strict", or a float.
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "relaxed" => Some(Strictness::Named(StrictnessLevel::Relaxed)),
+            "default" => Some(Strictness::Named(StrictnessLevel::Default)),
+            "strict" => Some(Strictness::Named(StrictnessLevel::Strict)),
+            _ => s.parse::<f64>().ok().map(Strictness::Custom),
+        }
+    }
+}
+
+/// Per-language config overlay.
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct LanguageConfig {
+    #[serde(default)]
+    pub plugins: HashMap<String, PluginConfig>,
+}
+
 /// Top-level config from `.cha.toml`.
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct Config {
@@ -13,6 +66,12 @@ pub struct Config {
     /// Custom remediation time weights (minutes per severity).
     #[serde(default)]
     pub debt_weights: DebtWeights,
+    /// Threshold scaling factor.
+    #[serde(default)]
+    pub strictness: Strictness,
+    /// Per-language plugin overrides.
+    #[serde(default)]
+    pub languages: HashMap<String, LanguageConfig>,
 }
 
 /// Custom debt estimation weights (minutes per severity level).
@@ -106,6 +165,58 @@ impl Config {
         }
         self.exclude.extend(other.exclude);
         self.debt_weights = other.debt_weights;
+        // Only override strictness if the other config explicitly set it (non-default).
+        // Since we can't distinguish "not set" from "set to default" with serde,
+        // we always take the other's value during merge.
+        self.strictness = other.strictness;
+        for (lang, other_lc) in other.languages {
+            let entry = self.languages.entry(lang).or_default();
+            for (name, other_pc) in other_lc.plugins {
+                let pe = entry.plugins.entry(name).or_default();
+                pe.enabled = other_pc.enabled;
+                for (k, v) in other_pc.options {
+                    pe.options.insert(k, v);
+                }
+            }
+        }
+    }
+
+    /// Produce a resolved config for a specific language.
+    /// Applies builtin language profile first, then user overrides.
+    pub fn resolve_for_language(&self, language: &str) -> Config {
+        let lang_key = language.to_lowercase();
+        let mut resolved = self.clone();
+
+        // Apply builtin profile (defaults for this language)
+        if let Some(builtin) = builtin_language_profile(&lang_key) {
+            for (name, enabled) in builtin {
+                // Only apply if user hasn't explicitly configured this plugin for this language
+                let user_override = self
+                    .languages
+                    .get(&lang_key)
+                    .is_some_and(|lc| lc.plugins.contains_key(name));
+                if !user_override {
+                    resolved
+                        .plugins
+                        .entry(name.to_string())
+                        .or_default()
+                        .enabled = enabled;
+                }
+            }
+        }
+
+        // Apply user's [languages.xx] overrides
+        if let Some(lc) = self.languages.get(&lang_key) {
+            for (name, lpc) in &lc.plugins {
+                let entry = resolved.plugins.entry(name.clone()).or_default();
+                entry.enabled = lpc.enabled;
+                for (k, v) in &lpc.options {
+                    entry.options.insert(k.clone(), v.clone());
+                }
+            }
+        }
+
+        resolved
     }
 
     /// Check if a plugin is enabled (default: true if not mentioned).
@@ -113,14 +224,17 @@ impl Config {
         self.plugins.get(name).is_none_or(|c| c.enabled)
     }
 
-    /// Get a usize option for a plugin.
+    /// Get a usize option for a plugin, scaled by strictness factor.
     pub fn get_usize(&self, plugin: &str, key: &str) -> Option<usize> {
         self.plugins
             .get(plugin)?
             .options
             .get(key)?
             .as_integer()
-            .map(|v| v as usize)
+            .map(|v| {
+                let scaled = (v as f64 * self.strictness.factor()).round() as usize;
+                scaled.max(1)
+            })
     }
 
     /// Get a string option for a plugin.
@@ -131,6 +245,11 @@ impl Config {
             .get(key)?
             .as_str()
             .map(|s| s.to_string())
+    }
+
+    /// Override strictness (e.g. from CLI --strictness flag).
+    pub fn set_strictness(&mut self, s: Strictness) {
+        self.strictness = s;
     }
 }
 
@@ -155,4 +274,20 @@ fn collect_configs_upward(start_dir: &Path, root: &Path) -> Vec<Config> {
         }
     }
     configs
+}
+
+/// Builtin language profiles: rules disabled by default for specific languages.
+/// Returns (plugin_name, enabled) pairs. Users can override via `[languages.xx.plugins.yy]`.
+pub fn builtin_language_profile(language: &str) -> Option<Vec<(&'static str, bool)>> {
+    match language {
+        "c" => Some(vec![
+            ("naming", false),
+            ("lazy_class", false),
+            ("data_class", false),
+            ("builder_pattern", false),
+            ("null_object_pattern", false),
+            ("strategy_pattern", false),
+        ]),
+        _ => None,
+    }
 }
