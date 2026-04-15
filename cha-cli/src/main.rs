@@ -9,8 +9,9 @@ mod plugin;
 mod tangled;
 mod trend;
 
-use cha_core::{Config, Finding, SourceFile};
+use cha_core::{Config, Finding, PluginRegistry, SourceFile};
 use clap::{CommandFactory, Parser, ValueEnum};
+use clap_complete::engine::ArgValueCandidates;
 
 #[derive(Clone, ValueEnum)]
 enum Format {
@@ -73,7 +74,7 @@ enum Cli {
         #[arg(long)]
         stdin_diff: bool,
         /// Only run specific plugins (comma-separated names)
-        #[arg(long, value_delimiter = ',')]
+        #[arg(long, value_delimiter = ',', add = ArgValueCandidates::new(plugin_candidates))]
         plugin: Vec<String>,
         /// Disable analysis cache (force full re-analysis)
         #[arg(long)]
@@ -208,6 +209,7 @@ impl DiffMode {
 }
 
 fn main() {
+    clap_complete::CompleteEnv::with_factory(Cli::command).complete();
     let cli = Cli::parse();
     let code = dispatch(cli);
     if code != 0 {
@@ -510,4 +512,19 @@ fn to_pascal_case(name: &str) -> String {
         None => String::new(),
         Some(c) => c.to_uppercase().to_string() + chars.as_str(),
     }
+}
+
+fn plugin_candidates() -> Vec<clap_complete::CompletionCandidate> {
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let config = Config::load(&cwd);
+    let registry = PluginRegistry::from_config(&config, &cwd);
+    let mut candidates: Vec<_> = registry
+        .plugin_names()
+        .into_iter()
+        .map(clap_complete::CompletionCandidate::new)
+        .collect();
+    for name in analyze::POST_ANALYSIS_PASSES {
+        candidates.push(clap_complete::CompletionCandidate::new(name));
+    }
+    candidates
 }

@@ -54,6 +54,11 @@ impl PluginRegistry {
     pub fn plugins(&self) -> &[Box<dyn Plugin>] {
         &self.plugins
     }
+
+    /// Get all plugin names from this registry.
+    pub fn plugin_names(&self) -> Vec<String> {
+        self.plugins.iter().map(|p| p.name().to_string()).collect()
+    }
 }
 
 /// Apply a usize config option to a field if present.

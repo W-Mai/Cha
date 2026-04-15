@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Dynamic shell completion for `--plugin` via `CompleteEnv` (unstable-dynamic): `eval "$(COMPLETE=zsh cha)"`
+- `PluginRegistry::plugin_names()` for runtime plugin discovery (includes WASM plugins)
 - `--strictness` flag: `relaxed` (2x), `default` (1x), `strict` (0.5x), or custom float — scales all numeric thresholds
 - Per-language plugin config: `[languages.c.plugins.naming]` overrides in `.cha.toml`
 - Builtin C language profile: disables naming, lazy_class, data_class, builder/null_object/strategy pattern by default

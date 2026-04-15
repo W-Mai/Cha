@@ -58,6 +58,14 @@ pub(crate) fn cmd_analyze(opts: &AnalyzeOpts) -> i32 {
     exit_code(&all_findings, opts.fail_on)
 }
 
+/// Names of post-analysis passes (cross-file, not per-file Plugin trait).
+pub(crate) const POST_ANALYSIS_PASSES: &[&str] = &[
+    "unstable_dependency",
+    "test_ratio",
+    "tangled_change",
+    "knowledge_distribution",
+];
+
 fn run_post_analysis(files: &[PathBuf], cwd: &Path, plugin_filter: &[String]) -> Vec<Finding> {
     let mut findings = Vec::new();
     let pass = |name: &str| plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == name);
