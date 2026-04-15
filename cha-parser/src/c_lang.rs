@@ -44,6 +44,17 @@ fn parse_c_like(
 
     collect_top_level(root, src, &mut functions, &mut classes, &mut imports);
 
+    // In header files, all declarations are part of the public API
+    let is_header = file
+        .path
+        .extension()
+        .is_some_and(|e| e == "h" || e == "hxx" || e == "hpp");
+    if is_header {
+        for f in &mut functions {
+            f.is_exported = true;
+        }
+    }
+
     Some(SourceModel {
         language: lang.into(),
         total_lines: file.line_count(),
@@ -116,6 +127,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body");
     let (param_count, param_types) = extract_params(declarator, src);
+    let is_static = has_storage_class(node, src, "static");
 
     Some(FunctionInfo {
         name,
@@ -124,7 +136,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         line_count: end_line - start_line + 1,
         complexity: count_complexity(node),
         body_hash: body.map(hash_ast),
-        is_exported: true,
+        is_exported: !is_static,
         parameter_count: param_count,
         parameter_types: param_types,
         chain_depth: body.map(max_chain_depth).unwrap_or(0),
@@ -145,6 +157,19 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         called_functions: body.map(|b| collect_calls_c(b, src)).unwrap_or_default(),
         cognitive_complexity: body.map(cognitive_complexity_c).unwrap_or(0),
     })
+}
+
+/// Check if a declaration node has a specific storage class specifier (e.g. "static").
+fn has_storage_class(node: Node, src: &[u8], keyword: &str) -> bool {
+    for i in 0..node.child_count() {
+        if let Some(child) = node.child(i)
+            && child.kind() == "storage_class_specifier"
+            && node_text(child, src) == keyword
+        {
+            return true;
+        }
+    }
+    false
 }
 
 fn find_func_name<'a>(declarator: Node<'a>, src: &'a [u8]) -> Option<&'a str> {
