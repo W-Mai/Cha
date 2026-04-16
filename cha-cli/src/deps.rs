@@ -446,7 +446,7 @@ fn render_detail_classes(
                         all_functions
                             .iter()
                             .copied()
-                            .filter(|f| is_c_method_of(f, &c.name)),
+                            .filter(|f| is_c_method_of(f, &c.name, &reverse)),
                     )
                     .map(|f| f.name.clone())
                     .collect();
@@ -642,16 +642,27 @@ fn print_mermaid(edges: &[Edge], cycles: &[(String, String)], style: &CycleStyle
 }
 
 /// C OOP heuristic: check if function is a "method" of a struct by type or name.
-fn is_c_method_of(func: &cha_core::FunctionInfo, class_name: &str) -> bool {
+/// `reverse` maps original struct name → typedef alias (e.g. _lv_image_t → lv_image_t).
+fn is_c_method_of(
+    func: &cha_core::FunctionInfo,
+    class_name: &str,
+    reverse: &HashMap<&str, &str>,
+) -> bool {
+    // The typedef alias for this class (e.g. _lv_image_t → lv_image_t)
+    let alias = reverse.get(class_name).copied().unwrap_or(class_name);
+
+    // (1) First param type matches class name or its alias
     if let Some(first_type) = func.parameter_types.first() {
         let base = first_type
             .replace('*', "")
             .replace("const", "")
             .replace("struct", "");
-        if base.trim() == class_name {
+        let base = base.trim();
+        if base == class_name || base == alias {
             return true;
         }
     }
-    let prefix = class_name.strip_suffix("_t").unwrap_or(class_name);
+    // (2) Function name prefix matches alias (without _t suffix)
+    let prefix = alias.strip_suffix("_t").unwrap_or(alias);
     func.name.starts_with(prefix) && func.name.as_bytes().get(prefix.len()) == Some(&b'_')
 }
