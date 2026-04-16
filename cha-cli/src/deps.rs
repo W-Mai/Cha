@@ -35,7 +35,7 @@ pub fn cmd_deps(
 
     if detail && matches!(graph_type, DepsType::Classes) {
         let models = parse_all_models(&files);
-        render_detail_classes(&edges, &models, &files, format);
+        render_detail_classes(&edges, &models, &files, format, filter, exact);
     } else {
         render(&edges, &cycles, format, &style);
     }
@@ -409,6 +409,8 @@ fn render_detail_classes(
     models: &[cha_core::SourceModel],
     files: &[PathBuf],
     format: &DepsFormat,
+    filter: Option<&str>,
+    exact: bool,
 ) {
     let mut aliases = collect_typedef_aliases_from_models(models);
     for (k, v) in collect_typedef_aliases(files) {
@@ -432,6 +434,22 @@ fn render_detail_classes(
             v
         })
         .collect();
+
+    // --exact: only show classes directly matching the filter, not parents/children
+    let edge_names: HashSet<String> = if exact {
+        if let Some(pattern) = filter {
+            let re = regex::Regex::new(pattern)
+                .unwrap_or_else(|_| regex::Regex::new(&regex::escape(pattern)).unwrap());
+            edge_names
+                .into_iter()
+                .filter(|n| re.is_match(n) || re.is_match(&display(n)))
+                .collect()
+        } else {
+            edge_names
+        }
+    } else {
+        edge_names
+    };
 
     // Collect all functions across all files for cross-file C OOP method association
     let all_functions: Vec<&cha_core::FunctionInfo> =
