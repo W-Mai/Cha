@@ -415,6 +415,10 @@ fn render_detail_classes(
         })
         .collect();
 
+    // Collect all functions across all files for cross-file C OOP method association
+    let all_functions: Vec<&cha_core::FunctionInfo> =
+        models.iter().flat_map(|m| &m.functions).collect();
+
     let mut detail_classes: HashMap<String, DetailClass> = HashMap::new();
     for m in models {
         for c in &m.classes {
@@ -438,6 +442,12 @@ fn render_detail_classes(
                     .functions
                     .iter()
                     .filter(|f| f.start_line >= c.start_line && f.end_line <= c.end_line)
+                    .chain(
+                        all_functions
+                            .iter()
+                            .copied()
+                            .filter(|f| is_c_method_of(f, &c.name)),
+                    )
                     .map(|f| f.name.clone())
                     .collect();
                 detail_classes.insert(
@@ -629,4 +639,19 @@ fn print_mermaid(edges: &[Edge], cycles: &[(String, String)], style: &CycleStyle
             println!("  linkStyle {} stroke:{color},stroke-width:2", i);
         }
     }
+}
+
+/// C OOP heuristic: check if function is a "method" of a struct by type or name.
+fn is_c_method_of(func: &cha_core::FunctionInfo, class_name: &str) -> bool {
+    if let Some(first_type) = func.parameter_types.first() {
+        let base = first_type
+            .replace('*', "")
+            .replace("const", "")
+            .replace("struct", "");
+        if base.trim() == class_name {
+            return true;
+        }
+    }
+    let prefix = class_name.strip_suffix("_t").unwrap_or(class_name);
+    func.name.starts_with(prefix) && func.name.as_bytes().get(prefix.len()) == Some(&b'_')
 }

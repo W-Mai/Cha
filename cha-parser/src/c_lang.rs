@@ -44,6 +44,11 @@ fn parse_c_like(
 
     collect_top_level(root, src, &mut functions, &mut classes, &mut imports);
 
+    // C OOP heuristic: if a function's first parameter is a pointer to a known
+    // struct type, count it as a method of that struct. This is the universal
+    // C OOP convention used by GLib/GObject, Linux kernel, lvgl, FreeRTOS, etc.
+    associate_methods(&functions, &mut classes);
+
     // In header files, all declarations are part of the public API
     let is_header = file
         .path
@@ -63,6 +68,41 @@ fn parse_c_like(
         imports,
         comments: collect_comments(root, src),
     })
+}
+
+/// C OOP heuristic: associate free functions with structs.
+/// Match by: (1) first parameter type is pointer to struct, or
+/// (2) function name prefix matches struct name (e.g. lv_image_set_src → lv_image_t).
+fn associate_methods(functions: &[FunctionInfo], classes: &mut [ClassInfo]) {
+    for class in classes.iter_mut() {
+        let prefix = class.name.strip_suffix("_t").unwrap_or(&class.name);
+        let mut method_count = 0;
+        for func in functions {
+            if is_c_method(func, &class.name, prefix) {
+                method_count += 1;
+            }
+        }
+        if method_count > 0 {
+            class.method_count += method_count;
+            class.has_behavior = true;
+        }
+    }
+}
+
+/// Check if a function is a "method" of a struct by type or name convention.
+fn is_c_method(func: &FunctionInfo, class_name: &str, prefix: &str) -> bool {
+    // (1) First param type matches struct name
+    if let Some(first_type) = func.parameter_types.first() {
+        let base = first_type
+            .replace('*', "")
+            .replace("const", "")
+            .replace("struct", "");
+        if base.trim() == class_name {
+            return true;
+        }
+    }
+    // (2) Function name starts with struct prefix + "_"
+    func.name.starts_with(prefix) && func.name.as_bytes().get(prefix.len()) == Some(&b'_')
 }
 
 fn collect_top_level(
