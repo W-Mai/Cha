@@ -33,6 +33,7 @@ impl LanguageParser for GolangParser {
             classes,
             imports,
             comments: collect_comments(root, src),
+            type_aliases: vec![], // TODO(parser): extract type aliases from 'type X = Y' declarations
         })
     }
 }

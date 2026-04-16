@@ -96,4 +96,6 @@ pub struct SourceModel {
     pub classes: Vec<ClassInfo>,
     pub imports: Vec<ImportInfo>,
     pub comments: Vec<CommentInfo>,
+    /// Type aliases: (alias, original). e.g. typedef, using, type =
+    pub type_aliases: Vec<(String, String)>,
 }

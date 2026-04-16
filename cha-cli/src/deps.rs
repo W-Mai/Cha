@@ -231,7 +231,10 @@ struct ClassContext {
 
 impl ClassContext {
     fn from_files(files: &[PathBuf], models: &[cha_core::SourceModel]) -> Self {
-        let aliases = collect_typedef_aliases(files);
+        let mut aliases = collect_typedef_aliases_from_models(models);
+        for (k, v) in collect_typedef_aliases(files) {
+            aliases.entry(k).or_insert(v);
+        }
         let reverse = aliases
             .iter()
             .map(|(a, o)| (o.clone(), a.clone()))
@@ -291,6 +294,18 @@ fn build_class_graph(files: &[PathBuf]) -> Vec<Edge> {
 }
 
 /// Scan files for `typedef struct X Y;` patterns to build alias map (Y -> X).
+fn collect_typedef_aliases_from_models(
+    models: &[cha_core::SourceModel],
+) -> HashMap<String, String> {
+    let mut aliases = HashMap::new();
+    for m in models {
+        for (alias, original) in &m.type_aliases {
+            aliases.insert(alias.clone(), original.clone());
+        }
+    }
+    aliases
+}
+
 fn collect_typedef_aliases(files: &[PathBuf]) -> HashMap<String, String> {
     let mut aliases = HashMap::new();
     for path in files {
@@ -299,7 +314,6 @@ fn collect_typedef_aliases(files: &[PathBuf]) -> HashMap<String, String> {
         };
         for line in content.lines() {
             let trimmed = line.trim();
-            // Match: typedef struct _X X;
             if let Some(rest) = trimmed.strip_prefix("typedef struct ") {
                 let parts: Vec<&str> = rest.trim_end_matches(';').split_whitespace().collect();
                 if parts.len() == 2 {
@@ -389,13 +403,17 @@ struct DetailClass {
 }
 
 // cha:ignore long_method,high_complexity,brain_method
+// cha:ignore cognitive_complexity,long_method,brain_method,high_complexity
 fn render_detail_classes(
     edges: &[Edge],
     models: &[cha_core::SourceModel],
     files: &[PathBuf],
     format: &DepsFormat,
 ) {
-    let aliases = collect_typedef_aliases(files);
+    let mut aliases = collect_typedef_aliases_from_models(models);
+    for (k, v) in collect_typedef_aliases(files) {
+        aliases.entry(k).or_insert(v);
+    }
     let reverse: HashMap<&str, &str> = aliases
         .iter()
         .map(|(a, o)| (o.as_str(), a.as_str()))

@@ -20,6 +20,7 @@ pub fn make_model(
         classes,
         imports,
         comments: Vec::new(),
+        type_aliases: Vec::new(),
     }
 }
 

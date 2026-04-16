@@ -41,20 +41,23 @@ fn parse_c_like(
     let mut functions = Vec::new();
     let mut classes = Vec::new();
     let mut imports = Vec::new();
+    let mut type_aliases = Vec::new();
 
-    collect_top_level(root, src, &mut functions, &mut classes, &mut imports);
+    collect_top_level(
+        root,
+        src,
+        &mut functions,
+        &mut classes,
+        &mut imports,
+        &mut type_aliases,
+    );
 
     // C OOP heuristic: if a function's first parameter is a pointer to a known
     // struct type, count it as a method of that struct. This is the universal
     // C OOP convention used by GLib/GObject, Linux kernel, lvgl, FreeRTOS, etc.
     associate_methods(&functions, &mut classes);
 
-    // In header files, all declarations are part of the public API
-    let is_header = file
-        .path
-        .extension()
-        .is_some_and(|e| e == "h" || e == "hxx" || e == "hpp");
-    if is_header {
+    if is_header_file(file) {
         for f in &mut functions {
             f.is_exported = true;
         }
@@ -67,7 +70,14 @@ fn parse_c_like(
         classes,
         imports,
         comments: collect_comments(root, src),
+        type_aliases,
     })
+}
+
+fn is_header_file(file: &SourceFile) -> bool {
+    file.path
+        .extension()
+        .is_some_and(|e| e == "h" || e == "hxx" || e == "hpp")
 }
 
 /// C OOP heuristic: associate free functions with structs.
@@ -111,6 +121,7 @@ fn collect_top_level(
     functions: &mut Vec<FunctionInfo>,
     classes: &mut Vec<ClassInfo>,
     imports: &mut Vec<ImportInfo>,
+    type_aliases: &mut Vec<(String, String)>,
 ) {
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
@@ -125,7 +136,9 @@ fn collect_top_level(
                     classes.push(c);
                 }
             }
-            "type_definition" => extract_typedef_struct(child, src, classes),
+            "type_definition" => {
+                extract_typedef_struct(child, src, classes, type_aliases);
+            }
             "preproc_include" => {
                 if let Some(imp) = extract_include(child, src) {
                     imports.push(imp);
@@ -133,14 +146,19 @@ fn collect_top_level(
             }
             _ => {
                 if child.child_count() > 0 {
-                    collect_top_level(child, src, functions, classes, imports);
+                    collect_top_level(child, src, functions, classes, imports, type_aliases);
                 }
             }
         }
     }
 }
 
-fn extract_typedef_struct(node: Node, src: &[u8], classes: &mut Vec<ClassInfo>) {
+fn extract_typedef_struct(
+    node: Node,
+    src: &[u8],
+    classes: &mut Vec<ClassInfo>,
+    type_aliases: &mut Vec<(String, String)>,
+) {
     let mut inner = node.walk();
     for sub in node.children(&mut inner) {
         if sub.kind() != "struct_specifier" && sub.kind() != "class_specifier" {
@@ -149,10 +167,21 @@ fn extract_typedef_struct(node: Node, src: &[u8], classes: &mut Vec<ClassInfo>) 
         let Some(mut c) = extract_class(sub, src) else {
             continue;
         };
+        let original_name = c.name.clone();
         if c.name.is_empty()
             && let Some(decl) = node.child_by_field_name("declarator")
         {
             c.name = node_text(decl, src).to_string();
+        }
+        // Record typedef alias: e.g. typedef struct _X { ... } X;
+        // original_name = "_X", c.name might be updated to "X" if it was empty
+        if !original_name.is_empty()
+            && let Some(decl) = node.child_by_field_name("declarator")
+        {
+            let alias = node_text(decl, src).to_string();
+            if alias != original_name {
+                type_aliases.push((alias, original_name));
+            }
         }
         if !c.name.is_empty() {
             classes.push(c);
