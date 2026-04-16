@@ -166,6 +166,11 @@ enum Cli {
         #[arg(long, default_value = "terminal")]
         format: Format,
     },
+    /// Show builtin language presets and strictness levels
+    Preset {
+        #[command(subcommand)]
+        cmd: PresetCmd,
+    },
     /// Generate shell completion scripts (supports dynamic plugin name completion)
     Completions {
         /// Shell to generate completions for (bash, zsh, fish, powershell, elvish)
@@ -193,6 +198,17 @@ enum PluginCmd {
     Remove {
         /// Plugin name (with or without .wasm extension)
         name: String,
+    },
+}
+
+#[derive(clap::Subcommand)]
+enum PresetCmd {
+    /// List all supported languages and their builtin profiles
+    List,
+    /// Show plugin rules and thresholds for a specific language
+    Show {
+        /// Language name (rust, typescript, python, go, c, cpp)
+        language: String,
     },
 }
 
@@ -286,6 +302,7 @@ fn run_other(cli: Cli) {
             detail,
         ),
         Cli::Completions { shell } => cmd_completions(shell),
+        Cli::Preset { cmd } => cmd_preset(cmd),
         _ => unreachable!(),
     }
 }
@@ -323,6 +340,74 @@ fn cmd_completions(shell: Option<clap_complete::Shell>) {
         use std::io::Write;
         std::io::stdout().write_all(&o.stdout).ok();
     }
+}
+
+const SUPPORTED_LANGUAGES: &[&str] = &["rust", "typescript", "python", "go", "c", "cpp"];
+
+fn cmd_preset(cmd: PresetCmd) {
+    match cmd {
+        PresetCmd::List => {
+            println!("Supported languages:\n");
+            for lang in SUPPORTED_LANGUAGES {
+                let profile = cha_core::builtin_language_profile(lang);
+                let disabled = profile
+                    .as_ref()
+                    .map(|p| p.iter().filter(|(_, e)| !e).count())
+                    .unwrap_or(0);
+                if disabled > 0 {
+                    println!("  {lang:<12} ({disabled} rules disabled by default)");
+                } else {
+                    println!("  {lang:<12} (all rules enabled)");
+                }
+            }
+            println!("\nUse `cha preset show <language>` for details.");
+        }
+        PresetCmd::Show { language } => cmd_preset_show(&language),
+    }
+}
+
+fn cmd_preset_show(language: &str) {
+    let lang = language.to_lowercase();
+    if !SUPPORTED_LANGUAGES.contains(&lang.as_str()) {
+        eprintln!("Unknown language: {language}");
+        eprintln!("Supported: {}", SUPPORTED_LANGUAGES.join(", "));
+        return;
+    }
+
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let config = Config::load(&cwd);
+    let resolved = config.resolve_for_language(&lang);
+    let profile = cha_core::builtin_language_profile(&lang);
+    let disabled: std::collections::HashSet<&str> = profile
+        .as_ref()
+        .map(|p| p.iter().filter(|(_, e)| !e).map(|(n, _)| *n).collect())
+        .unwrap_or_default();
+
+    let registry = PluginRegistry::from_config(&resolved, &cwd);
+    let factor = resolved.strictness.factor();
+
+    println!("Language: {lang}");
+    println!("Strictness: {factor}x\n");
+    println!("  {:<28} {:<8} Description", "Plugin", "Status");
+    let sep = "─".repeat(70);
+    println!("  {sep}");
+
+    for p in registry.plugins() {
+        let status = "✓";
+        println!("  {:<28} {:<8} {}", p.name(), status, p.description());
+    }
+
+    if !disabled.is_empty() {
+        println!();
+        for name in &disabled {
+            println!(
+                "  {:<28} {:<8} (disabled by builtin {lang} profile)",
+                name, "·"
+            );
+        }
+    }
+
+    println!("\nOverride in .cha.toml:  [languages.{lang}.plugins.<name>]  enabled = true/false");
 }
 
 fn cmd_init_or_schema(cli: Cli) {
