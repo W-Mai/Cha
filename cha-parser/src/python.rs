@@ -452,7 +452,7 @@ fn count_comment_lines(node: Node, src: &[u8]) -> usize {
             // docstrings
             let text = node_text(n, src);
             if text.starts_with("\"\"\"") || text.starts_with("'''") {
-                count += text.lines().count() as usize;
+                count += text.lines().count();
             }
         }
     });
