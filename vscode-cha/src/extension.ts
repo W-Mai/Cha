@@ -45,14 +45,11 @@ async function ensureBinary(
   // 1. User explicitly configured a path — use it
   if (configured !== "cha" && commandExists(configured)) return configured;
 
-  // 2. Check extension-managed binary (preferred over system PATH)
+  // 2. Check extension-managed binary (preferred)
   const stored = path.join(context.globalStorageUri.fsPath, "cha");
   if (fs.existsSync(stored) && commandExists(stored)) return stored;
 
-  // 3. Fallback to system PATH
-  if (commandExists("cha")) return "cha";
-
-  // 4. Offer to download
+  // 3. Offer to download
   const choice = await vscode.window.showWarningMessage(
     "cha binary not found. Download from GitHub?",
     "Download",
@@ -77,16 +74,23 @@ async function downloadToStorage(
   stored: string
 ): Promise<string | undefined> {
   return vscode.window.withProgress(
-    { location: vscode.ProgressLocation.Notification, title: "Downloading cha..." },
-    async () => {
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: "Downloading cha",
+      cancellable: true,
+    },
+    async (progress, token) => {
       try {
         const dir = context.globalStorageUri.fsPath;
         fs.mkdirSync(dir, { recursive: true });
-        await downloadLatest(stored);
+        await downloadLatest(stored, (pct, msg) => {
+          progress.report({ increment: pct, message: msg });
+        }, token);
         fs.chmodSync(stored, 0o755);
         vscode.window.showInformationMessage("cha installed successfully.");
         return stored;
       } catch (e: any) {
+        if (token.isCancellationRequested) return undefined;
         vscode.window.showErrorMessage(`Failed to download cha: ${e.message}`);
         return undefined;
       }
@@ -102,27 +106,35 @@ function commandExists(cmd: string): boolean {
   }
 }
 
-async function downloadLatest(dest: string): Promise<void> {
+type ProgressFn = (increment: number, message: string) => void;
+
+async function downloadLatest(
+  dest: string,
+  progress: ProgressFn,
+  token: vscode.CancellationToken
+): Promise<void> {
   const arch = process.arch === "arm64" ? "aarch64" : "x86_64";
   const platform =
     process.platform === "darwin"
       ? `${arch}-apple-darwin`
       : `${arch}-unknown-linux-gnu`;
 
-  // Get latest release tag
+  progress(0, "fetching release info...");
   const release = await fetchJson(
     "https://api.github.com/repos/W-Mai/Cha/releases/latest"
   );
   const tag = release.tag_name;
   const url = `https://github.com/W-Mai/Cha/releases/download/${tag}/cha-cli-${platform}.tar.xz`;
 
-  // Download and extract
   const tarball = dest + ".tar.xz";
-  await downloadFile(url, tarball);
+  await downloadFileWithProgress(url, tarball, (pct) => {
+    progress(pct, `downloading ${tag}... ${pct.toFixed(0)}%`);
+  }, token);
+
+  progress(0, "extracting...");
   const dir = path.dirname(dest);
   cp.execSync(`tar xJf "${tarball}" -C "${dir}"`, { stdio: "ignore" });
   fs.unlinkSync(tarball);
-  // cargo-dist extracts to cha-cli-<platform>/cha, move binary to dest
   const extracted = path.join(dir, `cha-cli-${platform}`, "cha");
   if (fs.existsSync(extracted)) {
     fs.renameSync(extracted, dest);
@@ -144,16 +156,36 @@ function fetchJson(url: string): Promise<any> {
   });
 }
 
-function downloadFile(url: string, dest: string): Promise<void> {
+function downloadFileWithProgress(
+  url: string,
+  dest: string,
+  onProgress: (pct: number) => void,
+  token: vscode.CancellationToken
+): Promise<void> {
   return new Promise((resolve, reject) => {
-    https.get(url, { headers: { "User-Agent": "vscode-cha" } }, (res) => {
+    const req = https.get(url, { headers: { "User-Agent": "vscode-cha" } }, (res) => {
       if (res.statusCode === 301 || res.statusCode === 302) {
-        return downloadFile(res.headers.location!, dest).then(resolve, reject);
+        return downloadFileWithProgress(res.headers.location!, dest, onProgress, token).then(resolve, reject);
       }
+      const total = parseInt(res.headers["content-length"] || "0", 10);
+      let downloaded = 0;
+      let lastPct = 0;
       const file = fs.createWriteStream(dest);
+      res.on("data", (chunk: Buffer) => {
+        downloaded += chunk.length;
+        if (total > 0) {
+          const pct = (downloaded / total) * 100;
+          const increment = pct - lastPct;
+          if (increment >= 1) {
+            onProgress(pct);
+            lastPct = pct;
+          }
+        }
+      });
       res.pipe(file);
       file.on("finish", () => { file.close(); resolve(); });
       file.on("error", reject);
     });
+    token.onCancellationRequested(() => { req.destroy(); reject(new Error("cancelled")); });
   });
 }
