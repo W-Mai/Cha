@@ -5,3 +5,4 @@
 *.wasm
 .cha/
 public/
+node_modules/

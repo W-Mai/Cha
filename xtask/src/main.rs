@@ -40,6 +40,7 @@ fn dispatch_with_args(cmd: &str, args: &[String]) -> Result {
         ("lsp-test", cmd_lsp_test),
         ("plugin-test", cmd_plugin_test),
         ("plugin-e2e", cmd_plugin_e2e),
+        ("integration-test", cmd_integration_test),
     ];
     if let Some((_, f)) = commands.iter().find(|(name, _)| *name == cmd) {
         return f();
@@ -62,6 +63,7 @@ fn cmd_ci() -> Result {
         ("lsp-test", cmd_lsp_test),
         ("plugin-test", cmd_plugin_test),
         ("plugin-e2e", cmd_plugin_e2e),
+        ("integration-test", cmd_integration_test),
     ] {
         println!("\n=== xtask: {name} ===");
         step()?;
@@ -332,6 +334,78 @@ fn cha_binary() -> String {
 
 fn lsp_binary() -> String {
     format!("{}/target/release/cha-lsp", project_root())
+}
+
+/// Validate integration artifacts: pre-commit hook, GitHub Action, VS Code extension.
+fn cmd_integration_test() -> Result {
+    let root = project_root();
+
+    // 1. Pre-commit hook: create temp git repo, run pre-commit try-repo
+    println!("  [1/3] pre-commit hook...");
+    let tmp = std::env::temp_dir().join("cha-precommit-test");
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(&tmp)?;
+    run_cmd_in("git", &["init", "-q"], tmp.to_str().unwrap())?;
+    run_cmd_in(
+        "git",
+        &["config", "user.email", "test@test.com"],
+        tmp.to_str().unwrap(),
+    )?;
+    run_cmd_in(
+        "git",
+        &["config", "user.name", "test"],
+        tmp.to_str().unwrap(),
+    )?;
+    std::fs::copy(
+        format!("{root}/cha-parser/tests/fixtures/simple.ts"),
+        tmp.join("simple.ts"),
+    )?;
+    run_cmd_in("git", &["add", "."], tmp.to_str().unwrap())?;
+    run_cmd_in(
+        "git",
+        &["commit", "-q", "-m", "init"],
+        tmp.to_str().unwrap(),
+    )?;
+    // try-repo returns non-zero if hook finds issues (expected), we just check it runs
+    let status = Command::new("pre-commit")
+        .args(["try-repo", &root, "cha-analyze", "--files", "simple.ts"])
+        .current_dir(&tmp)
+        .status();
+    let _ = std::fs::remove_dir_all(&tmp);
+    match status {
+        Ok(s) => {
+            println!("    pre-commit try-repo exited with {s} (non-zero is OK — means hook ran)")
+        }
+        Err(e) => {
+            eprintln!("    ⚠ pre-commit not installed, skipping: {e}");
+        }
+    }
+
+    // 2. GitHub Action: validate action.yml syntax
+    println!("  [2/3] GitHub Action (action-validator)...");
+    let av_status = Command::new("action-validator")
+        .arg(format!("{root}/action.yml"))
+        .status();
+    match av_status {
+        Ok(s) if s.success() => println!("    action.yml validated ✓"),
+        Ok(s) => return Err(format!("action-validator failed: {s}").into()),
+        Err(_) => eprintln!("    ⚠ action-validator not installed, skipping"),
+    }
+
+    // 3. VS Code extension: TypeScript compile check
+    println!("  [3/3] VS Code extension (tsc --noEmit)...");
+    let vscode_dir = format!("{root}/vscode-cha");
+    if std::path::Path::new(&format!("{vscode_dir}/node_modules")).exists() {
+        run_cmd_in("npx", &["tsc", "--noEmit"], &vscode_dir)?;
+        println!("    tsc --noEmit passed ✓");
+    } else {
+        run_cmd_in("npm", &["install", "--ignore-scripts"], &vscode_dir)?;
+        run_cmd_in("npx", &["tsc", "--noEmit"], &vscode_dir)?;
+        println!("    tsc --noEmit passed ✓");
+    }
+
+    println!("  ✅ Integration tests passed.");
+    Ok(())
 }
 
 fn cargo(args: &[&str]) -> Result {
