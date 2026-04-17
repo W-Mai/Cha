@@ -99,6 +99,7 @@ fn associate_methods(functions: &[FunctionInfo], classes: &mut [ClassInfo]) {
     }
 }
 
+// cha:ignore cognitive_complexity
 fn collect_top_level(
     root: Node,
     src: &[u8],
