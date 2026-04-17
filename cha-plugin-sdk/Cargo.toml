@@ -4,7 +4,7 @@ resolver = "2"
 
 [package]
 name = "cha-plugin-sdk"
-version = "1.0.4"
+version = "1.0.5"
 edition = "2024"
 description = "SDK for building Cha WASM analyzer plugins — zero-config, no WIT file needed"
 license = "MIT"
@@ -14,13 +14,13 @@ keywords = ["wasm", "plugin", "code-quality", "static-analysis", "cha"]
 categories = ["development-tools", "wasm"]
 
 [dependencies]
-cha-plugin-sdk-macros = { path = "macros", version = "1.0.4" }
+cha-plugin-sdk-macros = { path = "macros", version = "1.0.5" }
 
 [features]
 test-utils = ["dep:cha-core", "dep:cha-parser", "dep:anyhow", "dep:toml"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-cha-core = { path = "../cha-core", version = "1.0.4", optional = true }
-cha-parser = { path = "../cha-parser", version = "1.0.4", optional = true }
+cha-core = { path = "../cha-core", version = "1.0.5", optional = true }
+cha-parser = { path = "../cha-parser", version = "1.0.5", optional = true }
 anyhow = { version = "1", optional = true }
 toml = { version = "0.8", optional = true }
