@@ -14,10 +14,6 @@ fn main() {
 fn run() -> Result {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let cmd = args.first().map(|s| s.as_str()).unwrap_or("");
-    // Auto-sync before any command (except sync itself)
-    if cmd != "sync" {
-        cmd_sync()?;
-    }
     dispatch_with_args(cmd, &args)
 }
 
@@ -45,7 +41,6 @@ fn dispatch_with_args(cmd: &str, args: &[String]) -> Result {
         ("plugin-test", cmd_plugin_test),
         ("plugin-e2e", cmd_plugin_e2e),
         ("integration-test", cmd_integration_test),
-        ("sync", cmd_sync),
     ];
     if let Some((_, f)) = commands.iter().find(|(name, _)| *name == cmd) {
         return f();
@@ -408,27 +403,6 @@ fn test_vscode_extension() -> Result {
     Ok(())
 }
 
-/// Sync generated/copied files from their source of truth.
-fn cmd_sync() -> Result {
-    let root = project_root();
-    let src = format!("{root}/wit/plugin.wit");
-    let targets = [
-        format!("{root}/cha-core/wit/plugin.wit"),
-        format!("{root}/cha-plugin-sdk/macros/wit/plugin.wit"),
-    ];
-    let content =
-        std::fs::read_to_string(&src).map_err(|e| format!("failed to read {src}: {e}"))?;
-    for target in &targets {
-        let dir = std::path::Path::new(target).parent().unwrap();
-        std::fs::create_dir_all(dir)?;
-        let existing = std::fs::read_to_string(target).unwrap_or_default();
-        if existing != content {
-            std::fs::write(target, &content)?;
-            println!("  → synced {target}");
-        }
-    }
-    Ok(())
-}
 fn cargo(args: &[&str]) -> Result {
     run_cmd("cargo", args)
 }
