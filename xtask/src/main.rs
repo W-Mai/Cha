@@ -438,7 +438,7 @@ fn run_cmd(cmd: &str, args: &[&str]) -> Result {
 /// Publish all publishable crates to crates.io in topological order.
 /// Use --dry-run to only verify packaging without publishing.
 fn publish_one(name: &str, work_dir: &str, dry_run: bool) -> Result {
-    let mut args = vec!["publish", "-p", name, "--no-verify", "--allow-dirty"];
+    let mut args = vec!["publish", "-p", name, "--no-verify"];
     if dry_run {
         args.push("--dry-run");
     }
