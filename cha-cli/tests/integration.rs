@@ -178,3 +178,90 @@ fn clean_file_exits_zero_with_fail_on_warning() {
         .expect("failed to run cha");
     assert_eq!(output.status.code().unwrap_or(-1), 0);
 }
+
+// -- deps --direction tests --
+
+fn run_deps(args: &[&str]) -> String {
+    let output = Command::new(cha_binary())
+        .arg("deps")
+        .args(args)
+        .output()
+        .expect("failed to run cha deps");
+    String::from_utf8_lossy(&output.stdout).to_string()
+}
+
+#[test]
+fn deps_direction_out_shows_only_outgoing() {
+    let dir = fixture_dir("c_oop");
+    let out = run_deps(&[
+        &dir,
+        "--type",
+        "imports",
+        "--filter",
+        "widget.c",
+        "--exact",
+        "--direction",
+        "out",
+    ]);
+    // widget.c imports widget.h → should appear
+    assert!(
+        out.contains("widget.h"),
+        "direction=out should show widget.c → widget.h"
+    );
+}
+
+#[test]
+fn deps_direction_in_shows_only_incoming() {
+    let dir = fixture_dir("c_oop");
+    let out = run_deps(&[
+        &dir,
+        "--type",
+        "imports",
+        "--filter",
+        "widget.h",
+        "--exact",
+        "--direction",
+        "in",
+    ]);
+    // widget.c imports widget.h → widget.c should appear as source
+    assert!(
+        out.contains("widget.c"),
+        "direction=in should show widget.c → widget.h"
+    );
+}
+
+// -- deps --format plantuml tests --
+
+#[test]
+fn deps_format_plantuml_has_startuml() {
+    let dir = fixture_dir("c_oop");
+    let out = run_deps(&[&dir, "--type", "imports", "--format", "plantuml"]);
+    assert!(
+        out.starts_with("@startuml"),
+        "plantuml output should start with @startuml"
+    );
+    assert!(
+        out.contains("@enduml"),
+        "plantuml output should end with @enduml"
+    );
+}
+
+// -- C OOP filter test --
+
+#[test]
+fn c_oop_filter_suppresses_lazy_class_for_struct_with_methods() {
+    let dir = fixture_dir("c_oop");
+    let (_, out) = run_analyze(&dir, "json");
+    // Widget has cross-file methods (widget_init, widget_draw) so should NOT be flagged
+    assert!(
+        !out.contains("\"lazy_class\""),
+        "Widget should not be flagged as lazy_class because it has cross-file methods"
+    );
+}
+
+fn fixture_dir(name: &str) -> String {
+    let mut path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests/fixtures");
+    path.push(name);
+    path.to_string_lossy().to_string()
+}

@@ -258,6 +258,36 @@ fn cpp_simple() {
     assert!(animal.field_count >= 2);
 }
 
+#[test]
+fn cpp_macro_class() {
+    let model = parse_file(&fixture("classes.cpp")).unwrap();
+    assert_eq!(model.language, "cpp");
+    // Normal class + macro-decorated class + inherited class + namespace class
+    assert!(
+        model.classes.iter().any(|c| c.name == "Animal"),
+        "missing normal class Animal"
+    );
+    assert!(
+        model.classes.iter().any(|c| c.name == "Shape"),
+        "missing macro-decorated class Shape"
+    );
+}
+
+#[test]
+fn cpp_h_sniffing() {
+    // .h file with C++ constructs should be parsed as C++
+    let model = parse_file(&fixture("header.h")).unwrap();
+    assert_eq!(model.language, "cpp");
+    assert!(
+        model.classes.iter().any(|c| c.name == "Widget"),
+        "missing class Widget from .h file"
+    );
+    assert!(
+        model.classes.iter().any(|c| c.name == "Point"),
+        "missing struct Point from .h file"
+    );
+}
+
 // -- Cognitive complexity --
 
 #[test]
