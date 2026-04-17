@@ -11,7 +11,9 @@
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Linters"],
+  "categories": [
+    "Linters"
+  ],
   "activationEvents": [
     "onLanguage:rust",
     "onLanguage:typescript",
@@ -44,6 +46,7 @@
     "package": "vsce package"
   },
   "devDependencies": {
+    "@types/node": "^25.6.0",
     "@types/vscode": "^1.85.0",
     "typescript": "^5.3.0",
     "vscode-languageclient": "^9.0.1"
