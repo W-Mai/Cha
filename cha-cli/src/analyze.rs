@@ -38,6 +38,7 @@ pub(crate) fn cmd_analyze(opts: &AnalyzeOpts) -> i32 {
 
     let mut all_findings = run_analysis(&files, &cwd, opts.plugin_filter);
     all_findings.extend(run_post_analysis(&files, &cwd, opts.plugin_filter));
+    all_findings = filter_c_oop_false_positives(all_findings, &files);
     let all_findings = apply_filters(all_findings, &diff_map, opts.baseline_path, &cwd);
 
     if matches!(opts.format, Format::Html) {
@@ -88,6 +89,91 @@ fn run_post_analysis(files: &[PathBuf], cwd: &Path, plugin_filter: &[String]) ->
         findings.extend(detect_bus_factor(files, cwd));
     }
     findings
+}
+
+/// Remove lazy_class/data_class false positives for C structs that have
+/// cross-file methods (functions in the same directory whose first param
+/// is a pointer to the struct or its typedef alias).
+// cha:ignore long_method,high_complexity,cognitive_complexity,brain_method
+fn filter_c_oop_false_positives(findings: Vec<Finding>, files: &[PathBuf]) -> Vec<Finding> {
+    use std::collections::{HashMap, HashSet};
+
+    let c_files: Vec<&PathBuf> = files
+        .iter()
+        .filter(|f| matches!(f.extension().and_then(|e| e.to_str()), Some("c" | "h")))
+        .collect();
+    if c_files.is_empty() {
+        return findings;
+    }
+
+    // Parse all C files
+    let models: Vec<(PathBuf, cha_core::SourceModel)> = c_files
+        .iter()
+        .filter_map(|p| {
+            let content = std::fs::read_to_string(p).ok()?;
+            let file = cha_core::SourceFile::new((*p).clone(), content);
+            let model = cha_parser::parse_file(&file)?;
+            Some(((*p).clone(), model))
+        })
+        .collect();
+
+    // Collect typedef aliases
+    let mut aliases: HashMap<String, String> = HashMap::new();
+    for (_, m) in &models {
+        for (alias, orig) in &m.type_aliases {
+            aliases.entry(alias.clone()).or_insert(orig.clone());
+        }
+    }
+    let reverse: HashMap<&str, &str> = aliases
+        .iter()
+        .map(|(a, o)| (o.as_str(), a.as_str()))
+        .collect();
+
+    // Per-directory functions
+    let mut dir_funcs: HashMap<&Path, Vec<&cha_core::FunctionInfo>> = HashMap::new();
+    for (path, m) in &models {
+        let dir = path.parent().unwrap_or(path);
+        dir_funcs.entry(dir).or_default().extend(&m.functions);
+    }
+
+    // Find structs with cross-file methods
+    let mut has_methods: HashSet<String> = HashSet::new();
+    for (path, m) in &models {
+        let dir = path.parent().unwrap_or(path);
+        let funcs = dir_funcs.get(dir).cloned().unwrap_or_default();
+        for c in &m.classes {
+            let alias = reverse.get(c.name.as_str()).copied().unwrap_or(&c.name);
+            let external_methods = funcs.iter().any(|f| {
+                f.parameter_types.first().is_some_and(|t| {
+                    if !t.contains('*') {
+                        return false;
+                    }
+                    let base = t.split('*').next().unwrap_or("").trim();
+                    base == c.name || base == alias
+                })
+            });
+            if external_methods {
+                has_methods.insert(c.name.clone());
+                has_methods.insert(alias.to_string());
+            }
+        }
+    }
+
+    if has_methods.is_empty() {
+        return findings;
+    }
+
+    findings
+        .into_iter()
+        .filter(|f| {
+            if !matches!(f.smell_name.as_str(), "lazy_class" | "data_class") {
+                return true;
+            }
+            // Check if the finding's target class has cross-file methods
+            let name = f.location.name.as_deref().unwrap_or("");
+            !has_methods.contains(name)
+        })
+        .collect()
 }
 
 fn apply_filters(

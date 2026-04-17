@@ -85,17 +85,20 @@ cha plugin remove my_plugin
 # Generate shell completions (fish/bash/zsh/powershell)
 cha completions fish > ~/.config/fish/completions/cha.fish
 
-# Show import dependency graph (DOT/JSON/Mermaid)
+# Show import dependency graph (DOT/JSON/Mermaid/PlantUML)
 cha deps --format dot
 cha deps --format mermaid --depth dir
+cha deps --format plantuml
 
 # Show class hierarchy
 cha deps --type classes --format dot
 cha deps --type classes --filter Plugin --format mermaid
+cha deps --type classes --filter Plugin --detail --format plantuml
 
-# Show function call graph
+# Show function call graph (with direction filtering)
 cha deps --type calls --format dot
-cha deps --type calls --filter analyze --format mermaid
+cha deps --type calls --filter analyze --direction out  # what does analyze call?
+cha deps --type calls --filter analyze --direction in   # who calls analyze?
 
 # Show refactoring hotspots (change frequency × complexity)
 cha hotspot

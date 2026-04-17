@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `cha:set` inline directive: override thresholds per-function/class via comments (`// cha:set rule_name=value`)
 - `Finding.actual_value` and `Finding.threshold` fields for post-filter re-evaluation
 - `cha lsp` subcommand: start LSP server from unified binary (+3MB)
+- `deps --direction in|out|both`: filter edges by direction (who depends on target vs target depends on)
+- `deps --format plantuml`: PlantUML output for component and class diagrams
+- C OOP false positive filter: removes lazy_class/data_class for structs with cross-file methods
 
 ## [0.7.0] - 2026-04-17
 

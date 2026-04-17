@@ -34,6 +34,7 @@ pub(crate) enum DepsFormat {
     Dot,
     Json,
     Mermaid,
+    Plantuml,
 }
 
 #[derive(Clone, ValueEnum)]
@@ -48,6 +49,14 @@ pub(crate) enum DepsType {
     Imports,
     Classes,
     Calls,
+}
+
+#[derive(Clone, ValueEnum, Default)]
+pub(crate) enum DepsDirection {
+    In,
+    Out,
+    #[default]
+    Both,
 }
 
 #[derive(Parser)]
@@ -144,6 +153,9 @@ enum Cli {
         /// Show detailed class diagram (fields and methods)
         #[arg(long)]
         detail: bool,
+        /// Edge direction when filtering: in (who depends on target), out (target depends on), both
+        #[arg(long, default_value = "both")]
+        direction: DepsDirection,
     },
     /// Analyze recent git commits to show issue trend
     Trend {
@@ -294,6 +306,7 @@ fn run_other(cli: Cli) {
             filter,
             exact,
             detail,
+            direction,
         } => deps::cmd_deps(
             &paths,
             &format,
@@ -302,6 +315,7 @@ fn run_other(cli: Cli) {
             filter.as_deref(),
             exact,
             detail,
+            &direction,
         ),
         Cli::Completions { shell } => cmd_completions(shell),
         Cli::Preset { cmd } => cmd_preset(cmd),

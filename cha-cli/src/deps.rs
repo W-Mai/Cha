@@ -3,9 +3,13 @@ use std::path::{Path, PathBuf};
 
 use cha_core::SourceFile;
 
-use crate::{DepsDepth, DepsFormat, DepsType, analyze::filter_excluded, collect_files};
+use crate::{
+    DepsDepth, DepsDirection, DepsFormat, DepsType, analyze::filter_excluded, collect_files,
+};
 
 // cha:ignore high_complexity
+#[allow(clippy::too_many_arguments)]
+// cha:ignore long_parameter_list
 pub fn cmd_deps(
     paths: &[String],
     format: &DepsFormat,
@@ -14,6 +18,7 @@ pub fn cmd_deps(
     filter: Option<&str>,
     exact: bool,
     detail: bool,
+    direction: &DepsDirection,
 ) {
     let cwd = std::env::current_dir().unwrap_or_default();
     let root_config = cha_core::Config::load(&cwd);
@@ -25,7 +30,7 @@ pub fn cmd_deps(
         DepsType::Calls => build_call_graph(&files),
     };
 
-    let edges = apply_filter(edges, filter, exact);
+    let edges = apply_filter(edges, filter, exact, direction);
     let cycles = detect_cycles(&edges);
     let style = match graph_type {
         DepsType::Imports => CycleStyle::CircularDep,
@@ -62,19 +67,26 @@ struct Edge {
     label: Option<String>,
 }
 
-fn apply_filter(edges: Vec<Edge>, filter: Option<&str>, exact: bool) -> Vec<Edge> {
+fn apply_filter(
+    edges: Vec<Edge>,
+    filter: Option<&str>,
+    exact: bool,
+    direction: &DepsDirection,
+) -> Vec<Edge> {
     let Some(pattern) = filter else {
         return edges;
     };
-    let re = regex::Regex::new(pattern).unwrap_or_else(|_| {
-        // Fallback: treat as literal if invalid regex
-        regex::Regex::new(&regex::escape(pattern)).unwrap()
-    });
+    let re = regex::Regex::new(pattern)
+        .unwrap_or_else(|_| regex::Regex::new(&regex::escape(pattern)).unwrap());
     let matches = |s: &str| re.is_match(s);
     if exact {
         return edges
             .into_iter()
-            .filter(|e| matches(&e.from) || matches(&e.to))
+            .filter(|e| match direction {
+                DepsDirection::Out => matches(&e.from),
+                DepsDirection::In => matches(&e.to),
+                DepsDirection::Both => matches(&e.from) || matches(&e.to),
+            })
             .collect();
     }
     let matched = expand_connected(&edges, &re);
@@ -565,6 +577,7 @@ fn render_detail_classes(
     match format {
         DepsFormat::Dot => render_detail_dot(&classes, edges),
         DepsFormat::Mermaid => render_detail_mermaid(&classes, edges),
+        DepsFormat::Plantuml => render_detail_plantuml(&classes, edges),
         _ => render_detail_json(&classes, edges),
     }
 }
@@ -657,6 +670,7 @@ fn render(edges: &[Edge], cycles: &[(String, String)], format: &DepsFormat, styl
         DepsFormat::Dot => print_dot(edges, cycles, style),
         DepsFormat::Json => print_json(edges, cycles),
         DepsFormat::Mermaid => print_mermaid(edges, cycles, style),
+        DepsFormat::Plantuml => print_plantuml(edges, cycles),
     }
 }
 
@@ -750,4 +764,57 @@ fn print_mermaid(edges: &[Edge], cycles: &[(String, String)], style: &CycleStyle
             println!("  linkStyle {} stroke:{color},stroke-width:2", i);
         }
     }
+}
+
+// ── PlantUML output ──
+
+fn print_plantuml(edges: &[Edge], cycles: &[(String, String)]) {
+    let cycle_set: HashSet<(&str, &str)> = cycles
+        .iter()
+        .map(|(a, b)| (a.as_str(), b.as_str()))
+        .collect();
+    println!("@startuml");
+    for e in edges {
+        let label = e.label.as_deref().unwrap_or("");
+        let color = if cycle_set.contains(&(e.from.as_str(), e.to.as_str())) {
+            " #red"
+        } else {
+            ""
+        };
+        if label.is_empty() {
+            println!("  [{}] --> [{}]{}", e.from, e.to, color);
+        } else {
+            println!("  [{}] --> [{}]{} : {}", e.from, e.to, color, label);
+        }
+    }
+    println!("@enduml");
+}
+
+// cha:ignore cognitive_complexity
+fn render_detail_plantuml(classes: &[&DetailClass], edges: &[Edge]) {
+    println!("@startuml");
+    for c in classes {
+        println!("class {} {{", c.name);
+        for (name, ty) in &c.fields {
+            if ty.is_empty() {
+                println!("  +{name}");
+            } else {
+                println!("  +{name} : {ty}");
+            }
+        }
+        for (name, is_exported) in &c.methods {
+            let vis = if *is_exported { "+" } else { "-" };
+            println!("  {vis}{name}()");
+        }
+        println!("}}");
+    }
+    for e in edges {
+        let label = e.label.as_deref().unwrap_or("");
+        if label.is_empty() {
+            println!("{} --> {}", e.from, e.to);
+        } else {
+            println!("{} --> {} : {}", e.from, e.to, label);
+        }
+    }
+    println!("@enduml");
 }
