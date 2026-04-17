@@ -55,6 +55,8 @@ impl Plugin for RefusedBequestAnalyzer {
                         "Replace Inheritance with Delegation".into(),
                         "Push Down Method".into(),
                     ],
+                    actual_value: Some(ratio),
+                    threshold: Some(self.min_override_ratio),
                 })
             })
             .collect()

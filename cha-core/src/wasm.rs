@@ -208,6 +208,7 @@ fn from_wit_finding(f: wit::Finding) -> Finding {
         },
         message: f.message,
         suggested_refactorings: f.suggested_refactorings,
+        ..Default::default()
     }
 }
 

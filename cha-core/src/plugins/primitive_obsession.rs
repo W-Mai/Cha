@@ -33,32 +33,37 @@ impl Plugin for PrimitiveObsessionAnalyzer {
         ctx.model
             .functions
             .iter()
-            .filter(|f| {
+            .filter_map(|f| {
                 let total = f.parameter_types.len();
                 if total < self.min_params {
-                    return false;
+                    return None;
                 }
                 let prim_count = f.parameter_types.iter().filter(|t| is_primitive(t)).count();
-                (prim_count as f64 / total as f64) >= self.primitive_ratio
-            })
-            .map(|f| Finding {
-                smell_name: "primitive_obsession".into(),
-                category: SmellCategory::Bloaters,
-                severity: Severity::Hint,
-                location: Location {
-                    path: ctx.file.path.clone(),
-                    start_line: f.start_line,
-                    end_line: f.end_line,
-                    name: Some(f.name.clone()),
-                },
-                message: format!(
-                    "Function `{}` uses mostly primitive parameter types",
-                    f.name
-                ),
-                suggested_refactorings: vec![
-                    "Replace Data Value with Object".into(),
-                    "Replace Type Code with Class".into(),
-                ],
+                let ratio = prim_count as f64 / total as f64;
+                if ratio < self.primitive_ratio {
+                    return None;
+                }
+                Some(Finding {
+                    smell_name: "primitive_obsession".into(),
+                    category: SmellCategory::Bloaters,
+                    severity: Severity::Hint,
+                    location: Location {
+                        path: ctx.file.path.clone(),
+                        start_line: f.start_line,
+                        end_line: f.end_line,
+                        name: Some(f.name.clone()),
+                    },
+                    message: format!(
+                        "Function `{}` uses mostly primitive parameter types",
+                        f.name
+                    ),
+                    suggested_refactorings: vec![
+                        "Replace Data Value with Object".into(),
+                        "Replace Type Code with Class".into(),
+                    ],
+                    actual_value: Some(ratio),
+                    threshold: Some(self.primitive_ratio),
+                })
             })
             .collect()
     }

@@ -52,6 +52,7 @@ fn check_comment(c: &crate::CommentInfo, ctx: &AnalysisContext) -> Option<Findin
             c.text.trim_start_matches(['/', '#', '*', ' ', '-'])
         ),
         suggested_refactorings: vec!["Resolve or create a tracking issue".into()],
+        ..Default::default()
     })
 }
 

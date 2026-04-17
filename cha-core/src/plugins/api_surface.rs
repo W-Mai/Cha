@@ -74,6 +74,8 @@ impl ApiSurfaceAnalyzer {
                 ratio * 100.0
             ),
             suggested_refactorings: vec!["Hide Method".into(), "Extract Class".into()],
+            actual_value: Some(ratio),
+            threshold: Some(self.max_exported_ratio),
         }
     }
 }

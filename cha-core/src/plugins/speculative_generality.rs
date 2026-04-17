@@ -57,6 +57,7 @@ impl Plugin for SpeculativeGeneralityAnalyzer {
                         "Collapse Hierarchy".into(),
                         "Inline Class".into(),
                     ],
+                    ..Default::default()
                 });
             }
         }

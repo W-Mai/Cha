@@ -61,6 +61,8 @@ impl ComplexityAnalyzer {
                 "Extract Method".into(),
                 "Replace Conditional with Polymorphism".into(),
             ],
+            actual_value: Some(f.complexity as f64),
+            threshold: Some(self.warn_threshold as f64),
         })
     }
 }

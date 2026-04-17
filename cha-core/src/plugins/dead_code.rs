@@ -75,6 +75,7 @@ fn make_dead_code_finding(
         },
         message: format!("{} `{}` is not exported and may be unused", kind, name),
         suggested_refactorings: vec!["Remove dead code".into()],
+        ..Default::default()
     }
 }
 

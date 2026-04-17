@@ -40,6 +40,8 @@ impl Plugin for MessageChainAnalyzer {
                     f.name, f.chain_depth, self.max_depth
                 ),
                 suggested_refactorings: vec!["Hide Delegate".into()],
+                actual_value: Some(f.chain_depth as f64),
+                threshold: Some(self.max_depth as f64),
             })
             .collect()
     }

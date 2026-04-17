@@ -43,6 +43,7 @@ impl Plugin for UnsafeApiAnalyzer {
                         },
                         message: format!("Potentially dangerous: `{pat}` — {msg}"),
                         suggested_refactorings: vec!["Use a safe alternative".into()],
+                        ..Default::default()
                     });
                     break; // one finding per line
                 }

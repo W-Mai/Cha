@@ -56,6 +56,8 @@ impl LengthAnalyzer {
                         f.name, f.line_count, self.max_function_lines
                     ),
                     suggested_refactorings: vec!["Extract Method".into()],
+                    actual_value: Some(f.line_count as f64),
+                    threshold: Some(self.max_function_lines as f64),
                 });
             }
         }
@@ -99,6 +101,8 @@ impl LengthAnalyzer {
             },
             message: format!("Class `{}` is too large ({})", c.name, reasons.join(", ")),
             suggested_refactorings: vec!["Extract Class".into()],
+            actual_value: Some(c.line_count as f64),
+            threshold: Some(self.max_class_lines as f64),
         })
     }
 
@@ -119,6 +123,8 @@ impl LengthAnalyzer {
                     ctx.model.total_lines, self.max_file_lines
                 ),
                 suggested_refactorings: vec!["Extract Class".into(), "Move Method".into()],
+                actual_value: Some(ctx.model.total_lines as f64),
+                threshold: Some(self.max_file_lines as f64),
             });
         }
     }

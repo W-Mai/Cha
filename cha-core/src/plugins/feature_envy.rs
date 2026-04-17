@@ -44,21 +44,26 @@ impl Plugin for FeatureEnvyAnalyzer {
                 (f, top, total)
             })
             .filter(|(_, top, total)| (*top as f64 / *total as f64) >= self.external_ratio)
-            .map(|(f, _, _)| Finding {
-                smell_name: "feature_envy".into(),
-                category: SmellCategory::Couplers,
-                severity: Severity::Hint,
-                location: Location {
-                    path: ctx.file.path.clone(),
-                    start_line: f.start_line,
-                    end_line: f.end_line,
-                    name: Some(f.name.clone()),
-                },
-                message: format!(
-                    "Function `{}` references external objects more than its own data",
-                    f.name
-                ),
-                suggested_refactorings: vec!["Move Method".into()],
+            .map(|(f, top, total)| {
+                let ratio = top as f64 / total as f64;
+                Finding {
+                    smell_name: "feature_envy".into(),
+                    category: SmellCategory::Couplers,
+                    severity: Severity::Hint,
+                    location: Location {
+                        path: ctx.file.path.clone(),
+                        start_line: f.start_line,
+                        end_line: f.end_line,
+                        name: Some(f.name.clone()),
+                    },
+                    message: format!(
+                        "Function `{}` references external objects more than its own data",
+                        f.name
+                    ),
+                    suggested_refactorings: vec!["Move Method".into()],
+                    actual_value: Some(ratio),
+                    threshold: Some(self.external_ratio),
+                }
             })
             .collect()
     }

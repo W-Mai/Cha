@@ -79,6 +79,7 @@ impl GodClassAnalyzer {
                 "Extract Class".into(),
                 "Single Responsibility Principle".into(),
             ],
+            ..Default::default()
         })
     }
 }

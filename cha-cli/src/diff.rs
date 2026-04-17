@@ -147,6 +147,7 @@ mod tests {
             },
             message: "test".into(),
             suggested_refactorings: vec![],
+            ..Default::default()
         }
     }
 }

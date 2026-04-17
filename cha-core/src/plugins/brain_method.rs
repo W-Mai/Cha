@@ -71,6 +71,7 @@ impl Plugin for BrainMethodAnalyzer {
                     f.external_refs.len()
                 ),
                 suggested_refactorings: vec!["Extract Method".into(), "Move Method".into()],
+                ..Default::default()
             })
             .collect()
     }

@@ -180,5 +180,6 @@ fn hint(
         },
         message,
         suggested_refactorings: vec![],
+        ..Default::default()
     }
 }

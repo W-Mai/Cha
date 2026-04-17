@@ -78,6 +78,8 @@ impl TemporaryFieldAnalyzer {
                         methods.len()
                     ),
                     suggested_refactorings: vec!["Extract Class".into()],
+                    actual_value: Some(ratio),
+                    threshold: Some(self.max_usage_ratio),
                 });
             }
         }

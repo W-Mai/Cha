@@ -43,6 +43,8 @@ impl Plugin for LongParameterListAnalyzer {
                     "Introduce Parameter Object".into(),
                     "Preserve Whole Object".into(),
                 ],
+                actual_value: Some(f.parameter_count as f64),
+                threshold: Some(self.max_params as f64),
             })
             .collect()
     }

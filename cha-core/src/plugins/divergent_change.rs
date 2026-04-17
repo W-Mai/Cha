@@ -97,11 +97,12 @@ impl Plugin for DivergentChangeAnalyzer {
                 path_str, reasons, self.max_commits
             ),
             suggested_refactorings: vec!["Extract Class".into()],
+            actual_value: Some(reasons as f64),
+            threshold: Some(self.min_distinct_reasons as f64),
         }]
     }
 }
 
-/// Extract scope/category from a commit message.
 fn extract_scope(msg: &str) -> String {
     // Try conventional commit: "type(scope): ..."
     if let Some(start) = msg.find('(')

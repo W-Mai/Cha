@@ -54,6 +54,8 @@ impl Plugin for HubLikeDependencyAnalyzer {
                 count, self.max_imports
             ),
             suggested_refactorings: vec!["Extract Module".into(), "Facade Pattern".into()],
+            actual_value: Some(count as f64),
+            threshold: Some(self.max_imports as f64),
         }]
     }
 }

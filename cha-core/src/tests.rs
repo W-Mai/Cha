@@ -106,6 +106,7 @@ fn arb_finding() -> impl Strategy<Value = Finding> {
             location: default_test_location(),
             message,
             suggested_refactorings: vec!["Extract Method".into()],
+            ..Default::default()
         })
 }
 

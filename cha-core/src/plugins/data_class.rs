@@ -43,6 +43,7 @@ impl Plugin for DataClassAnalyzer {
                         c.name, c.field_count
                     ),
                     suggested_refactorings: vec!["Move Method".into(), "Encapsulate Field".into()],
+                    ..Default::default()
                 })
             })
             .collect()

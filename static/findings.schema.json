@@ -10,6 +10,14 @@
       "description": "A single analysis finding.",
       "type": "object",
       "properties": {
+        "actual_value": {
+          "description": "The actual measured value (e.g. line count, complexity score).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
         "category": {
           "$ref": "#/$defs/SmellCategory"
         },
@@ -30,6 +38,14 @@
           "items": {
             "type": "string"
           }
+        },
+        "threshold": {
+          "description": "The threshold that was exceeded to produce this finding.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
         }
       },
       "required": [

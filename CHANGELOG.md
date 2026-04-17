@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `cha:set` inline directive: override thresholds per-function/class via comments (`// cha:set rule_name=value`)
+- `Finding.actual_value` and `Finding.threshold` fields for post-filter re-evaluation
+- `cha lsp` subcommand: start LSP server from unified binary (+3MB)
+
 ## [0.7.0] - 2026-04-17
 
 ### Added

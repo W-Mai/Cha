@@ -61,6 +61,7 @@ impl Plugin for ErrorHandlingAnalyzer {
                         "Use ? operator".into(),
                         "Handle errors explicitly".into(),
                     ],
+                    ..Default::default()
                 });
             }
         }
@@ -115,6 +116,7 @@ fn detect_empty_catch(lines: &[&str], ctx: &AnalysisContext, findings: &mut Vec<
                         "Log the error".into(),
                         "Re-throw or handle explicitly".into(),
                     ],
+                    ..Default::default()
                 });
             }
         }

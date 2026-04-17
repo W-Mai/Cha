@@ -67,6 +67,7 @@ fn build_duplicate_findings(ctx: &AnalysisContext, group: &[&crate::FunctionInfo
                     "Extract Method".into(),
                     "Form Template Method".into(),
                 ],
+                ..Default::default()
             }
         })
         .collect()

@@ -58,6 +58,7 @@ impl Plugin for HardcodedSecretAnalyzer {
                             "Use environment variables".into(),
                             "Use a secrets manager".into(),
                         ],
+                        ..Default::default()
                     });
                     break; // one finding per line
                 }

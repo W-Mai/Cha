@@ -464,6 +464,7 @@ fn detect_unstable_deps(files: &[PathBuf], cwd: &Path) -> Vec<Finding> {
                     "Depend on abstractions".into(),
                     "Stable Dependencies Principle".into(),
                 ],
+                ..Default::default()
             })
         })
         .collect()
@@ -543,6 +544,7 @@ fn detect_bus_factor(files: &[PathBuf], cwd: &Path) -> Vec<Finding> {
                         rel.display()
                     ),
                     suggested_refactorings: vec!["Pair programming".into(), "Code review".into()],
+                    ..Default::default()
                 },
             )
         })
@@ -610,6 +612,7 @@ fn check_test_ratio(files: &[PathBuf]) -> Vec<Finding> {
             ratio * 100.0
         ),
         suggested_refactorings: vec!["Add unit tests".into()],
+        ..Default::default()
     }]
 }
 

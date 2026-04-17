@@ -57,6 +57,8 @@ impl Plugin for CognitiveComplexityAnalyzer {
                     "Extract Method".into(),
                     "Replace Nested Conditional with Guard Clauses".into(),
                 ],
+                actual_value: Some(f.cognitive_complexity as f64),
+                threshold: Some(self.threshold as f64),
             })
             .collect()
     }

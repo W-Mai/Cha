@@ -32,6 +32,7 @@ pub fn detect_tangled(count: usize, threshold: usize) -> Vec<Finding> {
                     msg
                 ),
                 suggested_refactorings: vec!["Split into focused commits".into()],
+                ..Default::default()
             })
         })
         .collect()

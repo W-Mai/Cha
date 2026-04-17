@@ -60,6 +60,7 @@ fn make_finding(ctx: &AnalysisContext, imp: &crate::ImportInfo, current: &str) -
             current, imp.source
         ),
         suggested_refactorings: vec!["Move Method".into(), "Hide Delegate".into()],
+        ..Default::default()
     }
 }
 

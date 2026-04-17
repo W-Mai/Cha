@@ -66,6 +66,7 @@ impl Plugin for DataClumpsAnalyzer {
                     "Extract Class".into(),
                     "Introduce Parameter Object".into(),
                 ],
+                ..Default::default()
             })
             .collect()
     }

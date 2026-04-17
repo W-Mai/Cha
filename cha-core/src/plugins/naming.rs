@@ -84,6 +84,7 @@ fn check_pascal_case(c: &crate::ClassInfo, path: &std::path::Path) -> Option<Fin
         },
         message: format!("Class `{}` should use PascalCase", c.name),
         suggested_refactorings: vec!["Rename Method".into()],
+        ..Default::default()
     })
 }
 
@@ -124,5 +125,6 @@ fn check_name(check: &NameCheck, min_len: usize, max_len: usize) -> Option<Findi
             limit
         ),
         suggested_refactorings: vec!["Rename Method".into()],
+        ..Default::default()
     })
 }

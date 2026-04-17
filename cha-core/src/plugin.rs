@@ -6,19 +6,21 @@ use crate::{SourceFile, SourceModel};
 
 /// Severity level for a finding.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema, Default,
 )]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
+    #[default]
     Hint,
     Warning,
     Error,
 }
 
 /// Smell category from refactoring literature.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum SmellCategory {
+    #[default]
     Bloaters,
     OoAbusers,
     ChangePreventers,
@@ -28,7 +30,7 @@ pub enum SmellCategory {
 }
 
 /// Source location of a finding.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
 pub struct Location {
     pub path: PathBuf,
     pub start_line: usize,
@@ -37,7 +39,7 @@ pub struct Location {
 }
 
 /// A single analysis finding.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
 pub struct Finding {
     pub smell_name: String,
     pub category: SmellCategory,
@@ -45,6 +47,12 @@ pub struct Finding {
     pub location: Location,
     pub message: String,
     pub suggested_refactorings: Vec<String>,
+    /// The actual measured value (e.g. line count, complexity score).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actual_value: Option<f64>,
+    /// The threshold that was exceeded to produce this finding.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub threshold: Option<f64>,
 }
 
 /// Analysis context passed to plugins.

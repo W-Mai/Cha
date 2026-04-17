@@ -69,6 +69,7 @@ impl LayerViolationAnalyzer {
                 imp.source, imp_name
             ),
             suggested_refactorings: vec!["Move Method".into(), "Extract Interface".into()],
+            ..Default::default()
         })
     }
 

@@ -54,6 +54,8 @@ impl Plugin for CommentsAnalyzer {
                         f.line_count
                     ),
                     suggested_refactorings: vec!["Extract Method".into(), "Rename Method".into()],
+                    actual_value: Some(ratio),
+                    threshold: Some(self.max_comment_ratio),
                 })
             })
             .collect()

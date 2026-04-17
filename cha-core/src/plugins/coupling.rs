@@ -44,6 +44,8 @@ impl Plugin for CouplingAnalyzer {
                     self.max_imports
                 ),
                 suggested_refactorings: vec!["Move Method".into(), "Extract Class".into()],
+                actual_value: Some(ctx.model.imports.len() as f64),
+                threshold: Some(self.max_imports as f64),
             });
         }
 
