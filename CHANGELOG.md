@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `deps --direction in|out|both`: filter edges by direction (who depends on target vs target depends on)
 - `deps --format plantuml`: PlantUML output for component and class diagrams
 - C OOP false positive filter: removes lazy_class/data_class for structs with cross-file methods
+- `.pre-commit-hooks.yaml`: pre-commit framework integration
+- `action.yml`: GitHub Action for CI analysis with SARIF upload
+- VS Code extension scaffold (`vscode-cha/`): cha LSP integration
+
+### Fixed
+- `.h` files with C++ constructs now parsed as C++ (content sniffing)
+- `class MACRO Name {}` no longer misidentified as function definition
 
 ## [0.7.0] - 2026-04-17
 

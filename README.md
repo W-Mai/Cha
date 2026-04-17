@@ -274,6 +274,33 @@ cha lsp
 
 Provides diagnostics on open/change/save and code action suggestions. Also available as standalone `cha-lsp` binary.
 
+## 🔌 Integrations
+
+### Pre-commit
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/W-Mai/Cha
+    rev: v0.7.0
+    hooks:
+      - id: cha-analyze
+```
+
+### GitHub Action
+
+```yaml
+# .github/workflows/cha.yml
+- uses: W-Mai/Cha@v0.7.0
+  with:
+    fail-on: warning
+    upload-sarif: true
+```
+
+### VS Code
+
+Install the `vscode-cha` extension (requires `cha` in PATH).
+
 ## 🛠️ Development
 
 ```bash

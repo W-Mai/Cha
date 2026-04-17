@@ -1,0 +1,7 @@
+- id: cha-analyze
+  name: cha analyze
+  description: Run cha code smell analysis on staged files
+  entry: cha analyze --diff --fail-on warning
+  language: system
+  types_or: [c, c++, rust, python, go, ts, javascript]
+  pass_filenames: false

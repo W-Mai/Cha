@@ -1,0 +1,84 @@
+name: 'Cha Code Analysis'
+description: 'Run cha code smell analysis and upload SARIF results'
+branding:
+  icon: 'search'
+  color: 'orange'
+
+inputs:
+  version:
+    description: 'Cha version to install (default: latest)'
+    required: false
+    default: 'latest'
+  format:
+    description: 'Output format: terminal, json, sarif, html'
+    required: false
+    default: 'sarif'
+  fail-on:
+    description: 'Fail threshold: hint, warning, error'
+    required: false
+    default: 'error'
+  plugin:
+    description: 'Comma-separated plugin filter'
+    required: false
+    default: ''
+  baseline:
+    description: 'Path to baseline file'
+    required: false
+    default: ''
+  path:
+    description: 'Path to analyze (default: .)'
+    required: false
+    default: '.'
+  upload-sarif:
+    description: 'Upload SARIF to GitHub Code Scanning'
+    required: false
+    default: 'true'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install cha
+      shell: bash
+      run: |
+        VERSION="${{ inputs.version }}"
+        if [ "$VERSION" = "latest" ]; then
+          VERSION=$(curl -sL https://api.github.com/repos/W-Mai/Cha/releases/latest | grep tag_name | cut -d'"' -f4)
+        fi
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+        case "$ARCH" in
+          x86_64) ARCH="x86_64" ;;
+          aarch64|arm64) ARCH="aarch64" ;;
+        esac
+        case "$OS" in
+          linux) TARGET="${ARCH}-unknown-linux-gnu" ;;
+          darwin) TARGET="${ARCH}-apple-darwin" ;;
+        esac
+        URL="https://github.com/W-Mai/Cha/releases/download/${VERSION}/cha-${TARGET}.tar.xz"
+        echo "Downloading cha ${VERSION} for ${TARGET}..."
+        curl -sL "$URL" | tar xJ
+        chmod +x cha
+        echo "$PWD" >> "$GITHUB_PATH"
+
+    - name: Run analysis
+      shell: bash
+      run: |
+        ARGS="${{ inputs.path }} --format ${{ inputs.format }} --fail-on ${{ inputs.fail-on }}"
+        if [ -n "${{ inputs.plugin }}" ]; then
+          ARGS="$ARGS --plugin ${{ inputs.plugin }}"
+        fi
+        if [ -n "${{ inputs.baseline }}" ]; then
+          ARGS="$ARGS --baseline ${{ inputs.baseline }}"
+        fi
+        if [ "${{ inputs.format }}" = "sarif" ]; then
+          cha analyze $ARGS --output cha-results.sarif || true
+        else
+          cha analyze $ARGS
+        fi
+
+    - name: Upload SARIF
+      if: inputs.format == 'sarif' && inputs.upload-sarif == 'true' && always()
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: cha-results.sarif
+        category: cha
