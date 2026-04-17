@@ -200,6 +200,7 @@ fn validate_lsp_response(resp: &str) -> Result {
     }
 }
 
+// cha:set long_method=60
 fn e2e_scaffold_and_build(cha: &str, tmp: &str) -> Result<String> {
     // Run `cha plugin new` inside tmp so the plugin is created at tmp/test-e2e.
     // If tmp is empty, cha plugin new uses tmp itself as the plugin dir.
@@ -236,6 +237,8 @@ fn e2e_scaffold_and_build(cha: &str, tmp: &str) -> Result<String> {
             category: SmellCategory::Dispensables,
             location: Location { path: input.path.clone(), start_line: 1, end_line: 1, name: None },
             suggested_refactorings: vec![],
+            actual_value: None,
+            threshold: None,
         }]"#,
         );
     std::fs::write(&lib_rs, patched)?;
