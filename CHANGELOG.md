@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-04-17
+
 ### Added
 - `cha:set` inline directive: override thresholds per-function/class via comments (`// cha:set rule_name=value`)
 - `Finding.actual_value` and `Finding.threshold` fields for post-filter re-evaluation
@@ -16,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - C OOP false positive filter: removes lazy_class/data_class for structs with cross-file methods
 - `.pre-commit-hooks.yaml`: pre-commit framework integration
 - `action.yml`: GitHub Action for CI analysis with SARIF upload
-- VS Code extension scaffold (`vscode-cha/`): cha LSP integration
+- VS Code extension (`vscode-cha/`): cha LSP integration, auto-download binary, esbuild bundle
 
 ### Fixed
 - `.h` files with C++ constructs now parsed as C++ (content sniffing)
