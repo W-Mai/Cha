@@ -199,6 +199,20 @@ error = 30
 All plugins are enabled by default. Set `enabled = false` to disable.
 C language has a builtin profile that disables OOP-specific rules (naming, lazy_class, data_class, design patterns).
 
+### Inline Directives
+
+Override analysis per-function directly in source code:
+
+```rust
+// cha:ignore                       — suppress all rules for next item
+// cha:ignore long_method           — suppress specific rule
+// cha:ignore long_method,complexity — suppress multiple rules
+// cha:set long_method=100          — raise threshold to 100 for next item
+// cha:set threshold=200            — raise threshold for all rules
+```
+
+Works with `//`, `#`, `--`, and `/* */` comment styles.
+
 ## 🧩 WASM Plugins
 
 Extend with custom analyzers via WebAssembly Component Model:
@@ -252,10 +266,10 @@ See `examples/wasm-plugin-example` (suspicious names) and `examples/wasm-plugin-
 ## 💡 LSP Integration
 
 ```bash
-cha-lsp
+cha lsp
 ```
 
-Provides diagnostics on open/change/save and code action suggestions.
+Provides diagnostics on open/change/save and code action suggestions. Also available as standalone `cha-lsp` binary.
 
 ## 🛠️ Development
 
