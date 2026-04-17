@@ -3,7 +3,7 @@
   "displayName": "Cha - Code Smell Analyzer",
   "description": "Code smell detection and refactoring suggestions powered by cha",
   "version": "1.0.2",
-  "publisher": "w-mai",
+  "publisher": "BenignX",
   "repository": {
     "type": "git",
     "url": "https://github.com/W-Mai/Cha"
