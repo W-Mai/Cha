@@ -4,6 +4,7 @@
   "description": "Code smell detection and refactoring suggestions powered by cha",
   "version": "1.0.2",
   "publisher": "BenignX",
+  "homepage": "https://benign.host",
   "repository": {
     "type": "git",
     "url": "https://github.com/W-Mai/Cha"
