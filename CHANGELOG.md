@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.1] - 2026-04-17
+## [1.0.4] - 2026-04-17
 
 ### Added
 - `cha:set` inline directive: override thresholds per-function/class via comments (`// cha:set rule_name=value`)
@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `.h` files with C++ constructs now parsed as C++ (content sniffing)
 - `class MACRO Name {}` no longer misidentified as function definition
+- WIT `Finding` record now includes `actual_value`/`threshold` fields
+- `build.rs` auto-copies `wit/plugin.wit` for crates.io packaging
+- VS Code extension: esbuild bundle, LICENSE, `.vscodeignore`, publisher ID, homepage
 
 ## [0.7.0] - 2026-04-17
 
