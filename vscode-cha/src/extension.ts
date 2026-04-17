@@ -42,14 +42,17 @@ async function ensureBinary(
   context: vscode.ExtensionContext,
   configured: string
 ): Promise<string | undefined> {
-  // Check if configured path works
-  if (commandExists(configured)) return configured;
+  // 1. User explicitly configured a path — use it
+  if (configured !== "cha" && commandExists(configured)) return configured;
 
-  // Check extension storage
+  // 2. Check extension-managed binary (preferred over system PATH)
   const stored = path.join(context.globalStorageUri.fsPath, "cha");
   if (fs.existsSync(stored) && commandExists(stored)) return stored;
 
-  // Offer to download
+  // 3. Fallback to system PATH
+  if (commandExists("cha")) return "cha";
+
+  // 4. Offer to download
   const choice = await vscode.window.showWarningMessage(
     "cha binary not found. Download from GitHub?",
     "Download",
@@ -65,6 +68,14 @@ async function ensureBinary(
   }
   if (choice !== "Download") return undefined;
 
+  return downloadToStorage(context, stored);
+}
+
+
+async function downloadToStorage(
+  context: vscode.ExtensionContext,
+  stored: string
+): Promise<string | undefined> {
   return vscode.window.withProgress(
     { location: vscode.ProgressLocation.Notification, title: "Downloading cha..." },
     async () => {
@@ -82,7 +93,6 @@ async function ensureBinary(
     }
   );
 }
-
 function commandExists(cmd: string): boolean {
   try {
     cp.execSync(`"${cmd}" --version`, { stdio: "ignore" });
