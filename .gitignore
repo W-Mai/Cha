@@ -6,3 +6,5 @@
 .cha/
 public/
 node_modules/
+cha-core/wit/
+cha-plugin-sdk/macros/wit/

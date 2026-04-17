@@ -10,7 +10,7 @@ use crate::{AnalysisContext, Plugin};
 
 mod bindings {
     wasmtime::component::bindgen!({
-        path: "../wit/plugin.wit",
+        path: "wit/plugin.wit",
         world: "analyzer",
     });
 }
