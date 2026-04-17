@@ -35,6 +35,15 @@ jobs:
 
       - name: Upload vsix to Release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: vscode-cha/*.vsix
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Wait for release to be created by cargo-dist
+          for i in $(seq 1 60); do
+            if gh release view "${{ github.ref_name }}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+              break
+            fi
+            echo "Waiting for release... ($i/60)"
+            sleep 30
+          done
+          gh release upload "${{ github.ref_name }}" vscode-cha/*.vsix --repo "${{ github.repository }}" --clobber
