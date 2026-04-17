@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-04-17
+
+### Fixed
+- VS Code extension: download URL corrected (`cha-cli-` prefix), extract path for cargo-dist tarball
+- VS Code extension: download with progress bar and cancellation support
+- VS Code extension: removed system PATH fallback for reliable self-testing
+- `cargo publish` no longer needs `--allow-dirty` (WIT copies tracked in git, `include` in Cargo.toml)
+
 ## [1.0.4] - 2026-04-17
 
 ### Added
