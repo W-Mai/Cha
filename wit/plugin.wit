@@ -35,6 +35,8 @@ interface types {
         location: location,
         message: string,
         suggested-refactorings: list<string>,
+        actual-value: option<f64>,
+        threshold: option<f64>,
     }
 
     /// Function info from parsed source.

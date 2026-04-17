@@ -41,7 +41,8 @@ impl PluginImpl for HardcodedStringsPlugin {
                         "Replace with reference to `{}`",
                         const_name
                     )],
-                    ..Default::default()
+                    actual_value: None,
+                    threshold: None,
                 });
             }
         }

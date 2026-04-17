@@ -30,7 +30,8 @@ impl PluginImpl for ExamplePlugin {
                     f.name
                 ),
                 suggested_refactorings: vec!["Rename Method".into()],
-                ..Default::default()
+                actual_value: None,
+                threshold: None,
             })
             .collect()
     }
