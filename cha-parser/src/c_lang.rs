@@ -80,39 +80,23 @@ fn is_header_file(file: &SourceFile) -> bool {
         .is_some_and(|e| e == "h" || e == "hxx" || e == "hpp")
 }
 
-/// C OOP heuristic: associate free functions with structs.
-/// Match by: (1) first parameter type is pointer to struct, or
-/// (2) function name prefix matches struct name (e.g. lv_image_set_src → lv_image_t).
+/// C OOP heuristic: associate free functions with structs (same-file).
+/// A function is a "method" if its first parameter is a pointer to that struct.
 fn associate_methods(functions: &[FunctionInfo], classes: &mut [ClassInfo]) {
     for class in classes.iter_mut() {
-        let prefix = class.name.strip_suffix("_t").unwrap_or(&class.name);
-        let mut method_count = 0;
-        for func in functions {
-            if is_c_method(func, &class.name, prefix) {
-                method_count += 1;
-            }
-        }
-        if method_count > 0 {
-            class.method_count += method_count;
+        let count = functions
+            .iter()
+            .filter(|f| {
+                f.parameter_types.first().is_some_and(|t| {
+                    t.contains('*') && t.split('*').next().unwrap_or("").trim() == class.name
+                })
+            })
+            .count();
+        if count > 0 {
+            class.method_count += count;
             class.has_behavior = true;
         }
     }
-}
-
-/// Check if a function is a "method" of a struct by type or name convention.
-fn is_c_method(func: &FunctionInfo, class_name: &str, prefix: &str) -> bool {
-    // (1) First param type matches struct name
-    if let Some(first_type) = func.parameter_types.first() {
-        let base = first_type
-            .replace('*', "")
-            .replace("const", "")
-            .replace("struct", "");
-        if base.trim() == class_name {
-            return true;
-        }
-    }
-    // (2) Function name starts with struct prefix + "_"
-    func.name.starts_with(prefix) && func.name.as_bytes().get(prefix.len()) == Some(&b'_')
 }
 
 fn collect_top_level(
@@ -262,11 +246,14 @@ fn extract_params(declarator: Node, src: &[u8]) -> (usize, Vec<String>) {
     for child in params.children(&mut cursor) {
         if child.kind() == "parameter_declaration" {
             count += 1;
-            let ty = child
+            let base = child
                 .child_by_field_name("type")
                 .map(|t| node_text(t, src).to_string())
                 .unwrap_or_else(|| "int".into());
-            types.push(ty);
+            let is_ptr = child
+                .child_by_field_name("declarator")
+                .is_some_and(|d| d.kind() == "pointer_declarator");
+            types.push(if is_ptr { format!("{base} *") } else { base });
         }
     }
     (count, types)

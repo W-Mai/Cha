@@ -34,8 +34,8 @@ pub fn cmd_deps(
     };
 
     if detail && matches!(graph_type, DepsType::Classes) {
-        let models = parse_all_models(&files);
-        render_detail_classes(&edges, &models, &files, format, filter, exact);
+        let parsed = parse_all_models(&files);
+        render_detail_classes(&edges, &parsed, format, filter, exact);
     } else {
         render(&edges, &cycles, format, &style);
     }
@@ -206,16 +206,16 @@ fn aggregate_to_dirs(edges: Vec<Edge>) -> Vec<Edge> {
 
 // ── Class graph ──
 
-fn parse_all_models(files: &[PathBuf]) -> Vec<cha_core::SourceModel> {
+fn parse_all_models(files: &[PathBuf]) -> Vec<(PathBuf, cha_core::SourceModel)> {
     let pb = crate::new_progress_bar(files.len() as u64);
     let result = files
         .iter()
         .filter_map(|path| {
             let content = std::fs::read_to_string(path).ok()?;
             let file = SourceFile::new(path.clone(), content);
-            let model = cha_parser::parse_file(&file);
+            let model = cha_parser::parse_file(&file)?;
             pb.inc(1);
-            model
+            Some((path.clone(), model))
         })
         .collect();
     pb.finish_and_clear();
@@ -230,7 +230,7 @@ struct ClassContext {
 }
 
 impl ClassContext {
-    fn from_files(files: &[PathBuf], models: &[cha_core::SourceModel]) -> Self {
+    fn from_files(files: &[PathBuf], models: &[&cha_core::SourceModel]) -> Self {
         let mut aliases = collect_typedef_aliases_from_models(models);
         for (k, v) in collect_typedef_aliases(files) {
             aliases.entry(k).or_insert(v);
@@ -268,7 +268,8 @@ impl ClassContext {
 }
 
 fn build_class_graph(files: &[PathBuf]) -> Vec<Edge> {
-    let models = parse_all_models(files);
+    let parsed = parse_all_models(files);
+    let models: Vec<_> = parsed.iter().map(|(_, m)| m).collect();
     let ctx = ClassContext::from_files(files, &models);
     models
         .iter()
@@ -295,7 +296,7 @@ fn build_class_graph(files: &[PathBuf]) -> Vec<Edge> {
 
 /// Scan files for `typedef struct X Y;` patterns to build alias map (Y -> X).
 fn collect_typedef_aliases_from_models(
-    models: &[cha_core::SourceModel],
+    models: &[&cha_core::SourceModel],
 ) -> HashMap<String, String> {
     let mut aliases = HashMap::new();
     for m in models {
@@ -328,15 +329,15 @@ fn collect_typedef_aliases(files: &[PathBuf]) -> HashMap<String, String> {
 // ── Call graph ──
 
 fn build_call_graph(files: &[PathBuf]) -> Vec<Edge> {
-    let models = parse_all_models(files);
-    let known: HashSet<String> = models
+    let parsed = parse_all_models(files);
+    let known: HashSet<String> = parsed
         .iter()
-        .flat_map(|m| &m.functions)
+        .flat_map(|(_, m)| &m.functions)
         .map(|f| f.name.clone())
         .collect();
-    models
+    parsed
         .iter()
-        .flat_map(|m| &m.functions)
+        .flat_map(|(_, m)| &m.functions)
         .flat_map(|f| {
             f.called_functions
                 .iter()
@@ -399,29 +400,44 @@ fn dfs_cycle<'a>(
 struct DetailClass {
     name: String,
     fields: Vec<(String, String)>,
-    methods: Vec<String>,
+    methods: Vec<(String, bool)>, // (name, is_exported)
 }
 
-// cha:ignore long_method,high_complexity,brain_method
-// cha:ignore cognitive_complexity,long_method,brain_method,high_complexity
+// cha:ignore long_method,high_complexity,brain_method,cognitive_complexity
 fn render_detail_classes(
     edges: &[Edge],
-    models: &[cha_core::SourceModel],
-    files: &[PathBuf],
+    parsed: &[(PathBuf, cha_core::SourceModel)],
     format: &DepsFormat,
     filter: Option<&str>,
     exact: bool,
 ) {
-    let mut aliases = collect_typedef_aliases_from_models(models);
-    for (k, v) in collect_typedef_aliases(files) {
-        aliases.entry(k).or_insert(v);
+    // Build alias maps from all models + file fallback
+    let mut aliases: HashMap<String, String> = HashMap::new();
+    for (path, m) in parsed {
+        for (a, o) in &m.type_aliases {
+            aliases.entry(a.clone()).or_insert(o.clone());
+        }
+        if let Ok(content) = std::fs::read_to_string(path) {
+            for line in content.lines() {
+                if let Some(rest) = line.trim().strip_prefix("typedef struct ") {
+                    let parts: Vec<&str> = rest.trim_end_matches(';').split_whitespace().collect();
+                    if parts.len() == 2 {
+                        aliases
+                            .entry(parts[1].to_string())
+                            .or_insert(parts[0].to_string());
+                    }
+                }
+            }
+        }
     }
     let reverse: HashMap<&str, &str> = aliases
         .iter()
         .map(|(a, o)| (o.as_str(), a.as_str()))
         .collect();
     let display = |name: &str| -> String { reverse.get(name).unwrap_or(&name).to_string() };
-    let edge_names: HashSet<String> = edges
+
+    // Determine which classes to show
+    let mut edge_names: HashSet<String> = edges
         .iter()
         .flat_map(|e| {
             let mut v = vec![e.from.clone(), e.to.clone()];
@@ -434,67 +450,114 @@ fn render_detail_classes(
             v
         })
         .collect();
+    if exact && let Some(pattern) = filter {
+        let re = regex::Regex::new(pattern)
+            .unwrap_or_else(|_| regex::Regex::new(&regex::escape(pattern)).unwrap());
+        edge_names.retain(|n| re.is_match(n) || re.is_match(&display(n)));
+    }
 
-    // --exact: only show classes directly matching the filter, not parents/children
-    let edge_names: HashSet<String> = if exact {
-        if let Some(pattern) = filter {
-            let re = regex::Regex::new(pattern)
-                .unwrap_or_else(|_| regex::Regex::new(&regex::escape(pattern)).unwrap());
-            edge_names
-                .into_iter()
-                .filter(|n| re.is_match(n) || re.is_match(&display(n)))
-                .collect()
-        } else {
-            edge_names
+    // Per-directory function index (for same-module matching)
+    let mut dir_funcs: HashMap<&Path, Vec<&cha_core::FunctionInfo>> = HashMap::new();
+    for (path, m) in parsed {
+        let dir = path.parent().unwrap_or(path);
+        dir_funcs.entry(dir).or_default().extend(&m.functions);
+    }
+
+    // Class → directory (prefer definition with fields over forward declarations)
+    let mut class_dir: HashMap<&str, &Path> = HashMap::new();
+    // First pass: only classes with fields (actual definitions)
+    for (path, m) in parsed {
+        let dir = path.parent().unwrap_or(path);
+        for c in &m.classes {
+            if c.field_count > 0 {
+                class_dir.insert(&c.name, dir);
+            }
         }
-    } else {
-        edge_names
+    }
+    // Second pass: fill in any missing (forward declarations)
+    for (path, m) in parsed {
+        let dir = path.parent().unwrap_or(path);
+        for c in &m.classes {
+            class_dir.entry(&c.name).or_insert(dir);
+        }
+    }
+
+    // Inheritance: class_name → parent_name
+    let parent_map: HashMap<&str, &str> = parsed
+        .iter()
+        .flat_map(|(_, m)| &m.classes)
+        .filter_map(|c| c.parent_name.as_deref().map(|p| (c.name.as_str(), p)))
+        .collect();
+
+    // Walk up inheritance chain to collect all ancestors (+ their aliases)
+    let ancestors_of = |name: &str| -> HashSet<&str> {
+        let mut set = HashSet::new();
+        let mut cur = parent_map.get(name).copied();
+        while let Some(p) = cur {
+            set.insert(p);
+            if let Some(&a) = reverse.get(p) {
+                set.insert(a);
+            }
+            cur = parent_map.get(p).copied();
+        }
+        set
     };
 
-    // Collect all functions across all files for cross-file C OOP method association
-    let all_functions: Vec<&cha_core::FunctionInfo> =
-        models.iter().flat_map(|m| &m.functions).collect();
-
+    // Build detail classes
     let mut detail_classes: HashMap<String, DetailClass> = HashMap::new();
-    for m in models {
+    for (_, m) in parsed {
         for c in &m.classes {
             if !edge_names.contains(&c.name) {
                 continue;
             }
             let dn = display(&c.name);
             let existing_fields = detail_classes.get(&dn).map(|d| d.fields.len()).unwrap_or(0);
-            if c.field_count >= existing_fields {
-                let fields: Vec<(String, String)> = c
-                    .field_names
-                    .iter()
-                    .zip(
-                        c.field_types
-                            .iter()
-                            .chain(std::iter::repeat(&String::new())),
-                    )
-                    .map(|(n, t)| (n.clone(), t.clone()))
-                    .collect();
-                let methods: Vec<String> = m
-                    .functions
-                    .iter()
-                    .filter(|f| f.start_line >= c.start_line && f.end_line <= c.end_line)
-                    .chain(
-                        all_functions
-                            .iter()
-                            .copied()
-                            .filter(|f| is_c_method_of(f, &c.name, &reverse)),
-                    )
-                    .map(|f| f.name.clone())
-                    .collect();
-                detail_classes.insert(
-                    dn,
-                    DetailClass {
-                        name: display(&c.name),
-                        fields,
-                        methods,
-                    },
-                );
+            if c.field_count < existing_fields {
+                continue;
             }
+            let fields: Vec<(String, String)> = c
+                .field_names
+                .iter()
+                .zip(
+                    c.field_types
+                        .iter()
+                        .chain(std::iter::repeat(&String::new())),
+                )
+                .map(|(n, t)| (n.clone(), t.clone()))
+                .collect();
+
+            let ancestors = ancestors_of(&c.name);
+            let alias = reverse.get(c.name.as_str()).copied().unwrap_or(&c.name);
+
+            // Same-module functions whose first param is this class or an ancestor
+            let dir = class_dir.get(c.name.as_str()).or(class_dir.get(alias));
+            let empty = vec![];
+            let funcs = dir.and_then(|d| dir_funcs.get(d)).unwrap_or(&empty);
+
+            let methods: Vec<(String, bool)> = m
+                .functions
+                .iter()
+                .filter(|f| f.start_line >= c.start_line && f.end_line <= c.end_line)
+                .chain(funcs.iter().copied().filter(|f| {
+                    f.parameter_types.first().is_some_and(|t| {
+                        if !t.contains('*') {
+                            return false;
+                        }
+                        let base = t.split('*').next().unwrap_or("").trim();
+                        base == c.name || base == alias || ancestors.contains(base)
+                    })
+                }))
+                .map(|f| (f.name.clone(), f.is_exported))
+                .collect();
+
+            detail_classes.insert(
+                dn,
+                DetailClass {
+                    name: display(&c.name),
+                    fields,
+                    methods,
+                },
+            );
         }
     }
     let classes: Vec<&DetailClass> = detail_classes.values().collect();
@@ -522,7 +585,14 @@ fn render_detail_dot(classes: &[&DetailClass], edges: &[Edge]) {
                 }
             })
             .collect();
-        let meths: String = c.methods.iter().map(|m| format!("+ {m}()\\l")).collect();
+        let meths: String = c
+            .methods
+            .iter()
+            .map(|(m, exported)| {
+                let vis = if *exported { "+" } else { "-" };
+                format!("{vis} {m}()\\l")
+            })
+            .collect();
         println!(
             "  \"{}\" [label=\"{{{}|{}|{}}}\"]; ",
             c.name, c.name, fields, meths
@@ -538,16 +608,7 @@ fn render_detail_mermaid(classes: &[&DetailClass], edges: &[Edge]) {
     println!("classDiagram");
     for c in classes {
         println!("    class {} {{", c.name);
-        for (n, t) in &c.fields {
-            if t.is_empty() {
-                println!("        +{n}");
-            } else {
-                println!("        +{t} {n}");
-            }
-        }
-        for m in &c.methods {
-            println!("        +{m}()");
-        }
+        render_mermaid_members(c);
         println!("    }}");
     }
     for e in edges {
@@ -559,12 +620,26 @@ fn render_detail_mermaid(classes: &[&DetailClass], edges: &[Edge]) {
     }
 }
 
+fn render_mermaid_members(c: &DetailClass) {
+    for (n, t) in &c.fields {
+        if t.is_empty() {
+            println!("        +{n}");
+        } else {
+            println!("        +{t} {n}");
+        }
+    }
+    for (m, exported) in &c.methods {
+        let vis = if *exported { "+" } else { "-" };
+        println!("        {vis}{m}()");
+    }
+}
+
 fn render_detail_json(classes: &[&DetailClass], edges: &[Edge]) {
     let nodes: Vec<serde_json::Value> = classes.iter().map(|c| {
         serde_json::json!({
             "name": c.name,
             "fields": c.fields.iter().map(|(n, t)| serde_json::json!({"name": n, "type": t})).collect::<Vec<_>>(),
-            "methods": c.methods,
+            "methods": c.methods.iter().map(|(n, e)| serde_json::json!({"name": n, "exported": e})).collect::<Vec<_>>(),
         })
     }).collect();
     let json = serde_json::json!({
@@ -675,30 +750,4 @@ fn print_mermaid(edges: &[Edge], cycles: &[(String, String)], style: &CycleStyle
             println!("  linkStyle {} stroke:{color},stroke-width:2", i);
         }
     }
-}
-
-/// C OOP heuristic: check if function is a "method" of a struct by type or name.
-/// `reverse` maps original struct name → typedef alias (e.g. _lv_image_t → lv_image_t).
-fn is_c_method_of(
-    func: &cha_core::FunctionInfo,
-    class_name: &str,
-    reverse: &HashMap<&str, &str>,
-) -> bool {
-    // The typedef alias for this class (e.g. _lv_image_t → lv_image_t)
-    let alias = reverse.get(class_name).copied().unwrap_or(class_name);
-
-    // (1) First param type matches class name or its alias
-    if let Some(first_type) = func.parameter_types.first() {
-        let base = first_type
-            .replace('*', "")
-            .replace("const", "")
-            .replace("struct", "");
-        let base = base.trim();
-        if base == class_name || base == alias {
-            return true;
-        }
-    }
-    // (2) Function name prefix matches alias (without _t suffix)
-    let prefix = alias.strip_suffix("_t").unwrap_or(alias);
-    func.name.starts_with(prefix) && func.name.as_bytes().get(prefix.len()) == Some(&b'_')
 }
