@@ -114,15 +114,20 @@ async function downloadLatest(dest: string): Promise<void> {
     "https://api.github.com/repos/W-Mai/Cha/releases/latest"
   );
   const tag = release.tag_name;
-  const url = `https://github.com/W-Mai/Cha/releases/download/${tag}/cha-${platform}.tar.xz`;
+  const url = `https://github.com/W-Mai/Cha/releases/download/${tag}/cha-cli-${platform}.tar.xz`;
 
   // Download and extract
   const tarball = dest + ".tar.xz";
   await downloadFile(url, tarball);
-  cp.execSync(`tar xJf "${tarball}" -C "${path.dirname(dest)}"`, {
-    stdio: "ignore",
-  });
+  const dir = path.dirname(dest);
+  cp.execSync(`tar xJf "${tarball}" -C "${dir}"`, { stdio: "ignore" });
   fs.unlinkSync(tarball);
+  // cargo-dist extracts to cha-cli-<platform>/cha, move binary to dest
+  const extracted = path.join(dir, `cha-cli-${platform}`, "cha");
+  if (fs.existsSync(extracted)) {
+    fs.renameSync(extracted, dest);
+    fs.rmSync(path.join(dir, `cha-cli-${platform}`), { recursive: true, force: true });
+  }
 }
 
 function fetchJson(url: string): Promise<any> {
