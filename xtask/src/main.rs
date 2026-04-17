@@ -471,6 +471,7 @@ fn cmd_publish(dry_run: bool) -> Result {
         ("cha-plugin-sdk-macros", "cha-plugin-sdk"),
         ("cha-parser", "."),
         ("cha-plugin-sdk", "cha-plugin-sdk"),
+        ("cha-lsp", "."),
         ("cha-cli", "."),
     ];
 
