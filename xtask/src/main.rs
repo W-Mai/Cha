@@ -531,6 +531,19 @@ fn cmd_bump(level: &str) -> Result {
             .status()?;
         println!("{}", if st.success() { "ok" } else { "FAILED" });
     }
+    // Sync vscode-cha/package.json version
+    let pkg_json = format!("{root}/vscode-cha/package.json");
+    if std::path::Path::new(&pkg_json).exists() {
+        let content = std::fs::read_to_string(&pkg_json)?;
+        let updated = content.replace(
+            &format!("\"version\": \"{current}\""),
+            &format!("\"version\": \"{next}\""),
+        );
+        if updated != content {
+            std::fs::write(&pkg_json, updated)?;
+            println!("  → updated {pkg_json}");
+        }
+    }
     println!("  ✅ version bumped to {next}");
     println!("  → run: git add -p && git commit -m \"🔖: bump version to {next}\"");
     Ok(())

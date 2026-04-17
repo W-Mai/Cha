@@ -2,7 +2,7 @@
   "name": "vscode-cha",
   "displayName": "Cha - Code Smell Analyzer",
   "description": "Code smell detection and refactoring suggestions powered by cha",
-  "version": "0.1.0",
+  "version": "0.7.0",
   "publisher": "w-mai",
   "repository": {
     "type": "git",
