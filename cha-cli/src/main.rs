@@ -176,6 +176,8 @@ enum Cli {
         /// Shell to generate completions for (bash, zsh, fish, powershell, elvish)
         shell: Option<clap_complete::Shell>,
     },
+    /// Start the Language Server Protocol server
+    Lsp,
 }
 
 #[derive(clap::Subcommand)]
@@ -303,6 +305,11 @@ fn run_other(cli: Cli) {
         ),
         Cli::Completions { shell } => cmd_completions(shell),
         Cli::Preset { cmd } => cmd_preset(cmd),
+        Cli::Lsp => {
+            tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(cha_lsp::run_lsp());
+        }
         _ => unreachable!(),
     }
 }

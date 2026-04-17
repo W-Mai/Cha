@@ -309,6 +309,7 @@ version = "0.7.0"
 dependencies = [
  "anyhow",
  "cha-core",
+ "cha-lsp",
  "cha-parser",
  "clap",
  "clap_complete",
@@ -320,6 +321,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "tokio",
  "wasi-preview1-component-adapter-provider",
  "wit-component 0.246.2",
 ]

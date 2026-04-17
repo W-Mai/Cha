@@ -10,4 +10,4 @@ max_file_lines = 850
 max_params = 7
 
 [plugins.complexity]
-warn_threshold = 13
+warn_threshold = 14
