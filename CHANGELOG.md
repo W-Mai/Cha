@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.0] - 2026-04-17
 
 ### Added
 - Dynamic shell completion for `--plugin` via `CompleteEnv` (unstable-dynamic): `eval "$(COMPLETE=zsh cha)"`
@@ -16,17 +16,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--strictness` flag: `relaxed` (2x), `default` (1x), `strict` (0.5x), or custom float — scales all numeric thresholds
 - Per-language plugin config: `[languages.c.plugins.naming]` overrides in `.cha.toml`
 - Builtin C language profile: disables naming, lazy_class, data_class, builder/null_object/strategy pattern by default
-- `AnalyzeOpts` struct replaces 8-parameter `cmd_analyze` (eliminates brain_method smell)
+- `cha preset list/show` subcommand — display language profiles and plugin rules
+- `SourceModel.type_aliases` — unified typedef/type alias tracking across all languages
+- C OOP heuristic: associate functions with structs via inheritance chain + same-module matching
+- `--exact --detail` now shows only directly matched classes, not parents/children
+- C parser `extract_params` now includes pointer info (`Type *`) from AST
+- UML class diagrams: `static` functions shown as private (`-`), non-static as public (`+`)
 
 ### Changed
 - `Config` struct now has `strictness` and `languages` fields (fully backward compatible)
 - `get_usize()` applies strictness scaling factor automatically
-- `cmd_analyze` refactored into `run_post_analysis()` + `apply_filters()`
+- `cmd_analyze` refactored into `AnalyzeOpts` + `run_post_analysis()` + `apply_filters()`
+- `parse_all_models` returns `(PathBuf, SourceModel)` pairs for correct file-model association
 
 ### Fixed
 - C/C++ parser: `static` functions now correctly marked `is_exported = false`; header files always exported
 - Reduces `large_api_surface` false positives by ~51% and enables accurate `dead_code` detection for C
 - `shotgun_surgery`, `divergent_change`, `bus_factor` now use single batch `git log` call instead of per-file — fixes freeze on large repos (lvgl: >2min → 23s)
+- C OOP method association resolves typedef aliases for cross-file matching
+- `class_dir` prefers struct definitions with fields over forward declarations
 
 ## [0.6.2] - 2026-04-15
 
