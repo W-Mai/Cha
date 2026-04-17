@@ -111,7 +111,12 @@ fn collect_top_level(
     for child in root.children(&mut cursor) {
         match child.kind() {
             "function_definition" => {
-                if let Some(f) = extract_function(child, src) {
+                // Heuristic: `class MACRO Name { ... };` is parsed by tree-sitter
+                // as a function_definition whose return type is a class_specifier.
+                // Detect this and extract as a class instead.
+                if let Some(c) = try_extract_macro_class(child, src) {
+                    classes.push(c);
+                } else if let Some(f) = extract_function(child, src) {
                     functions.push(f);
                 }
             }
@@ -171,6 +176,54 @@ fn extract_typedef_struct(
             classes.push(c);
         }
     }
+}
+
+/// Detect `class MACRO ClassName { ... };` misparse.
+/// tree-sitter sees this as function_definition with class_specifier return type.
+fn try_extract_macro_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
+    let mut has_class_spec = false;
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == "class_specifier" || child.kind() == "struct_specifier" {
+            has_class_spec = true;
+        }
+    }
+    if !has_class_spec {
+        return None;
+    }
+    // The real class name is the "identifier" child (what tree-sitter thinks is the func name)
+    let name = node
+        .child_by_field_name("declarator")
+        .filter(|d| d.kind() == "identifier")
+        .map(|d| node_text(d, src).to_string())?;
+    let body = node.child_by_field_name("body")?;
+    let start_line = node.start_position().row + 1;
+    let end_line = node.end_position().row + 1;
+    let method_count = count_methods(body);
+    let (field_names, field_types, first_field_type) = extract_field_info(body, src);
+
+    // Find parent from the class_specifier's base_class_clause if present
+    let parent_name = first_field_type;
+
+    Some(ClassInfo {
+        name,
+        start_line,
+        end_line,
+        line_count: end_line - start_line + 1,
+        method_count,
+        is_exported: true,
+        delegating_method_count: 0,
+        field_count: field_names.len(),
+        field_names,
+        field_types,
+        has_behavior: method_count > 0,
+        is_interface: false,
+        parent_name,
+        override_count: 0,
+        self_call_count: 0,
+        has_listener_field: false,
+        has_notify_method: false,
+    })
 }
 
 fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {

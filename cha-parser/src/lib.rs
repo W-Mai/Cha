@@ -27,11 +27,26 @@ pub fn parse_file(file: &SourceFile) -> Option<SourceModel> {
         "rs" => Box::new(RustParser),
         "py" => Box::new(PythonParser),
         "go" => Box::new(GolangParser),
+        "h" if looks_like_cpp(&file.content) => Box::new(CppParser),
         "c" | "h" => Box::new(CParser),
         "cpp" | "cc" | "cxx" | "hpp" | "hxx" => Box::new(CppParser),
         _ => return None,
     };
     parser.parse(file)
+}
+
+/// Sniff whether a `.h` file contains C++ constructs.
+fn looks_like_cpp(content: &str) -> bool {
+    content.lines().any(|line| {
+        let t = line.trim();
+        t.starts_with("class ")
+            || t.starts_with("namespace ")
+            || t.starts_with("template")
+            || t.starts_with("using ")
+            || t.contains("public:")
+            || t.contains("private:")
+            || t.contains("protected:")
+    })
 }
 
 #[cfg(test)]
