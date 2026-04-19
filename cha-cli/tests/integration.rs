@@ -265,3 +265,16 @@ fn fixture_dir(name: &str) -> String {
     path.push(name);
     path.to_string_lossy().to_string()
 }
+
+// -- S1: Language-adaptive thresholds --
+
+#[test]
+fn c_profile_no_long_method_under_100_lines() {
+    // medium.c has a ~78-line function. C profile threshold is 100, so no long_method.
+    let dir = fixture_dir("c_profile");
+    let (_, out) = run_analyze(&dir, "json");
+    assert!(
+        !out.contains("\"long_method\""),
+        "C file with <100 line function should not trigger long_method with C profile"
+    );
+}
