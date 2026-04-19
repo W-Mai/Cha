@@ -186,40 +186,45 @@ impl Config {
     pub fn resolve_for_language(&self, language: &str) -> Config {
         let lang_key = language.to_lowercase();
         let mut resolved = self.clone();
-
-        // Apply builtin profile (defaults for this language)
-        if let Some(builtin) = builtin_language_profile(&lang_key) {
-            for (name, enabled, options) in builtin {
-                // Only apply if user hasn't explicitly configured this plugin for this language
-                let user_override = self
-                    .languages
-                    .get(&lang_key)
-                    .is_some_and(|lc| lc.plugins.contains_key(name));
-                if !user_override {
-                    let entry = resolved.plugins.entry(name.to_string()).or_default();
-                    entry.enabled = enabled;
-                    for &(k, v) in options {
-                        entry
-                            .options
-                            .entry(k.to_string())
-                            .or_insert(toml::Value::Integer(v));
-                    }
-                }
-            }
-        }
-
-        // Apply user's [languages.xx] overrides
-        if let Some(lc) = self.languages.get(&lang_key) {
-            for (name, lpc) in &lc.plugins {
-                let entry = resolved.plugins.entry(name.clone()).or_default();
-                entry.enabled = lpc.enabled;
-                for (k, v) in &lpc.options {
-                    entry.options.insert(k.clone(), v.clone());
-                }
-            }
-        }
-
+        self.apply_builtin_profile(&lang_key, &mut resolved);
+        self.apply_user_language_overrides(&lang_key, &mut resolved);
         resolved
+    }
+
+    fn apply_builtin_profile(&self, lang_key: &str, resolved: &mut Config) {
+        let Some(builtin) = builtin_language_profile(lang_key) else {
+            return;
+        };
+        for (name, enabled, options) in builtin {
+            let user_override = self
+                .languages
+                .get(lang_key)
+                .is_some_and(|lc| lc.plugins.contains_key(name));
+            if user_override {
+                continue;
+            }
+            let entry = resolved.plugins.entry(name.to_string()).or_default();
+            entry.enabled = enabled;
+            for &(k, v) in options {
+                entry
+                    .options
+                    .entry(k.to_string())
+                    .or_insert(toml::Value::Integer(v));
+            }
+        }
+    }
+
+    fn apply_user_language_overrides(&self, lang_key: &str, resolved: &mut Config) {
+        let Some(lc) = self.languages.get(lang_key) else {
+            return;
+        };
+        for (name, lpc) in &lc.plugins {
+            let entry = resolved.plugins.entry(name.clone()).or_default();
+            entry.enabled = lpc.enabled;
+            for (k, v) in &lpc.options {
+                entry.options.insert(k.clone(), v.clone());
+            }
+        }
     }
 
     /// Check if a plugin is enabled (default: true if not mentioned).

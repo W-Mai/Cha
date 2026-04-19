@@ -14,17 +14,46 @@ pub struct Module {
 ///    Repeat until no new merges.
 /// 2. Directory fallback: remaining unmerged files are grouped by parent directory.
 pub fn infer_modules(file_imports: &[(String, String)], all_files: &[String]) -> Vec<Module> {
-    // Compute fan-in for each file
     let mut fan_in: HashMap<&str, HashSet<&str>> = HashMap::new();
     for (from, to) in file_imports {
         fan_in.entry(to.as_str()).or_default().insert(from.as_str());
     }
 
-    // Union-Find: each file starts as its own module
     let mut parent: HashMap<String, String> =
         all_files.iter().map(|f| (f.clone(), f.clone())).collect();
 
-    // Step 1: exclusive-dependency merge
+    merge_exclusive_deps(file_imports, &fan_in, &mut parent);
+
+    let mut groups: HashMap<String, Vec<String>> = HashMap::new();
+    for file in all_files {
+        groups
+            .entry(find(&parent, file))
+            .or_default()
+            .push(file.clone());
+    }
+
+    let mut dir_groups: HashMap<String, Vec<String>> = HashMap::new();
+    for (_, members) in groups {
+        dir_groups
+            .entry(common_prefix(&members))
+            .or_default()
+            .extend(members);
+    }
+
+    dir_groups
+        .into_values()
+        .map(|files| Module {
+            name: common_prefix(&files),
+            files,
+        })
+        .collect()
+}
+
+fn merge_exclusive_deps(
+    file_imports: &[(String, String)],
+    fan_in: &HashMap<&str, HashSet<&str>>,
+    parent: &mut HashMap<String, String>,
+) {
     loop {
         let mut changed = false;
         for (_, to) in file_imports {
@@ -33,8 +62,8 @@ pub fn infer_modules(file_imports: &[(String, String)], all_files: &[String]) ->
                 _ => continue,
             };
             let sole_importer = importers.iter().next().unwrap();
-            let root_a = find(&parent, sole_importer);
-            let root_b = find(&parent, to);
+            let root_a = find(parent, sole_importer);
+            let root_b = find(parent, to);
             if root_a != root_b {
                 parent.insert(root_b, root_a.clone());
                 changed = true;
@@ -44,28 +73,6 @@ pub fn infer_modules(file_imports: &[(String, String)], all_files: &[String]) ->
             break;
         }
     }
-
-    // Step 2: directory fallback — merge modules that share the same parent directory
-    let mut groups: HashMap<String, Vec<String>> = HashMap::new();
-    for file in all_files {
-        let root = find(&parent, file);
-        groups.entry(root).or_default().push(file.clone());
-    }
-
-    // Group all clusters by their common parent directory, then merge
-    let mut dir_groups: HashMap<String, Vec<String>> = HashMap::new();
-    for (_, members) in groups {
-        let dir = common_prefix(&members);
-        dir_groups.entry(dir).or_default().extend(members);
-    }
-
-    dir_groups
-        .into_values()
-        .map(|files| {
-            let name = common_prefix(&files);
-            Module { name, files }
-        })
-        .collect()
 }
 
 fn find(parent: &HashMap<String, String>, x: &str) -> String {
@@ -80,28 +87,23 @@ fn find(parent: &HashMap<String, String>, x: &str) -> String {
 }
 
 fn common_prefix(paths: &[String]) -> String {
-    if paths.is_empty() {
-        return String::new();
-    }
-    if paths.len() == 1 {
-        return std::path::Path::new(&paths[0])
-            .parent()
+    if paths.len() <= 1 {
+        return paths
+            .first()
+            .and_then(|p| std::path::Path::new(p).parent())
             .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|| paths[0].clone());
+            .unwrap_or_default();
     }
     let parts: Vec<Vec<&str>> = paths.iter().map(|p| p.split('/').collect()).collect();
-    let mut prefix = Vec::new();
-    for i in 0.. {
-        let first = match parts[0].get(i) {
-            Some(s) => s,
-            None => break,
-        };
-        if parts.iter().all(|p| p.get(i) == Some(first)) {
-            prefix.push(*first);
-        } else {
-            break;
-        }
-    }
+    let prefix: Vec<&str> = (0..)
+        .map_while(|i| {
+            let first = parts[0].get(i)?;
+            parts
+                .iter()
+                .all(|p| p.get(i) == Some(first))
+                .then_some(*first)
+        })
+        .collect();
     if prefix.is_empty() {
         "(root)".to_string()
     } else {

@@ -95,8 +95,10 @@ fn extract_directive_payload<'a>(line: &'a str, directive: &str) -> Option<&'a s
 }
 
 fn covers(directive_line: usize, finding: &Finding) -> bool {
-    directive_line == finding.location.start_line
-        || directive_line + 1 == finding.location.start_line
+    // Allow directive on same line, or within a consecutive block of directives
+    // immediately before the finding (e.g. two cha:ignore lines before a function)
+    let start = finding.location.start_line;
+    directive_line == start || (directive_line < start && start - directive_line <= 2)
 }
 
 fn is_suppressed(finding: &Finding, ignores: &[IgnoreDirective]) -> bool {

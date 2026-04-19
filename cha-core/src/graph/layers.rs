@@ -28,16 +28,31 @@ pub fn infer_layers(
     modules: &[Module],
     file_imports: &[(String, String)],
 ) -> (Vec<LayerInfo>, Vec<LayerViolation>) {
-    // Map file → module name
     let file_to_mod: HashMap<&str, &str> = modules
         .iter()
         .flat_map(|m| m.files.iter().map(|f| (f.as_str(), m.name.as_str())))
         .collect();
 
-    // Compute module-level fan-in/fan-out
+    let (fan_in, fan_out) = compute_module_fans(&file_to_mod, file_imports);
+    let mut layers = build_layers(modules, &fan_in, &fan_out);
+
+    layers.sort_by(|a, b| a.instability.partial_cmp(&b.instability).unwrap());
+    for (i, l) in layers.iter_mut().enumerate() {
+        l.level = i;
+    }
+
+    let violations = detect_violations(&layers, &file_to_mod, file_imports);
+    (layers, violations)
+}
+
+type FanMap<'a> = HashMap<&'a str, HashSet<&'a str>>;
+
+fn compute_module_fans<'a>(
+    file_to_mod: &HashMap<&'a str, &'a str>,
+    file_imports: &[(String, String)],
+) -> (FanMap<'a>, FanMap<'a>) {
     let mut fan_in: HashMap<&str, HashSet<&str>> = HashMap::new();
     let mut fan_out: HashMap<&str, HashSet<&str>> = HashMap::new();
-
     for (from, to) in file_imports {
         let fm = file_to_mod.get(from.as_str()).copied().unwrap_or("");
         let tm = file_to_mod.get(to.as_str()).copied().unwrap_or("");
@@ -46,9 +61,15 @@ pub fn infer_layers(
             fan_in.entry(tm).or_default().insert(fm);
         }
     }
+    (fan_in, fan_out)
+}
 
-    // Build layers sorted by instability
-    let mut layers: Vec<LayerInfo> = modules
+fn build_layers(
+    modules: &[Module],
+    fan_in: &HashMap<&str, HashSet<&str>>,
+    fan_out: &HashMap<&str, HashSet<&str>>,
+) -> Vec<LayerInfo> {
+    modules
         .iter()
         .map(|m| {
             let fi = fan_in.get(m.name.as_str()).map(|s| s.len()).unwrap_or(0);
@@ -67,18 +88,18 @@ pub fn infer_layers(
                 },
             }
         })
-        .collect();
+        .collect()
+}
 
-    layers.sort_by(|a, b| a.instability.partial_cmp(&b.instability).unwrap());
-    for (i, l) in layers.iter_mut().enumerate() {
-        l.level = i;
-    }
-
-    // Detect violations: stable module importing volatile module
+fn detect_violations(
+    layers: &[LayerInfo],
+    file_to_mod: &HashMap<&str, &str>,
+    file_imports: &[(String, String)],
+) -> Vec<LayerViolation> {
     let level_map: BTreeMap<&str, usize> =
         layers.iter().map(|l| (l.name.as_str(), l.level)).collect();
 
-    let mut violations: BTreeMap<(&str, &str), (usize, usize)> = BTreeMap::new();
+    let mut seen: BTreeMap<(&str, &str), (usize, usize)> = BTreeMap::new();
     for (from, to) in file_imports {
         let fm = file_to_mod.get(from.as_str()).copied().unwrap_or("");
         let tm = file_to_mod.get(to.as_str()).copied().unwrap_or("");
@@ -88,21 +109,18 @@ pub fn infer_layers(
         if let (Some(&fl), Some(&tl)) = (level_map.get(fm), level_map.get(tm))
             && fl < tl
         {
-            violations.entry((fm, tm)).or_insert((fl, tl));
+            seen.entry((fm, tm)).or_insert((fl, tl));
         }
     }
 
-    let violation_list: Vec<LayerViolation> = violations
-        .into_iter()
+    seen.into_iter()
         .map(|((from, to), (fl, tl))| LayerViolation {
             from_module: from.to_string(),
             to_module: to.to_string(),
             from_level: fl,
             to_level: tl,
         })
-        .collect();
-
-    (layers, violation_list)
+        .collect()
 }
 
 #[cfg(test)]

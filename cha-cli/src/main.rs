@@ -301,7 +301,6 @@ fn dispatch(cli: Cli) -> i32 {
     }
 }
 
-// cha:ignore switch_statement
 fn run_other(cli: Cli) {
     match cli {
         Cli::Baseline { paths, output } => cmd_baseline(&paths, output.as_deref()),
@@ -313,6 +312,14 @@ fn run_other(cli: Cli) {
             dry_run,
         } => cmd_fix(&paths, diff, dry_run),
         Cli::Plugin { cmd } => cmd_plugin(cmd),
+        Cli::Completions { shell } => cmd_completions(shell),
+        Cli::Preset { cmd } => cmd_preset(cmd),
+        other => run_analysis_commands(other),
+    }
+}
+
+fn run_analysis_commands(cli: Cli) {
+    match cli {
         Cli::Trend { count, format } => trend::cmd_trend(count, &format),
         Cli::Hotspot { count, top, format } => hotspot::cmd_hotspot(count, top, &format),
         Cli::Layers {
@@ -339,13 +346,9 @@ fn run_other(cli: Cli) {
             detail,
             &direction,
         ),
-        Cli::Completions { shell } => cmd_completions(shell),
-        Cli::Preset { cmd } => cmd_preset(cmd),
-        Cli::Lsp => {
-            tokio::runtime::Runtime::new()
-                .unwrap()
-                .block_on(cha_lsp::run_lsp());
-        }
+        Cli::Lsp => tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(cha_lsp::run_lsp()),
         _ => unreachable!(),
     }
 }

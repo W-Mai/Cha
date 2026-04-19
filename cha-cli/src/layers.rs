@@ -39,24 +39,39 @@ fn build_import_edges(
     files: &[PathBuf],
     cwd: &std::path::Path,
 ) -> (Vec<(String, String)>, Vec<String>) {
+    let (name_to_paths, all_files) = index_files(files, cwd);
+    let edges = resolve_edges(files, cwd, &name_to_paths);
+    (edges, all_files)
+}
+
+fn index_files(
+    files: &[PathBuf],
+    cwd: &std::path::Path,
+) -> (HashMap<String, Vec<String>>, Vec<String>) {
     let mut name_to_paths: HashMap<String, Vec<String>> = HashMap::new();
     let mut all_files = Vec::new();
-
     for path in files {
-        let rel_str = path
+        let rel = path
             .strip_prefix(cwd)
             .unwrap_or(path)
             .to_string_lossy()
             .to_string();
-        all_files.push(rel_str.clone());
+        all_files.push(rel.clone());
         if let Some(name) = path.file_name() {
             name_to_paths
                 .entry(name.to_string_lossy().to_string())
                 .or_default()
-                .push(rel_str);
+                .push(rel);
         }
     }
+    (name_to_paths, all_files)
+}
 
+fn resolve_edges(
+    files: &[PathBuf],
+    cwd: &std::path::Path,
+    name_to_paths: &HashMap<String, Vec<String>>,
+) -> Vec<(String, String)> {
     let mut edges = Vec::new();
     for path in files {
         let rel = path
@@ -64,36 +79,40 @@ fn build_import_edges(
             .unwrap_or(path)
             .to_string_lossy()
             .to_string();
-        let content = match std::fs::read_to_string(path) {
-            Ok(c) => c,
-            Err(_) => continue,
+        let Ok(content) = std::fs::read_to_string(path) else {
+            continue;
         };
         let file = SourceFile::new(path.clone(), content);
-        let model = match cha_parser::parse_file(&file) {
-            Some(m) => m,
-            None => continue,
+        let Some(model) = cha_parser::parse_file(&file) else {
+            continue;
         };
 
         let src_dir = std::path::Path::new(&rel)
             .parent()
             .unwrap_or(std::path::Path::new(""));
-
         for imp in &model.imports {
             let target_name = imp.source.split('/').next_back().unwrap_or(&imp.source);
             if let Some(candidates) = name_to_paths.get(target_name)
-                && let Some(target) = candidates.iter().min_by_key(|c| {
-                    let c_dir = std::path::Path::new(c.as_str())
-                        .parent()
-                        .unwrap_or(std::path::Path::new(""));
-                    if c_dir == src_dir { 0usize } else { 1 }
-                })
+                && let Some(target) = closest_candidate(candidates, src_dir)
                 && *target != rel
             {
                 edges.push((rel.clone(), target.clone()));
             }
         }
     }
-    (edges, all_files)
+    edges
+}
+
+fn closest_candidate<'a>(
+    candidates: &'a [String],
+    src_dir: &std::path::Path,
+) -> Option<&'a String> {
+    candidates.iter().min_by_key(|c| {
+        let c_dir = std::path::Path::new(c.as_str())
+            .parent()
+            .unwrap_or(std::path::Path::new(""));
+        usize::from(c_dir != src_dir)
+    })
 }
 
 fn render_mermaid(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation]) {
@@ -142,20 +161,29 @@ fn render_dot(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation])
         .filter(|l| l.fan_in + l.fan_out > 0 || active.contains(l.name.as_str()))
         .collect();
 
-    let bands: &[(&str, f64, f64)] = &[
+    println!("digraph layers {{");
+    println!("  rankdir=LR;");
+    println!("  node [shape=box style=filled fillcolor=lightyellow fontsize=10];");
+    println!("  edge [color=gray];");
+    render_dot_bands(&shown);
+    for v in violations {
+        println!(
+            "  {:?} -> {:?} [color=red penwidth=2];",
+            v.from_module, v.to_module
+        );
+    }
+    println!("}}");
+}
+
+fn render_dot_bands(shown: &[&graph::LayerInfo]) {
+    const BANDS: &[(&str, f64, f64)] = &[
         ("Stable (I<0.2)", 0.0, 0.2),
         ("Core (0.2<=I<0.4)", 0.2, 0.4),
         ("Mid (0.4<=I<0.6)", 0.4, 0.6),
         ("Volatile (0.6<=I<0.8)", 0.6, 0.8),
         ("Leaf (I>=0.8)", 0.8, 1.01),
     ];
-
-    println!("digraph layers {{");
-    println!("  rankdir=LR;");
-    println!("  node [shape=box style=filled fillcolor=lightyellow fontsize=10];");
-    println!("  edge [color=gray];");
-
-    for (i, &(label, lo, hi)) in bands.iter().enumerate() {
+    for (i, &(label, lo, hi)) in BANDS.iter().enumerate() {
         let members: Vec<&&graph::LayerInfo> = shown
             .iter()
             .filter(|l| l.instability >= lo && l.instability < hi)
@@ -176,14 +204,6 @@ fn render_dot(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation])
         }
         println!("  }}");
     }
-
-    for v in violations {
-        println!(
-            "  {:?} -> {:?} [color=red penwidth=2];",
-            v.from_module, v.to_module
-        );
-    }
-    println!("}}");
 }
 
 fn render_json(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation]) {
