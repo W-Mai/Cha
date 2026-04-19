@@ -1,6 +1,7 @@
 mod baseline;
 mod cache;
 pub mod config;
+pub mod graph;
 mod health;
 pub mod html_reporter;
 mod ignore;

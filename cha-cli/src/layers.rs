@@ -1,7 +1,8 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use cha_core::SourceFile;
+use cha_core::graph;
 
 use crate::{analyze::filter_excluded, collect_files};
 
@@ -10,57 +11,44 @@ pub fn cmd_layers(paths: &[String], save: bool) {
     let root_config = cha_core::Config::load(&cwd);
     let files = filter_excluded(collect_files(paths), &root_config.exclude, &cwd);
 
-    let edges = build_dir_imports(&files, &cwd);
-    let mut layers = infer_layers(&edges);
-    layers.sort_by(|a, b| a.instability.partial_cmp(&b.instability).unwrap());
+    let (file_imports, all_files) = build_import_edges(&files, &cwd);
 
-    println!("Inferred layers:\n");
+    let modules = graph::infer_modules(&file_imports, &all_files);
+    let (layers, violations) = graph::infer_layers(&modules, &file_imports);
+
     println!(
-        "  {:<25} {:>7} {:>8} {:>12} {:>6}",
-        "Directory", "fan-in", "fan-out", "Instability", "Layer"
+        "Inferred {} modules, {} layers:\n",
+        modules.len(),
+        layers.len()
     );
-    println!("  {}", "-".repeat(62));
-    for (i, l) in layers.iter().enumerate() {
+    println!(
+        "  {:<40} {:>5} {:>7} {:>8} {:>6}",
+        "Module", "files", "fan-in", "fan-out", "I"
+    );
+    println!("  {}", "-".repeat(70));
+    for l in &layers {
         println!(
-            "  {:<25} {:>7} {:>8} {:>12.2} {:>6}",
-            l.name,
-            l.fan_in,
-            l.fan_out,
-            l.instability,
-            format!("L{i}")
+            "  {:<40} {:>5} {:>7} {:>8} {:>6.2}  L{}",
+            l.name, l.file_count, l.fan_in, l.fan_out, l.instability, l.level
         );
     }
 
-    // Detect violations: lower instability dir importing higher instability dir
-    let level: BTreeMap<&str, usize> = layers
-        .iter()
-        .enumerate()
-        .map(|(i, l)| (l.name.as_str(), i))
-        .collect();
-    let mut violations = Vec::new();
-    for (from_dir, to_dir) in &edges {
-        if let (Some(&from_level), Some(&to_level)) =
-            (level.get(from_dir.as_str()), level.get(to_dir.as_str()))
-            && from_level < to_level
-        {
-            violations.push((from_dir.clone(), to_dir.clone(), from_level, to_level));
-        }
-    }
-
-    if !violations.is_empty() {
-        println!("\n⚠ {} potential layer violation(s):", violations.len());
-        for (from, to, fl, tl) in &violations {
-            println!("  {from} (L{fl}) imports {to} (L{tl})");
-        }
-    } else {
+    if violations.is_empty() {
         println!("\n✅ No layer violations detected.");
+    } else {
+        println!("\n⚠ {} potential layer violation(s):", violations.len());
+        for v in &violations {
+            println!(
+                "  {} (L{}) → {} (L{})",
+                v.from_module, v.from_level, v.to_module, v.to_level
+            );
+        }
     }
 
     if save {
         let layers_str = layers
             .iter()
-            .enumerate()
-            .map(|(i, l)| format!("{}:{}", l.name, i))
+            .map(|l| format!("{}:{}", l.name, l.level))
             .collect::<Vec<_>>()
             .join(",");
         println!("\nTo use in .cha.toml:\n");
@@ -69,40 +57,35 @@ pub fn cmd_layers(paths: &[String], save: bool) {
     }
 }
 
-struct LayerInfo {
-    name: String,
-    fan_in: usize,
-    fan_out: usize,
-    instability: f64,
-}
+fn build_import_edges(
+    files: &[PathBuf],
+    cwd: &std::path::Path,
+) -> (Vec<(String, String)>, Vec<String>) {
+    let mut name_to_paths: HashMap<String, Vec<String>> = HashMap::new();
+    let mut all_files = Vec::new();
 
-fn build_dir_imports(files: &[PathBuf], cwd: &std::path::Path) -> Vec<(String, String)> {
-    use std::collections::HashMap;
-
-    // First pass: build file→directory mapping for all project files
-    let mut file_to_dir: HashMap<String, String> = HashMap::new();
     for path in files {
-        let rel = path.strip_prefix(cwd).unwrap_or(path);
-        let components: Vec<_> = rel.components().collect();
-        // Use parent directory name as the "module"
-        if components.len() >= 2 {
-            let dir = components[components.len() - 2]
-                .as_os_str()
-                .to_string_lossy()
-                .to_string();
-            let filename = components
-                .last()
-                .unwrap()
-                .as_os_str()
-                .to_string_lossy()
-                .to_string();
-            file_to_dir.insert(filename, dir);
+        let rel_str = path
+            .strip_prefix(cwd)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string();
+        all_files.push(rel_str.clone());
+        if let Some(name) = path.file_name() {
+            name_to_paths
+                .entry(name.to_string_lossy().to_string())
+                .or_default()
+                .push(rel_str);
         }
     }
 
-    // Second pass: for each file's imports, resolve target directory
     let mut edges = Vec::new();
     for path in files {
+        let rel = path
+            .strip_prefix(cwd)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string();
         let content = match std::fs::read_to_string(path) {
             Ok(c) => c,
             Err(_) => continue,
@@ -112,56 +95,25 @@ fn build_dir_imports(files: &[PathBuf], cwd: &std::path::Path) -> Vec<(String, S
             Some(m) => m,
             None => continue,
         };
-        let rel = path.strip_prefix(cwd).unwrap_or(path);
-        let components: Vec<_> = rel.components().collect();
-        if components.len() < 2 {
-            continue;
-        }
-        let src_dir = components[components.len() - 2]
-            .as_os_str()
-            .to_string_lossy()
-            .to_string();
+
+        let src_dir = std::path::Path::new(&rel)
+            .parent()
+            .unwrap_or(std::path::Path::new(""));
 
         for imp in &model.imports {
-            // Extract filename from import path (last component)
-            let imp_file = imp.source.split('/').next_back().unwrap_or(&imp.source);
-            if let Some(dst_dir) = file_to_dir.get(imp_file)
-                && *dst_dir != src_dir
+            let target_name = imp.source.split('/').next_back().unwrap_or(&imp.source);
+            if let Some(candidates) = name_to_paths.get(target_name)
+                && let Some(target) = candidates.iter().min_by_key(|c| {
+                    let c_dir = std::path::Path::new(c.as_str())
+                        .parent()
+                        .unwrap_or(std::path::Path::new(""));
+                    if c_dir == src_dir { 0usize } else { 1 }
+                })
+                && *target != rel
             {
-                edges.push((src_dir.clone(), dst_dir.clone()));
+                edges.push((rel.clone(), target.clone()));
             }
         }
     }
-    edges
-}
-
-fn infer_layers(edges: &[(String, String)]) -> Vec<LayerInfo> {
-    let mut fan_in: BTreeMap<&str, HashSet<&str>> = BTreeMap::new();
-    let mut fan_out: BTreeMap<&str, HashSet<&str>> = BTreeMap::new();
-
-    for (from, to) in edges {
-        fan_out.entry(from).or_default().insert(to);
-        fan_in.entry(to).or_default().insert(from);
-    }
-
-    let all_dirs: HashSet<&str> = fan_in.keys().chain(fan_out.keys()).copied().collect();
-    all_dirs
-        .into_iter()
-        .map(|name| {
-            let fi = fan_in.get(name).map(|s| s.len()).unwrap_or(0);
-            let fo = fan_out.get(name).map(|s| s.len()).unwrap_or(0);
-            let total = fi + fo;
-            let instability = if total > 0 {
-                fo as f64 / total as f64
-            } else {
-                0.5
-            };
-            LayerInfo {
-                name: name.to_string(),
-                fan_in: fi,
-                fan_out: fo,
-                instability,
-            }
-        })
-        .collect()
+    (edges, all_files)
 }
