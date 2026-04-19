@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Language-adaptive thresholds: C/C++ profile with higher defaults (long_method=100, complexity=15, large_file=2000)
+- Smart terminal aggregation: findings >5 grouped into summary + top 3 worst, `--all` flag for full listing
+- `cha layers` command: infer architectural layers from import dependencies (experimental)
+- `cha-core::graph` module: module inference (exclusive-dep merge + directory fallback) + layer detection
+- `cha layers --format dot|mermaid|json|plantuml` with layered architecture diagram
+
 ## [1.0.5] - 2026-04-17
 
 ### Fixed
