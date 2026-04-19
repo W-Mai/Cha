@@ -98,36 +98,89 @@ fn build_import_edges(
 
 fn render_mermaid(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation]) {
     println!("graph TD");
-    for l in layers {
-        let id = sanitize(&l.name);
-        println!(
-            "  {id}[\"{} (L{}, {}f, I={:.2})\"]",
-            l.name, l.level, l.file_count, l.instability
-        );
+    let bands = [
+        ("Stable", 0.0, 0.2),
+        ("Core", 0.2, 0.4),
+        ("Mid", 0.4, 0.6),
+        ("Volatile", 0.6, 0.8),
+        ("Leaf", 0.8, 1.01),
+    ];
+    for (label, lo, hi) in &bands {
+        let members: Vec<&graph::LayerInfo> = layers
+            .iter()
+            .filter(|l| l.instability >= *lo && l.instability < *hi && l.fan_in + l.fan_out > 0)
+            .collect();
+        if members.is_empty() {
+            continue;
+        }
+        let id = sanitize(label);
+        println!("  subgraph {id}[\"{label}\"]");
+        for l in &members {
+            let nid = sanitize(&l.name);
+            let short = l.name.split('/').next_back().unwrap_or(&l.name);
+            println!(
+                "    {nid}[\"{short} ({}f, I={:.2})\"]",
+                l.file_count, l.instability
+            );
+        }
+        println!("  end");
     }
     for v in violations {
         let from = sanitize(&v.from_module);
         let to = sanitize(&v.to_module);
         println!("  {from} -->|violation| {to}");
     }
-    // Style violations in red
-    for (i, _) in violations.iter().enumerate() {
-        println!("  linkStyle {} stroke:red,stroke-width:2", layers.len() + i);
-    }
 }
 
 fn render_dot(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation]) {
+    // Only show modules that have cross-module dependencies
+    let active: std::collections::HashSet<&str> = violations
+        .iter()
+        .flat_map(|v| [v.from_module.as_str(), v.to_module.as_str()])
+        .collect();
+    let shown: Vec<&graph::LayerInfo> = layers
+        .iter()
+        .filter(|l| l.fan_in + l.fan_out > 0 || active.contains(l.name.as_str()))
+        .collect();
+
+    // Group into layer bands (bucket by instability: 0-0.2, 0.2-0.4, 0.4-0.6, 0.6-0.8, 0.8-1.0)
+    let bands = [
+        ("Stable (I<0.2)", 0.0, 0.2),
+        ("Core (0.2≤I<0.4)", 0.2, 0.4),
+        ("Mid (0.4≤I<0.6)", 0.4, 0.6),
+        ("Volatile (0.6≤I<0.8)", 0.6, 0.8),
+        ("Leaf (I≥0.8)", 0.8, 1.01),
+    ];
+
     println!("digraph layers {{");
     println!("  rankdir=BT;");
-    for l in layers {
-        println!(
-            "  \"{}\" [label=\"{} (L{}, {}f, I={:.2})\"];",
-            l.name, l.name, l.level, l.file_count, l.instability
-        );
+    println!("  node [shape=box, style=filled, fillcolor=lightyellow];");
+    println!("  edge [color=gray];");
+
+    for (i, (label, lo, hi)) in bands.iter().enumerate() {
+        let members: Vec<&&graph::LayerInfo> = shown
+            .iter()
+            .filter(|l| l.instability >= *lo && l.instability < *hi)
+            .collect();
+        if members.is_empty() {
+            continue;
+        }
+        println!("  subgraph cluster_{i} {{");
+        println!("    label=\"{label}\";");
+        println!("    style=dashed;");
+        for l in &members {
+            let short = l.name.split('/').next_back().unwrap_or(&l.name);
+            println!(
+                "    \"{}\" [label=\"{}\\n{}f, I={:.2}\"];",
+                l.name, short, l.file_count, l.instability
+            );
+        }
+        println!("  }}");
     }
+
     for v in violations {
         println!(
-            "  \"{}\" -> \"{}\" [color=red, label=\"violation\"];",
+            "  \"{}\" -> \"{}\" [color=red, penwidth=2];",
             v.from_module, v.to_module
         );
     }
