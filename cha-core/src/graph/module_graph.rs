@@ -45,35 +45,22 @@ pub fn infer_modules(file_imports: &[(String, String)], all_files: &[String]) ->
         }
     }
 
-    // Step 2: directory fallback — group remaining singletons by parent dir
+    // Step 2: directory fallback — merge modules that share the same parent directory
     let mut groups: HashMap<String, Vec<String>> = HashMap::new();
     for file in all_files {
         let root = find(&parent, file);
         groups.entry(root).or_default().push(file.clone());
     }
 
-    // Merge single-file groups by directory
+    // Group all clusters by their common parent directory, then merge
     let mut dir_groups: HashMap<String, Vec<String>> = HashMap::new();
-    let mut result_groups: Vec<Vec<String>> = Vec::new();
-
     for (_, members) in groups {
-        if members.len() > 1 {
-            result_groups.push(members);
-        } else {
-            let dir = std::path::Path::new(&members[0])
-                .parent()
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_default();
-            dir_groups.entry(dir).or_default().extend(members);
-        }
-    }
-    for (_, members) in dir_groups {
-        result_groups.push(members);
+        let dir = common_prefix(&members);
+        dir_groups.entry(dir).or_default().extend(members);
     }
 
-    // Name each module by common path prefix
-    result_groups
-        .into_iter()
+    dir_groups
+        .into_values()
         .map(|files| {
             let name = common_prefix(&files);
             Module { name, files }
