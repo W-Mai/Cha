@@ -133,7 +133,6 @@ fn render_mermaid(layers: &[graph::LayerInfo], violations: &[graph::LayerViolati
 }
 
 fn render_dot(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation]) {
-    // Only show modules that have cross-module dependencies
     let active: std::collections::HashSet<&str> = violations
         .iter()
         .flat_map(|v| [v.from_module.as_str(), v.to_module.as_str()])
@@ -143,36 +142,36 @@ fn render_dot(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation])
         .filter(|l| l.fan_in + l.fan_out > 0 || active.contains(l.name.as_str()))
         .collect();
 
-    // Group into layer bands (bucket by instability: 0-0.2, 0.2-0.4, 0.4-0.6, 0.6-0.8, 0.8-1.0)
-    let bands = [
+    let bands: &[(&str, f64, f64)] = &[
         ("Stable (I<0.2)", 0.0, 0.2),
-        ("Core (0.2≤I<0.4)", 0.2, 0.4),
-        ("Mid (0.4≤I<0.6)", 0.4, 0.6),
-        ("Volatile (0.6≤I<0.8)", 0.6, 0.8),
-        ("Leaf (I≥0.8)", 0.8, 1.01),
+        ("Core (0.2<=I<0.4)", 0.2, 0.4),
+        ("Mid (0.4<=I<0.6)", 0.4, 0.6),
+        ("Volatile (0.6<=I<0.8)", 0.6, 0.8),
+        ("Leaf (I>=0.8)", 0.8, 1.01),
     ];
 
     println!("digraph layers {{");
-    println!("  rankdir=BT;");
-    println!("  node [shape=box, style=filled, fillcolor=lightyellow];");
+    println!("  rankdir=LR;");
+    println!("  node [shape=box style=filled fillcolor=lightyellow fontsize=10];");
     println!("  edge [color=gray];");
 
-    for (i, (label, lo, hi)) in bands.iter().enumerate() {
+    for (i, &(label, lo, hi)) in bands.iter().enumerate() {
         let members: Vec<&&graph::LayerInfo> = shown
             .iter()
-            .filter(|l| l.instability >= *lo && l.instability < *hi)
+            .filter(|l| l.instability >= lo && l.instability < hi)
             .collect();
         if members.is_empty() {
             continue;
         }
         println!("  subgraph cluster_{i} {{");
-        println!("    label=\"{label}\";");
+        println!("    label={:?};", label);
         println!("    style=dashed;");
         for l in &members {
             let short = l.name.split('/').next_back().unwrap_or(&l.name);
             println!(
-                "    \"{}\" [label=\"{}\\n{}f, I={:.2}\"];",
-                l.name, short, l.file_count, l.instability
+                "    {:?} [label={:?}];",
+                l.name,
+                format!("{}\n{}f, I={:.2}", short, l.file_count, l.instability)
             );
         }
         println!("  }}");
@@ -180,7 +179,7 @@ fn render_dot(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation])
 
     for v in violations {
         println!(
-            "  \"{}\" -> \"{}\" [color=red, penwidth=2];",
+            "  {:?} -> {:?} [color=red penwidth=2];",
             v.from_module, v.to_module
         );
     }
