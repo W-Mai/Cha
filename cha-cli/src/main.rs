@@ -373,7 +373,7 @@ fn cmd_preset(cmd: PresetCmd) {
                 let profile = cha_core::builtin_language_profile(lang);
                 let disabled = profile
                     .as_ref()
-                    .map(|p| p.iter().filter(|(_, e)| !e).count())
+                    .map(|p| p.iter().filter(|(_, e, _)| !e).count())
                     .unwrap_or(0);
                 if disabled > 0 {
                     println!("  {lang:<12} ({disabled} rules disabled by default)");
@@ -401,7 +401,12 @@ fn cmd_preset_show(language: &str) {
     let profile = cha_core::builtin_language_profile(&lang);
     let disabled: std::collections::HashSet<&str> = profile
         .as_ref()
-        .map(|p| p.iter().filter(|(_, e)| !e).map(|(n, _)| *n).collect())
+        .map(|p| {
+            p.iter()
+                .filter(|(_, e, _)| !e)
+                .map(|(n, _, _)| *n)
+                .collect()
+        })
         .unwrap_or_default();
 
     let registry = PluginRegistry::from_config(&resolved, &cwd);

@@ -189,18 +189,21 @@ impl Config {
 
         // Apply builtin profile (defaults for this language)
         if let Some(builtin) = builtin_language_profile(&lang_key) {
-            for (name, enabled) in builtin {
+            for (name, enabled, options) in builtin {
                 // Only apply if user hasn't explicitly configured this plugin for this language
                 let user_override = self
                     .languages
                     .get(&lang_key)
                     .is_some_and(|lc| lc.plugins.contains_key(name));
                 if !user_override {
-                    resolved
-                        .plugins
-                        .entry(name.to_string())
-                        .or_default()
-                        .enabled = enabled;
+                    let entry = resolved.plugins.entry(name.to_string()).or_default();
+                    entry.enabled = enabled;
+                    for &(k, v) in options {
+                        entry
+                            .options
+                            .entry(k.to_string())
+                            .or_insert(toml::Value::Integer(v));
+                    }
                 }
             }
         }
@@ -276,17 +279,37 @@ fn collect_configs_upward(start_dir: &Path, root: &Path) -> Vec<Config> {
     configs
 }
 
-/// Builtin language profiles: rules disabled by default for specific languages.
-/// Returns (plugin_name, enabled) pairs. Users can override via `[languages.xx.plugins.yy]`.
-pub fn builtin_language_profile(language: &str) -> Option<Vec<(&'static str, bool)>> {
+/// A builtin plugin profile entry: (name, enabled, option overrides).
+pub type PluginProfile = (&'static str, bool, &'static [(&'static str, i64)]);
+
+/// Builtin language profiles: default plugin settings for specific languages.
+/// Returns (plugin_name, enabled, options) tuples. Users can override via `[languages.xx.plugins.yy]`.
+pub fn builtin_language_profile(language: &str) -> Option<Vec<PluginProfile>> {
     match language {
-        "c" => Some(vec![
-            ("naming", false),
-            ("lazy_class", false),
-            ("data_class", false),
-            ("builder_pattern", false),
-            ("null_object_pattern", false),
-            ("strategy_pattern", false),
+        "c" | "cpp" => Some(vec![
+            ("naming", false, &[] as &[(&str, i64)]),
+            ("lazy_class", false, &[]),
+            ("data_class", false, &[]),
+            ("builder_pattern", false, &[]),
+            ("null_object_pattern", false, &[]),
+            ("strategy_pattern", false, &[]),
+            (
+                "length",
+                true,
+                &[
+                    ("max_function_lines", 100),
+                    ("max_file_lines", 2000),
+                    ("max_class_lines", 400),
+                ],
+            ),
+            (
+                "complexity",
+                true,
+                &[("warn_threshold", 15), ("error_threshold", 30)],
+            ),
+            ("cognitive_complexity", true, &[("threshold", 25)]),
+            ("coupling", true, &[("max_imports", 25)]),
+            ("long_parameter_list", true, &[("max_params", 7)]),
         ]),
         _ => None,
     }
