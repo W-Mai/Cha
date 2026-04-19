@@ -4,9 +4,9 @@ use std::path::PathBuf;
 use cha_core::SourceFile;
 use cha_core::graph;
 
-use crate::{analyze::filter_excluded, collect_files};
+use crate::{DepsFormat, analyze::filter_excluded, collect_files};
 
-pub fn cmd_layers(paths: &[String], save: bool) {
+pub fn cmd_layers(paths: &[String], save: bool, format: &DepsFormat) {
     let cwd = std::env::current_dir().unwrap_or_default();
     let root_config = cha_core::Config::load(&cwd);
     let files = filter_excluded(collect_files(paths), &root_config.exclude, &cwd);
@@ -16,33 +16,11 @@ pub fn cmd_layers(paths: &[String], save: bool) {
     let modules = graph::infer_modules(&file_imports, &all_files);
     let (layers, violations) = graph::infer_layers(&modules, &file_imports);
 
-    println!(
-        "Inferred {} modules, {} layers:\n",
-        modules.len(),
-        layers.len()
-    );
-    println!(
-        "  {:<40} {:>5} {:>7} {:>8} {:>6}",
-        "Module", "files", "fan-in", "fan-out", "I"
-    );
-    println!("  {}", "-".repeat(70));
-    for l in &layers {
-        println!(
-            "  {:<40} {:>5} {:>7} {:>8} {:>6.2}  L{}",
-            l.name, l.file_count, l.fan_in, l.fan_out, l.instability, l.level
-        );
-    }
-
-    if violations.is_empty() {
-        println!("\n✅ No layer violations detected.");
-    } else {
-        println!("\n⚠ {} potential layer violation(s):", violations.len());
-        for v in &violations {
-            println!(
-                "  {} (L{}) → {} (L{})",
-                v.from_module, v.from_level, v.to_module, v.to_level
-            );
-        }
+    match format {
+        DepsFormat::Dot => render_dot(&layers, &violations),
+        DepsFormat::Mermaid => render_mermaid(&layers, &violations),
+        DepsFormat::Json => render_json(&layers, &violations),
+        DepsFormat::Plantuml => render_plantuml(&layers, &violations),
     }
 
     if save {
@@ -116,4 +94,90 @@ fn build_import_edges(
         }
     }
     (edges, all_files)
+}
+
+fn render_mermaid(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation]) {
+    println!("graph TD");
+    for l in layers {
+        let id = sanitize(&l.name);
+        println!(
+            "  {id}[\"{} (L{}, {}f, I={:.2})\"]",
+            l.name, l.level, l.file_count, l.instability
+        );
+    }
+    for v in violations {
+        let from = sanitize(&v.from_module);
+        let to = sanitize(&v.to_module);
+        println!("  {from} -->|violation| {to}");
+    }
+    // Style violations in red
+    for (i, _) in violations.iter().enumerate() {
+        println!("  linkStyle {} stroke:red,stroke-width:2", layers.len() + i);
+    }
+}
+
+fn render_dot(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation]) {
+    println!("digraph layers {{");
+    println!("  rankdir=BT;");
+    for l in layers {
+        println!(
+            "  \"{}\" [label=\"{} (L{}, {}f, I={:.2})\"];",
+            l.name, l.name, l.level, l.file_count, l.instability
+        );
+    }
+    for v in violations {
+        println!(
+            "  \"{}\" -> \"{}\" [color=red, label=\"violation\"];",
+            v.from_module, v.to_module
+        );
+    }
+    println!("}}");
+}
+
+fn render_json(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation]) {
+    let layers_json: Vec<serde_json::Value> = layers
+        .iter()
+        .map(|l| {
+            serde_json::json!({
+                "name": l.name, "level": l.level, "files": l.file_count,
+                "fan_in": l.fan_in, "fan_out": l.fan_out, "instability": l.instability
+            })
+        })
+        .collect();
+    let violations_json: Vec<serde_json::Value> = violations
+        .iter()
+        .map(|v| {
+            serde_json::json!({
+                "from": v.from_module, "to": v.to_module,
+                "from_level": v.from_level, "to_level": v.to_level
+            })
+        })
+        .collect();
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "layers": layers_json, "violations": violations_json
+        }))
+        .unwrap_or_default()
+    );
+}
+
+fn render_plantuml(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation]) {
+    println!("@startuml");
+    for l in layers {
+        println!("package \"{}\" as L{} {{", l.name, l.level);
+        println!(
+            "  note \"{}f, I={:.2}\" as N{}",
+            l.file_count, l.instability, l.level
+        );
+        println!("}}");
+    }
+    for v in violations {
+        println!("L{} --> L{} #red : violation", v.from_level, v.to_level);
+    }
+    println!("@enduml");
+}
+
+fn sanitize(s: &str) -> String {
+    s.replace(['/', '.', '-'], "_")
 }

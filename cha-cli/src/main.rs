@@ -194,6 +194,9 @@ enum Cli {
         /// Save inferred layers to .cha.toml
         #[arg(long)]
         save: bool,
+        /// Output format (dot=terminal table, mermaid, json, plantuml)
+        #[arg(long, default_value = "dot")]
+        format: DepsFormat,
     },
     /// Generate shell completion scripts (supports dynamic plugin name completion)
     Completions {
@@ -312,7 +315,11 @@ fn run_other(cli: Cli) {
         Cli::Plugin { cmd } => cmd_plugin(cmd),
         Cli::Trend { count, format } => trend::cmd_trend(count, &format),
         Cli::Hotspot { count, top, format } => hotspot::cmd_hotspot(count, top, &format),
-        Cli::Layers { paths, save } => layers::cmd_layers(&paths, save),
+        Cli::Layers {
+            paths,
+            save,
+            format,
+        } => layers::cmd_layers(&paths, save, &format),
         Cli::Deps {
             paths,
             format,
