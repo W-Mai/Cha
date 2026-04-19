@@ -6,7 +6,10 @@ pub trait Reporter {
 }
 
 /// Colored terminal output.
-pub struct TerminalReporter;
+pub struct TerminalReporter {
+    /// If true, show all findings without aggregation.
+    pub show_all: bool,
+}
 
 impl Reporter for TerminalReporter {
     fn render(&self, findings: &[Finding]) -> String {
@@ -14,9 +17,50 @@ impl Reporter for TerminalReporter {
             return "No issues found.".into();
         }
         let mut out = String::new();
-        for f in findings {
-            render_terminal_finding(&mut out, f);
+
+        if self.show_all {
+            for f in findings {
+                render_terminal_finding(&mut out, f);
+            }
+        } else {
+            let mut groups: std::collections::BTreeMap<&str, Vec<&Finding>> =
+                std::collections::BTreeMap::new();
+            for f in findings {
+                groups.entry(&f.smell_name).or_default().push(f);
+            }
+            for (name, group) in &groups {
+                if group.len() <= 5 {
+                    for f in group {
+                        render_terminal_finding(&mut out, f);
+                    }
+                } else {
+                    let mut sorted: Vec<&&Finding> = group.iter().collect();
+                    sorted.sort_by(|a, b| {
+                        b.actual_value
+                            .unwrap_or(0.0)
+                            .partial_cmp(&a.actual_value.unwrap_or(0.0))
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    });
+                    let icon = severity_icon(&sorted[0].severity);
+                    out.push_str(&format!("{icon} [{name}] {} occurrences\n", group.len()));
+                    for f in sorted.iter().take(3) {
+                        out.push_str(&format!(
+                            "  → {}:{} {}\n",
+                            f.location.path.display(),
+                            f.location.start_line,
+                            f.message,
+                        ));
+                    }
+                    if group.len() > 3 {
+                        out.push_str(&format!(
+                            "  … and {} more (use --all to show all)\n",
+                            group.len() - 3
+                        ));
+                    }
+                }
+            }
         }
+
         let errors = findings
             .iter()
             .filter(|f| f.severity == crate::Severity::Error)

@@ -97,6 +97,9 @@ enum Cli {
         /// Strictness level: relaxed (2x), default (1x), strict (0.5x), or a custom float
         #[arg(long)]
         strictness: Option<String>,
+        /// Show all findings without aggregation (terminal format)
+        #[arg(long)]
+        all: bool,
     },
     /// Generate a baseline file from current findings (suppresses known issues)
     Baseline {
@@ -260,6 +263,7 @@ fn dispatch(cli: Cli) -> i32 {
             baseline,
             output,
             strictness,
+            all,
         } => {
             let mode = DiffMode::from_flags(diff, stdin_diff);
             if no_cache {
@@ -275,6 +279,7 @@ fn dispatch(cli: Cli) -> i32 {
                 baseline_path: baseline.as_deref(),
                 output_path: output.as_deref(),
                 strictness: strictness.as_deref(),
+                show_all: all,
             })
         }
         other => {

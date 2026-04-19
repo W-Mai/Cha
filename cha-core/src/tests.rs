@@ -187,7 +187,7 @@ proptest! {
 
     #[test]
     fn terminal_reporter_never_panics(findings in prop::collection::vec(arb_finding(), 0..20)) {
-        let reporter = TerminalReporter;
+        let reporter = TerminalReporter { show_all: true };
         let _ = reporter.render(&findings);
     }
 
