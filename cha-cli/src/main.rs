@@ -5,6 +5,7 @@ mod analyze;
 mod deps;
 mod diff;
 mod hotspot;
+mod layers;
 mod plugin;
 mod tangled;
 mod trend;
@@ -186,6 +187,14 @@ enum Cli {
         #[command(subcommand)]
         cmd: PresetCmd,
     },
+    /// Infer architectural layers from import dependencies
+    Layers {
+        /// Files or directories (defaults to current directory)
+        paths: Vec<String>,
+        /// Save inferred layers to .cha.toml
+        #[arg(long)]
+        save: bool,
+    },
     /// Generate shell completion scripts (supports dynamic plugin name completion)
     Completions {
         /// Shell to generate completions for (bash, zsh, fish, powershell, elvish)
@@ -303,6 +312,7 @@ fn run_other(cli: Cli) {
         Cli::Plugin { cmd } => cmd_plugin(cmd),
         Cli::Trend { count, format } => trend::cmd_trend(count, &format),
         Cli::Hotspot { count, top, format } => hotspot::cmd_hotspot(count, top, &format),
+        Cli::Layers { paths, save } => layers::cmd_layers(&paths, save),
         Cli::Deps {
             paths,
             format,
