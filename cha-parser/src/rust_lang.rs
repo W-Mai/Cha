@@ -82,6 +82,7 @@ impl<'a> ParseContext<'a> {
             "impl_item" => self.extract_impl_methods(child),
             "struct_item" | "enum_item" | "trait_item" => self.push_struct(child),
             "use_declaration" => self.push_import(child),
+            "mod_item" => self.push_mod_as_import(child),
             _ => self.collect_nodes(child, false),
         }
     }
@@ -106,6 +107,21 @@ impl<'a> ParseContext<'a> {
     fn push_import(&mut self, node: Node) {
         if let Some(i) = extract_use(node, self.src) {
             self.col.imports.push(i);
+        }
+    }
+
+    /// Treat `mod foo;` as an import of `foo.rs` (file-level dependency).
+    fn push_mod_as_import(&mut self, node: Node) {
+        // Skip inline mod blocks: `mod foo { ... }` has a body
+        if node.child_by_field_name("body").is_some() {
+            return;
+        }
+        if let Some(name_node) = node.child_by_field_name("name") {
+            let name = node_text(name_node, self.src);
+            self.col.imports.push(crate::ImportInfo {
+                source: format!("{name}.rs"),
+                line: node.start_position().row + 1,
+            });
         }
     }
 
