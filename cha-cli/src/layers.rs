@@ -6,14 +6,14 @@ use cha_core::graph;
 
 use crate::{DepsFormat, analyze::filter_excluded, collect_files};
 
-pub fn cmd_layers(paths: &[String], save: bool, format: &DepsFormat) {
+pub fn cmd_layers(paths: &[String], save: bool, format: &DepsFormat, depth: Option<usize>) {
     let cwd = std::env::current_dir().unwrap_or_default();
     let root_config = cha_core::Config::load(&cwd);
     let files = filter_excluded(collect_files(paths), &root_config.exclude, &cwd);
 
     let (file_imports, all_files) = build_import_edges(&files, &cwd);
 
-    let modules = graph::infer_modules(&file_imports, &all_files);
+    let modules = graph::infer_modules(&file_imports, &all_files, depth);
     let (layers, violations) = graph::infer_layers(&modules, &file_imports);
 
     match format {
@@ -212,7 +212,8 @@ fn render_json(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation]
         .map(|l| {
             serde_json::json!({
                 "name": l.name, "level": l.level, "files": l.file_count,
-                "fan_in": l.fan_in, "fan_out": l.fan_out, "instability": l.instability
+                "fan_in": l.fan_in, "fan_out": l.fan_out, "instability": l.instability,
+                "lcom4": l.lcom4, "tcc": l.tcc, "cohesion": l.cohesion
             })
         })
         .collect();

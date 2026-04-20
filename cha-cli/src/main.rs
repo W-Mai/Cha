@@ -197,6 +197,9 @@ enum Cli {
         /// Output format (dot=terminal table, mermaid, json, plantuml)
         #[arg(long, default_value = "dot")]
         format: DepsFormat,
+        /// Override auto-detected directory depth for module grouping
+        #[arg(long)]
+        depth: Option<usize>,
     },
     /// Generate shell completion scripts (supports dynamic plugin name completion)
     Completions {
@@ -326,7 +329,8 @@ fn run_analysis_commands(cli: Cli) {
             paths,
             save,
             format,
-        } => layers::cmd_layers(&paths, save, &format),
+            depth,
+        } => layers::cmd_layers(&paths, save, &format, depth),
         Cli::Deps {
             paths,
             format,

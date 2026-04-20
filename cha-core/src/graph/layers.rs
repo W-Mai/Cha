@@ -11,6 +11,9 @@ pub struct LayerInfo {
     pub fan_in: usize,
     pub fan_out: usize,
     pub instability: f64,
+    pub lcom4: usize,
+    pub tcc: f64,
+    pub cohesion: f64,
 }
 
 /// A detected layer violation.
@@ -86,6 +89,9 @@ fn build_layers(
                 } else {
                     0.5
                 },
+                lcom4: m.lcom4,
+                tcc: m.tcc,
+                cohesion: m.cohesion,
             }
         })
         .collect()
@@ -133,10 +139,16 @@ mod tests {
             Module {
                 name: "core".into(),
                 files: vec!["core/a.rs".into()],
+                lcom4: 1,
+                tcc: 1.0,
+                cohesion: 1.0,
             },
             Module {
                 name: "ui".into(),
                 files: vec!["ui/b.rs".into()],
+                lcom4: 1,
+                tcc: 1.0,
+                cohesion: 1.0,
             },
         ];
         // core imports ui (core has high fan-in → stable, ui has high fan-out → volatile)
