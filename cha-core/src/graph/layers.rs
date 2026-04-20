@@ -97,6 +97,12 @@ fn build_layers(
         .collect()
 }
 
+fn is_parent_child(a: &str, b: &str) -> bool {
+    let a = a.trim_end_matches("/*").trim_end_matches('/');
+    let b = b.trim_end_matches("/*").trim_end_matches('/');
+    a.starts_with(&format!("{b}/")) || b.starts_with(&format!("{a}/"))
+}
+
 fn detect_violations(
     layers: &[LayerInfo],
     file_to_mod: &HashMap<&str, &str>,
@@ -110,6 +116,10 @@ fn detect_violations(
         let fm = file_to_mod.get(from.as_str()).copied().unwrap_or("");
         let tm = file_to_mod.get(to.as_str()).copied().unwrap_or("");
         if fm == tm || fm.is_empty() || tm.is_empty() {
+            continue;
+        }
+        // Skip parent→child: a module importing its own sub-module is natural
+        if is_parent_child(fm, tm) {
             continue;
         }
         if let (Some(&fl), Some(&tl)) = (level_map.get(fm), level_map.get(tm))
