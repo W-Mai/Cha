@@ -10,9 +10,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Language-adaptive thresholds: C/C++ profile with higher defaults (long_method=100, complexity=15, large_file=2000)
 - Smart terminal aggregation: findings >5 grouped into summary + top 3 worst, `--all` flag for full listing
-- `cha layers` command: infer architectural layers from import dependencies (experimental)
-- `cha-core::graph` module: module inference (exclusive-dep merge + directory fallback) + layer detection
-- `cha layers --format dot|mermaid|json|plantuml` with layered architecture diagram
+- `cha layers` command: infer architectural layers from import dependencies
+- `cha layers --format dot|mermaid|json|plantuml|dsm|terminal` with layered architecture diagram
+- Module inference rewrite: directory elbow + LCOM4 adaptive split + ICR + TCC quality metrics
+- `cha layers --depth N` to override auto-detected directory depth
+- DSM (Dependency Structure Matrix) output format for `cha layers`
+- Terminal output format for `cha layers` with instability bands and cohesion indicators
+- Composite risk scoring for `long_method`: `risk = lines_ratio × complexity_factor` (replaces pure line count)
+
+### Changed
+- Module inference algorithm: replaced Union-Find with directory elbow + LCOM4 + ICR
+- `long_method` severity now based on composite risk (Hint/Warning/Error at risk 1/2/4)
+
+### Fixed
+- `cha:ignore` directive now covers up to 2 lines before a function (supports consecutive ignore comments)
+- Fixed corrupted dot output and switched to LR layout for better layer readability
 
 ## [1.0.5] - 2026-04-17
 
