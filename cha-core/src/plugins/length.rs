@@ -39,27 +39,33 @@ impl Plugin for LengthAnalyzer {
 
 impl LengthAnalyzer {
     fn check_functions(&self, ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
+        let complexity_threshold = 10.0_f64; // default warning threshold
         for f in &ctx.model.functions {
-            if f.line_count > self.max_function_lines {
-                findings.push(Finding {
-                    smell_name: "long_method".into(),
-                    category: SmellCategory::Bloaters,
-                    severity: severity_for_ratio(f.line_count, self.max_function_lines),
-                    location: Location {
-                        path: ctx.file.path.clone(),
-                        start_line: f.start_line,
-                        end_line: f.end_line,
-                        name: Some(f.name.clone()),
-                    },
-                    message: format!(
-                        "Function `{}` is {} lines (threshold: {})",
-                        f.name, f.line_count, self.max_function_lines
-                    ),
-                    suggested_refactorings: vec!["Extract Method".into()],
-                    actual_value: Some(f.line_count as f64),
-                    threshold: Some(self.max_function_lines as f64),
-                });
+            let line_ratio = f.line_count as f64 / self.max_function_lines as f64;
+            let complexity_factor = (f.complexity as f64 / complexity_threshold).max(1.0);
+            let risk = line_ratio * complexity_factor;
+            if risk < 1.0 {
+                continue;
             }
+            let severity = risk_severity(risk);
+            findings.push(Finding {
+                smell_name: "long_method".into(),
+                category: SmellCategory::Bloaters,
+                severity,
+                location: Location {
+                    path: ctx.file.path.clone(),
+                    start_line: f.start_line,
+                    end_line: f.end_line,
+                    name: Some(f.name.clone()),
+                },
+                message: format!(
+                    "Function `{}` is {} lines (threshold: {}, risk: {:.1})",
+                    f.name, f.line_count, self.max_function_lines, risk
+                ),
+                suggested_refactorings: vec!["Extract Method".into()],
+                actual_value: Some(risk),
+                threshold: Some(1.0),
+            });
         }
     }
 
@@ -136,5 +142,15 @@ fn severity_for_ratio(actual: usize, threshold: usize) -> Severity {
         Severity::Error
     } else {
         Severity::Warning
+    }
+}
+
+fn risk_severity(risk: f64) -> Severity {
+    if risk >= 4.0 {
+        Severity::Error
+    } else if risk >= 2.0 {
+        Severity::Warning
+    } else {
+        Severity::Hint
     }
 }
