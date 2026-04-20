@@ -100,6 +100,7 @@ pub fn import(source: &str, line: usize) -> ImportInfo {
     ImportInfo {
         source: source.into(),
         line,
+        ..Default::default()
     }
 }
 

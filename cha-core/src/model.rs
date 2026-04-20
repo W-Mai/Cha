@@ -74,10 +74,12 @@ pub struct ClassInfo {
 }
 
 /// Extracted import info.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ImportInfo {
     pub source: String,
     pub line: usize,
+    /// True for module declarations (e.g. Rust `mod foo;`).
+    pub is_module_decl: bool,
 }
 
 /// A comment extracted from source code by the language parser.

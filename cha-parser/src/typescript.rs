@@ -479,6 +479,7 @@ fn extract_import(node: Node, src: &[u8]) -> Option<ImportInfo> {
             return Some(ImportInfo {
                 source,
                 line: node.start_position().row + 1,
+                ..Default::default()
             });
         }
     }

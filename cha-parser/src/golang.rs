@@ -162,7 +162,11 @@ fn collect_imports(node: Node, src: &[u8], imports: &mut Vec<ImportInfo>) {
             let path_node = n.child_by_field_name("path").unwrap_or(n);
             let text = node_text(path_node, src).trim_matches('"').to_string();
             if !text.is_empty() {
-                imports.push(ImportInfo { source: text, line });
+                imports.push(ImportInfo {
+                    source: text,
+                    line,
+                    ..Default::default()
+                });
             }
         }
     });

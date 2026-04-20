@@ -273,6 +273,7 @@ fn collect_import(node: Node, src: &[u8], imports: &mut Vec<ImportInfo>) {
             imports.push(ImportInfo {
                 source: text.to_string(),
                 line,
+                ..Default::default()
             });
         }
     }
@@ -293,6 +294,7 @@ fn collect_import_from(node: Node, src: &[u8], imports: &mut Vec<ImportInfo>) {
                 imports.push(ImportInfo {
                     source: format!("{module}.{n}"),
                     line,
+                    ..Default::default()
                 });
                 has_names = true;
             }
@@ -302,6 +304,7 @@ fn collect_import_from(node: Node, src: &[u8], imports: &mut Vec<ImportInfo>) {
         imports.push(ImportInfo {
             source: module,
             line,
+            ..Default::default()
         });
     }
 }

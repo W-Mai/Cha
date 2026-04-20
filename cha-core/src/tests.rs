@@ -71,7 +71,11 @@ fn arb_class_info() -> impl Strategy<Value = ClassInfo> {
 }
 
 fn arb_import_info() -> impl Strategy<Value = ImportInfo> {
-    ("[a-z_/]{1,30}", 1..500usize).prop_map(|(source, line)| ImportInfo { source, line })
+    ("[a-z_/]{1,30}", 1..500usize).prop_map(|(source, line)| ImportInfo {
+        source,
+        line,
+        ..Default::default()
+    })
 }
 
 fn arb_source_model() -> impl Strategy<Value = SourceModel> {

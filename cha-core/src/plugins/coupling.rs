@@ -23,11 +23,20 @@ impl Plugin for CouplingAnalyzer {
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let mut findings = Vec::new();
 
-        if ctx.model.imports.len() > self.max_imports {
+        // Skip Rust mod declarations — module organization, not coupling
+        // Skip module declarations — module organization, not coupling
+        let import_count = ctx
+            .model
+            .imports
+            .iter()
+            .filter(|i| !i.is_module_decl)
+            .count();
+
+        if import_count > self.max_imports {
             findings.push(Finding {
                 smell_name: "high_coupling".into(),
                 category: SmellCategory::Couplers,
-                severity: if ctx.model.imports.len() > self.max_imports * 2 {
+                severity: if import_count > self.max_imports * 2 {
                     Severity::Error
                 } else {
                     Severity::Warning
@@ -40,11 +49,10 @@ impl Plugin for CouplingAnalyzer {
                 },
                 message: format!(
                     "File has {} imports (threshold: {})",
-                    ctx.model.imports.len(),
-                    self.max_imports
+                    import_count, self.max_imports
                 ),
                 suggested_refactorings: vec!["Move Method".into(), "Extract Class".into()],
-                actual_value: Some(ctx.model.imports.len() as f64),
+                actual_value: Some(import_count as f64),
                 threshold: Some(self.max_imports as f64),
             });
         }

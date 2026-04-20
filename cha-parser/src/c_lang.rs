@@ -389,6 +389,7 @@ fn extract_include(node: Node, src: &[u8]) -> Option<ImportInfo> {
     Some(ImportInfo {
         source: text,
         line: node.start_position().row + 1,
+        ..Default::default()
     })
 }
 
