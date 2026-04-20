@@ -8,23 +8,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Language-adaptive thresholds: C/C++ profile with higher defaults (long_method=100, complexity=15, large_file=2000)
-- Smart terminal aggregation: findings >5 grouped into summary + top 3 worst, `--all` flag for full listing
-- `cha layers` command: infer architectural layers from import dependencies
-- `cha layers --format dot|mermaid|json|plantuml|dsm|terminal` with layered architecture diagram
+- `cha calibrate` command: auto-suggest thresholds from project statistics (P90/P95)
+- `cha calibrate --apply` saves to `.cha/calibration.toml`, auto-applied by `cha analyze`
+- Finding priority sorting: most severe issues shown first (severity × overshoot × compound)
+- Short module names in terminal/DSM output for readability
+
+### Changed
+- DSM output limited to top 25 modules by file count
+
+### Fixed
+- Skip parent→child layer violations (reduces lvgl false positives 87→37)
+
+## [1.0.7] - 2026-04-20
+
+### Added
 - Module inference rewrite: directory elbow + LCOM4 adaptive split + ICR + TCC quality metrics
 - `cha layers --depth N` to override auto-detected directory depth
-- DSM (Dependency Structure Matrix) output format for `cha layers`
-- Terminal output format for `cha layers` with instability bands and cohesion indicators
-- Composite risk scoring for `long_method`: `risk = lines_ratio × complexity_factor` (replaces pure line count)
+- `cha layers --format dsm|terminal` output formats
+- Composite risk scoring for `long_method`: `risk = lines_ratio × complexity_factor`
 
 ### Changed
 - Module inference algorithm: replaced Union-Find with directory elbow + LCOM4 + ICR
 - `long_method` severity now based on composite risk (Hint/Warning/Error at risk 1/2/4)
 
 ### Fixed
-- `cha:ignore` directive now covers up to 2 lines before a function (supports consecutive ignore comments)
+- `cha:ignore` directive now covers up to 2 lines before a function
 - Fixed corrupted dot output and switched to LR layout for better layer readability
+
+## [1.0.6] - 2026-04-20
+
+### Added
+- Language-adaptive thresholds: C/C++ profile with higher defaults (long_method=100, complexity=15, large_file=2000)
+- Smart terminal aggregation: findings >5 grouped into summary + top 3 worst, `--all` flag for full listing
+- `cha layers` command: infer architectural layers from import dependencies
+- `cha layers --format dot|mermaid|json|plantuml` with layered architecture diagram
 
 ## [1.0.5] - 2026-04-17
 
