@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 
 mod analyze;
+mod calibrate;
 mod deps;
 mod diff;
 mod hotspot;
@@ -203,6 +204,14 @@ enum Cli {
         #[arg(long)]
         depth: Option<usize>,
     },
+    /// Auto-suggest thresholds from project statistics (P90=warning, P95=error)
+    Calibrate {
+        /// Files or directories (defaults to current directory)
+        paths: Vec<String>,
+        /// Write suggested thresholds to .cha.toml
+        #[arg(long)]
+        apply: bool,
+    },
     /// Generate shell completion scripts (supports dynamic plugin name completion)
     Completions {
         /// Shell to generate completions for (bash, zsh, fish, powershell, elvish)
@@ -325,6 +334,7 @@ fn run_other(cli: Cli) {
 
 fn run_analysis_commands(cli: Cli) {
     match cli {
+        Cli::Calibrate { paths, apply } => calibrate::cmd_calibrate(&paths, apply),
         Cli::Trend { count, format } => trend::cmd_trend(count, &format),
         Cli::Hotspot { count, top, format } => hotspot::cmd_hotspot(count, top, &format),
         Cli::Layers {

@@ -41,6 +41,8 @@ pub(crate) fn cmd_analyze(opts: &AnalyzeOpts) -> i32 {
     all_findings.extend(run_post_analysis(&files, &cwd, opts.plugin_filter));
     all_findings = filter_c_oop_false_positives(all_findings, &files);
     let all_findings = apply_filters(all_findings, &diff_map, opts.baseline_path, &cwd);
+    let mut all_findings = all_findings;
+    cha_core::prioritize_findings(&mut all_findings);
 
     if matches!(opts.format, Format::Html) {
         print_html_report(
@@ -365,6 +367,10 @@ fn analyze_file_with_content(
         Config::load_for_file(path, project_root).resolve_for_language(&model.language);
     if let Some(s) = STRICTNESS_OVERRIDE.get() {
         config.set_strictness(s.clone());
+    }
+    // Apply calibration thresholds as fallback (lower priority than .cha.toml)
+    if let Some((lines, cx, cog)) = crate::calibrate::load_calibration(project_root) {
+        config.set_calibration_defaults(lines, cx, cog);
     }
     let registry = PluginRegistry::from_config(&config, project_root);
     let ctx = AnalysisContext {

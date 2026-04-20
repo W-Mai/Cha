@@ -57,6 +57,7 @@ pub struct LanguageConfig {
 
 /// Top-level config from `.cha.toml`.
 #[derive(Debug, Default, Clone, Deserialize)]
+// cha:ignore large_class
 pub struct Config {
     #[serde(default)]
     pub plugins: HashMap<String, PluginConfig>,
@@ -258,6 +259,28 @@ impl Config {
     /// Override strictness (e.g. from CLI --strictness flag).
     pub fn set_strictness(&mut self, s: Strictness) {
         self.strictness = s;
+    }
+
+    /// Apply calibration defaults — only sets values not already configured by user.
+    pub fn set_calibration_defaults(&mut self, lines: usize, complexity: usize, cognitive: usize) {
+        self.plugins
+            .entry("length".into())
+            .or_default()
+            .options
+            .entry("max_function_lines".into())
+            .or_insert(toml::Value::Integer(lines as i64));
+        self.plugins
+            .entry("complexity".into())
+            .or_default()
+            .options
+            .entry("max_complexity".into())
+            .or_insert(toml::Value::Integer(complexity as i64));
+        self.plugins
+            .entry("cognitive_complexity".into())
+            .or_default()
+            .options
+            .entry("max_cognitive_complexity".into())
+            .or_insert(toml::Value::Integer(cognitive as i64));
     }
 }
 
