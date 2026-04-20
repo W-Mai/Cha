@@ -23,6 +23,8 @@ pub struct LayerViolation {
     pub to_module: String,
     pub from_level: usize,
     pub to_level: usize,
+    /// Instability gap (to - from). Larger = more severe.
+    pub gap: f64,
 }
 
 /// Infer layers from modules and file-level imports.
@@ -110,6 +112,10 @@ fn detect_violations(
 ) -> Vec<LayerViolation> {
     let level_map: BTreeMap<&str, usize> =
         layers.iter().map(|l| (l.name.as_str(), l.level)).collect();
+    let inst_map: BTreeMap<&str, f64> = layers
+        .iter()
+        .map(|l| (l.name.as_str(), l.instability))
+        .collect();
 
     let mut seen: BTreeMap<(&str, &str), (usize, usize)> = BTreeMap::new();
     for (from, to) in file_imports {
@@ -118,7 +124,6 @@ fn detect_violations(
         if fm == tm || fm.is_empty() || tm.is_empty() {
             continue;
         }
-        // Skip parent→child: a module importing its own sub-module is natural
         if is_parent_child(fm, tm) {
             continue;
         }
@@ -129,14 +134,27 @@ fn detect_violations(
         }
     }
 
-    seen.into_iter()
-        .map(|((from, to), (fl, tl))| LayerViolation {
-            from_module: from.to_string(),
-            to_module: to.to_string(),
-            from_level: fl,
-            to_level: tl,
+    let mut result: Vec<LayerViolation> = seen
+        .into_iter()
+        .map(|((from, to), (fl, tl))| {
+            let fi = inst_map.get(from).copied().unwrap_or(0.5);
+            let ti = inst_map.get(to).copied().unwrap_or(0.5);
+            LayerViolation {
+                from_module: from.to_string(),
+                to_module: to.to_string(),
+                from_level: fl,
+                to_level: tl,
+                gap: ti - fi,
+            }
         })
-        .collect()
+        .collect();
+    // Sort by gap descending (most severe first)
+    result.sort_by(|a, b| {
+        b.gap
+            .partial_cmp(&a.gap)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    result
 }
 
 #[cfg(test)]
