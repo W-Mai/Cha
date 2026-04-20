@@ -21,6 +21,8 @@ pub fn cmd_layers(paths: &[String], save: bool, format: &DepsFormat, depth: Opti
         DepsFormat::Mermaid => render_mermaid(&layers, &violations),
         DepsFormat::Json => render_json(&layers, &violations),
         DepsFormat::Plantuml => render_plantuml(&layers, &violations),
+        DepsFormat::Dsm => render_dsm(&layers, &file_imports, &modules),
+        DepsFormat::Terminal => render_terminal(&layers, &violations),
     }
 
     if save {
@@ -253,4 +255,146 @@ fn render_plantuml(layers: &[graph::LayerInfo], violations: &[graph::LayerViolat
 
 fn sanitize(s: &str) -> String {
     s.replace(['/', '.', '-'], "_")
+}
+
+fn render_dsm(
+    layers: &[graph::LayerInfo],
+    file_imports: &[(String, String)],
+    modules: &[graph::Module],
+) {
+    let shown: Vec<&graph::LayerInfo> =
+        layers.iter().filter(|l| l.fan_in + l.fan_out > 0).collect();
+    if shown.is_empty() {
+        println!("No cross-module dependencies found.");
+        return;
+    }
+    let f2m = dsm_file_to_mod(modules);
+    let ec = dsm_edge_counts(file_imports, &f2m);
+    let names: Vec<&str> = shown.iter().map(|l| l.name.as_str()).collect();
+    let short: Vec<String> = names
+        .iter()
+        .map(|n| {
+            n.split('/')
+                .next_back()
+                .unwrap_or(n)
+                .chars()
+                .take(8)
+                .collect()
+        })
+        .collect();
+    dsm_print(&names, &short, &ec);
+}
+
+fn dsm_file_to_mod(modules: &[graph::Module]) -> HashMap<&str, &str> {
+    modules
+        .iter()
+        .flat_map(|m| m.files.iter().map(move |f| (f.as_str(), m.name.as_str())))
+        .collect()
+}
+
+fn dsm_edge_counts<'a>(
+    imports: &[(String, String)],
+    f2m: &HashMap<&'a str, &'a str>,
+) -> HashMap<(&'a str, &'a str), usize> {
+    let mut ec = HashMap::new();
+    for (from, to) in imports {
+        let fm = f2m.get(from.as_str()).copied().unwrap_or("");
+        let tm = f2m.get(to.as_str()).copied().unwrap_or("");
+        if !fm.is_empty() && !tm.is_empty() && fm != tm {
+            *ec.entry((fm, tm)).or_default() += 1;
+        }
+    }
+    ec
+}
+
+fn dsm_print(names: &[&str], short: &[String], ec: &HashMap<(&str, &str), usize>) {
+    let w = 10;
+    print!("{:>w$}", "");
+    for s in short {
+        print!(" {:>5}", &s[..s.len().min(5)]);
+    }
+    println!();
+    for (i, &from) in names.iter().enumerate() {
+        print!("{:>w$}", &short[i]);
+        for (j, &to) in names.iter().enumerate() {
+            if i == j {
+                print!("    ██");
+            } else {
+                let c = ec.get(&(from, to)).copied().unwrap_or(0);
+                if c == 0 {
+                    print!("     ·");
+                } else {
+                    print!(" {:>5}", c);
+                }
+            }
+        }
+        println!();
+    }
+}
+
+fn render_terminal(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation]) {
+    println!(
+        "Modules: {}, Violations: {}\n",
+        layers.len(),
+        violations.len()
+    );
+    render_terminal_bands(layers);
+    render_terminal_violations(violations);
+}
+
+fn render_terminal_bands(layers: &[graph::LayerInfo]) {
+    const BANDS: &[(&str, f64, f64)] = &[
+        ("🟢 Stable (I<0.2)", 0.0, 0.2),
+        ("🔵 Core (0.2≤I<0.4)", 0.2, 0.4),
+        ("🟡 Mid (0.4≤I<0.6)", 0.4, 0.6),
+        ("🟠 Volatile (0.6≤I<0.8)", 0.6, 0.8),
+        ("🔴 Leaf (I≥0.8)", 0.8, 1.01),
+    ];
+    for &(label, lo, hi) in BANDS {
+        let members: Vec<&graph::LayerInfo> = layers
+            .iter()
+            .filter(|l| l.instability >= lo && l.instability < hi && l.file_count >= 3)
+            .collect();
+        if members.is_empty() {
+            continue;
+        }
+        println!("  {label}");
+        for l in &members {
+            let short = l.name.split('/').next_back().unwrap_or(&l.name);
+            let tcc = if l.tcc >= 0.0 {
+                format!("{:.0}%", l.tcc * 100.0)
+            } else {
+                "n/a".into()
+            };
+            let lcom = if l.lcom4 == 1 {
+                "✓".into()
+            } else {
+                format!("⚠{}", l.lcom4)
+            };
+            println!(
+                "    {:<35} {:>4}f  I={:.2}  TCC={:>4}  {}",
+                short, l.file_count, l.instability, tcc, lcom
+            );
+        }
+        println!();
+    }
+}
+
+fn render_terminal_violations(violations: &[graph::LayerViolation]) {
+    if violations.is_empty() {
+        return;
+    }
+    println!("  ⚡ Violations (stable → volatile):");
+    for v in violations.iter().take(10) {
+        let f = v
+            .from_module
+            .split('/')
+            .next_back()
+            .unwrap_or(&v.from_module);
+        let t = v.to_module.split('/').next_back().unwrap_or(&v.to_module);
+        println!("    {f} → {t}");
+    }
+    if violations.len() > 10 {
+        println!("    ... and {} more", violations.len() - 10);
+    }
 }

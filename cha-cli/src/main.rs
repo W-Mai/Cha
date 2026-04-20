@@ -36,6 +36,8 @@ pub(crate) enum DepsFormat {
     Json,
     Mermaid,
     Plantuml,
+    Dsm,
+    Terminal,
 }
 
 #[derive(Clone, ValueEnum)]

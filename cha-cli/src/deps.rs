@@ -671,6 +671,7 @@ fn render(edges: &[Edge], cycles: &[(String, String)], format: &DepsFormat, styl
         DepsFormat::Json => print_json(edges, cycles),
         DepsFormat::Mermaid => print_mermaid(edges, cycles, style),
         DepsFormat::Plantuml => print_plantuml(edges, cycles),
+        _ => print_dot(edges, cycles, style), // DSM/Terminal not applicable to deps
     }
 }
 
