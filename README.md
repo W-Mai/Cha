@@ -103,6 +103,17 @@ cha deps --type calls --filter analyze --direction in   # who calls analyze?
 # Show refactoring hotspots (change frequency × complexity)
 cha hotspot
 cha hotspot -c 200 -t 10 --format json
+
+# Infer architectural layers from import dependencies
+cha layers
+cha layers --format terminal    # colored terminal output with instability bands
+cha layers --format dsm         # dependency structure matrix
+cha layers --format dot         # Graphviz DOT
+cha layers --depth 2            # override auto-detected directory depth
+
+# Auto-suggest thresholds from project statistics
+cha calibrate                   # show P90/P95 suggestions
+cha calibrate --apply           # save to .cha/calibration.toml (auto-applied by analyze)
 ```
 
 ## 📦 Installation
