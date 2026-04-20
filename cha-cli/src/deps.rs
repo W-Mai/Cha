@@ -21,7 +21,7 @@ pub fn cmd_deps(
     direction: &DepsDirection,
 ) {
     let cwd = std::env::current_dir().unwrap_or_default();
-    let root_config = cha_core::Config::load(&cwd);
+    let root_config = crate::load_config(&cwd);
     let files = filter_excluded(collect_files(paths), &root_config.exclude, &cwd);
 
     let edges = match graph_type {

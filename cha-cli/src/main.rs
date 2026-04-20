@@ -12,7 +12,7 @@ mod tangled;
 mod trend;
 
 use cha_core::{Config, Finding, PluginRegistry, SourceFile};
-use clap::{CommandFactory, Parser, ValueEnum};
+use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::engine::ArgValueCandidates;
 
 #[derive(Clone, ValueEnum)]
@@ -70,6 +70,15 @@ pub(crate) enum DepsDirection {
     version,
     about = "察 — Code quality & architecture analysis engine"
 )]
+struct Args {
+    /// Path to config file (default: .cha.toml in project root)
+    #[arg(long, global = true)]
+    config: Option<String>,
+    #[command(subcommand)]
+    cmd: Cli,
+}
+
+#[derive(Subcommand)]
 enum Cli {
     /// Analyze source files for code smells
     Analyze {
@@ -268,10 +277,24 @@ impl DiffMode {
     }
 }
 
+/// Global config path override.
+static CONFIG_PATH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// Load config: from --config if specified, otherwise from cwd.
+pub(crate) fn load_config(cwd: &std::path::Path) -> Config {
+    match CONFIG_PATH.get() {
+        Some(p) => Config::load_file(std::path::Path::new(p)),
+        None => Config::load(cwd),
+    }
+}
+
 fn main() {
-    clap_complete::CompleteEnv::with_factory(Cli::command).complete();
-    let cli = Cli::parse();
-    let code = dispatch(cli);
+    clap_complete::CompleteEnv::with_factory(Args::command).complete();
+    let args = Args::parse();
+    if let Some(p) = args.config {
+        let _ = CONFIG_PATH.set(p);
+    }
+    let code = dispatch(args.cmd);
     if code != 0 {
         process::exit(code);
     }
@@ -390,7 +413,7 @@ fn cmd_completions(shell: Option<clap_complete::Shell>) {
         clap_complete::Shell::Elvish => "elvish",
         _ => {
             eprintln!("Unsupported shell for dynamic completions, falling back to static");
-            let mut cmd = Cli::command();
+            let mut cmd = Args::command();
             clap_complete::generate(shell, &mut cmd, "cha", &mut std::io::stdout());
             return;
         }
@@ -438,7 +461,7 @@ fn cmd_preset_show(language: &str) {
     }
 
     let cwd = std::env::current_dir().unwrap_or_default();
-    let config = Config::load(&cwd);
+    let config = load_config(&cwd);
     let resolved = config.resolve_for_language(&lang);
     let profile = cha_core::builtin_language_profile(&lang);
     let disabled: std::collections::HashSet<&str> = profile
@@ -573,7 +596,7 @@ enum DiffMode {
 
 fn cmd_baseline(paths: &[String], output: Option<&str>) {
     let cwd = std::env::current_dir().unwrap_or_default();
-    let root_config = Config::load(&cwd);
+    let root_config = load_config(&cwd);
     let files = analyze::filter_excluded(collect_files(paths), &root_config.exclude, &cwd);
     let findings = analyze::run_analysis(&files, &cwd, &[]);
     let baseline = cha_core::Baseline::from_findings(&findings, &cwd);
@@ -701,7 +724,7 @@ fn to_pascal_case(name: &str) -> String {
 
 fn plugin_candidates() -> Vec<clap_complete::CompletionCandidate> {
     let cwd = std::env::current_dir().unwrap_or_default();
-    let config = Config::load(&cwd);
+    let config = load_config(&cwd);
     let registry = PluginRegistry::from_config(&config, &cwd);
     let mut candidates: Vec<_> = registry
         .plugin_info()

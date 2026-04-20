@@ -159,6 +159,14 @@ impl Config {
         }
     }
 
+    /// Load config from a specific file path.
+    pub fn load_file(path: &Path) -> Self {
+        match std::fs::read_to_string(path) {
+            Ok(content) => toml::from_str(&content).unwrap_or_default(),
+            Err(_) => Self::default(),
+        }
+    }
+
     /// Load merged config for a specific file by walking up from its directory to root.
     /// Child configs override parent configs (child-wins merge).
     pub fn load_for_file(file_path: &Path, project_root: &Path) -> Self {

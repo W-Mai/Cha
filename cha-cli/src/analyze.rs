@@ -25,7 +25,7 @@ pub(crate) struct AnalyzeOpts<'a> {
 
 pub(crate) fn cmd_analyze(opts: &AnalyzeOpts) -> i32 {
     let cwd = std::env::current_dir().unwrap_or_default();
-    let root_config = Config::load(&cwd);
+    let root_config = crate::load_config(&cwd);
     if let Some(s) = opts.strictness.and_then(cha_core::Strictness::parse) {
         let _ = STRICTNESS_OVERRIDE.set(s);
     }

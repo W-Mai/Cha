@@ -8,7 +8,7 @@ use crate::{DepsFormat, analyze::filter_excluded, collect_files};
 
 pub fn cmd_layers(paths: &[String], save: bool, format: &DepsFormat, depth: Option<usize>) {
     let cwd = std::env::current_dir().unwrap_or_default();
-    let root_config = cha_core::Config::load(&cwd);
+    let root_config = crate::load_config(&cwd);
     let files = filter_excluded(collect_files(paths), &root_config.exclude, &cwd);
 
     let (file_imports, all_files) = build_import_edges(&files, &cwd);

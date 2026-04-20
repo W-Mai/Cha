@@ -4,7 +4,7 @@ use crate::{analyze::filter_excluded, collect_files};
 
 pub fn cmd_calibrate(paths: &[String], apply: bool) {
     let cwd = std::env::current_dir().unwrap_or_default();
-    let root_config = cha_core::Config::load(&cwd);
+    let root_config = crate::load_config(&cwd);
     let files = filter_excluded(collect_files(paths), &root_config.exclude, &cwd);
 
     let (mut lines, mut cx, mut cog) = collect_stats(&files);
