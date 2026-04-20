@@ -7,11 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.9] - 2026-04-20
+
+### Added
+- `cha layers --format html` — interactive architecture diagram with CSS Grid
+- Layer violations show file-level evidence (which file includes which)
+- Layer violations sorted by instability gap (most severe first)
+- Rust `mod` declarations treated as file imports for layer analysis
+- Manual layer/module config in `.cha.toml` (`[layers.modules]` + `[[layers.tiers]]`)
+
+## [1.0.8] - 2026-04-20
+
 ### Added
 - `cha calibrate` command: auto-suggest thresholds from project statistics (P90/P95)
 - `cha calibrate --apply` saves to `.cha/calibration.toml`, auto-applied by `cha analyze`
 - Finding priority sorting: most severe issues shown first (severity × overshoot × compound)
-- Short module names in terminal/DSM output for readability
+- Short module names in all output formats (terminal/DSM/dot/mermaid)
 
 ### Changed
 - DSM output limited to top 25 modules by file count
