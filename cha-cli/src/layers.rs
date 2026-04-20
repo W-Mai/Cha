@@ -54,21 +54,31 @@ fn manual_layers(
     Vec<graph::LayerInfo>,
     Vec<graph::LayerViolation>,
 ) {
-    // Build modules from glob patterns
+    let (modules, file_to_mod) = manual_modules(cfg, all_files, cwd);
+    let layers = manual_layer_info(cfg, &modules);
+    let violations = manual_violations(cfg, file_imports, &file_to_mod, &layers);
+    (modules, layers, violations)
+}
+
+fn manual_modules(
+    cfg: &cha_core::LayersConfig,
+    all_files: &[String],
+    cwd: &std::path::Path,
+) -> (Vec<graph::Module>, HashMap<String, String>) {
     let mut modules = Vec::new();
-    let mut file_to_mod: HashMap<String, String> = HashMap::new();
+    let mut f2m: HashMap<String, String> = HashMap::new();
     for (name, patterns) in &cfg.modules {
         let mut matched = Vec::new();
         for f in all_files {
             let full = cwd.join(f);
             for pat in patterns {
-                if glob::glob(&cwd.join(pat).to_string_lossy())
+                let ok = glob::glob(&cwd.join(pat).to_string_lossy())
                     .into_iter()
                     .flatten()
-                    .any(|p| p.as_ref().map(|p| p == &full).unwrap_or(false))
-                {
+                    .any(|p| p.as_ref().map(|p| p == &full).unwrap_or(false));
+                if ok {
                     matched.push(f.clone());
-                    file_to_mod.insert(f.clone(), name.clone());
+                    f2m.insert(f.clone(), name.clone());
                     break;
                 }
             }
@@ -81,12 +91,16 @@ fn manual_layers(
             cohesion: 0.0,
         });
     }
+    (modules, f2m)
+}
 
-    // Build layers from tiers
-    let mut layers = Vec::new();
+fn manual_layer_info(
+    cfg: &cha_core::LayersConfig,
+    modules: &[graph::Module],
+) -> Vec<graph::LayerInfo> {
     let mod_map: HashMap<&str, &graph::Module> =
         modules.iter().map(|m| (m.name.as_str(), m)).collect();
-
+    let mut layers = Vec::new();
     for (level, tier) in cfg.tiers.iter().enumerate() {
         for mod_name in &tier.modules {
             if let Some(m) = mod_map.get(mod_name.as_str()) {
@@ -104,15 +118,22 @@ fn manual_layers(
             }
         }
     }
+    layers
+}
 
-    // Detect violations: lower tier importing higher tier
-    let mut violations = Vec::new();
+fn manual_violations(
+    cfg: &cha_core::LayersConfig,
+    file_imports: &[(String, String)],
+    f2m: &HashMap<String, String>,
+    layers: &[graph::LayerInfo],
+) -> Vec<graph::LayerViolation> {
     let mod_level: HashMap<&str, usize> =
         layers.iter().map(|l| (l.name.as_str(), l.level)).collect();
     let mut seen: std::collections::BTreeSet<(String, String)> = std::collections::BTreeSet::new();
+    let mut violations = Vec::new();
     for (from, to) in file_imports {
-        let fm = file_to_mod.get(from).map(|s| s.as_str()).unwrap_or("");
-        let tm = file_to_mod.get(to).map(|s| s.as_str()).unwrap_or("");
+        let fm = f2m.get(from).map(|s| s.as_str()).unwrap_or("");
+        let tm = f2m.get(to).map(|s| s.as_str()).unwrap_or("");
         if fm.is_empty() || tm.is_empty() || fm == tm {
             continue;
         }
@@ -129,8 +150,7 @@ fn manual_layers(
             });
         }
     }
-
-    (modules, layers, violations)
+    violations
 }
 fn build_import_edges(
     files: &[PathBuf],
