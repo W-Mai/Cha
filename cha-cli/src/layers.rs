@@ -257,29 +257,68 @@ fn sanitize(s: &str) -> String {
     s.replace(['/', '.', '-'], "_")
 }
 
+fn short_module_name(full: &str, all: &[&str]) -> String {
+    let prefix = common_path_prefix(all);
+    let rel = full
+        .strip_prefix(&prefix)
+        .unwrap_or(full)
+        .trim_start_matches('/')
+        .trim_end_matches("/*")
+        .trim_end_matches('/');
+    if rel.is_empty() {
+        return "(root)".to_string();
+    }
+    let parts: Vec<&str> = rel.split('/').collect();
+    if parts.len() >= 2 {
+        format!("{}/{}", parts[parts.len() - 2], parts[parts.len() - 1])
+    } else {
+        parts[0].to_string()
+    }
+}
+
+fn common_path_prefix(names: &[&str]) -> String {
+    if names.is_empty() {
+        return String::new();
+    }
+    let parts: Vec<Vec<&str>> = names.iter().map(|n| n.split('/').collect()).collect();
+    let prefix: Vec<&str> = (0..)
+        .map_while(|i| {
+            let first = parts[0].get(i)?;
+            parts
+                .iter()
+                .all(|p| p.get(i) == Some(first))
+                .then_some(*first)
+        })
+        .collect();
+    prefix.join("/")
+}
+
 fn render_dsm(
     layers: &[graph::LayerInfo],
     file_imports: &[(String, String)],
     modules: &[graph::Module],
 ) {
-    let shown: Vec<&graph::LayerInfo> =
+    let mut shown: Vec<&graph::LayerInfo> =
         layers.iter().filter(|l| l.fan_in + l.fan_out > 0).collect();
     if shown.is_empty() {
         println!("No cross-module dependencies found.");
         return;
     }
+    shown.sort_by_key(|l| std::cmp::Reverse(l.file_count));
+    shown.truncate(25);
+    shown.sort_by(|a, b| {
+        a.instability
+            .partial_cmp(&b.instability)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     let f2m = dsm_file_to_mod(modules);
     let ec = dsm_edge_counts(file_imports, &f2m);
     let names: Vec<&str> = shown.iter().map(|l| l.name.as_str()).collect();
     let short: Vec<String> = names
         .iter()
         .map(|n| {
-            n.split('/')
-                .next_back()
-                .unwrap_or(n)
-                .chars()
-                .take(8)
-                .collect()
+            let s = short_module_name(n, &names);
+            s.chars().take(8).collect()
         })
         .collect();
     dsm_print(&names, &short, &ec);
@@ -333,16 +372,17 @@ fn dsm_print(names: &[&str], short: &[String], ec: &HashMap<(&str, &str), usize>
 }
 
 fn render_terminal(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation]) {
+    let all_names: Vec<&str> = layers.iter().map(|l| l.name.as_str()).collect();
     println!(
         "Modules: {}, Violations: {}\n",
         layers.len(),
         violations.len()
     );
-    render_terminal_bands(layers);
-    render_terminal_violations(violations);
+    render_terminal_bands(layers, &all_names);
+    render_terminal_violations(violations, &all_names);
 }
 
-fn render_terminal_bands(layers: &[graph::LayerInfo]) {
+fn render_terminal_bands(layers: &[graph::LayerInfo], all_names: &[&str]) {
     const BANDS: &[(&str, f64, f64)] = &[
         ("🟢 Stable (I<0.2)", 0.0, 0.2),
         ("🔵 Core (0.2≤I<0.4)", 0.2, 0.4),
@@ -360,7 +400,7 @@ fn render_terminal_bands(layers: &[graph::LayerInfo]) {
         }
         println!("  {label}");
         for l in &members {
-            let short = l.name.split('/').next_back().unwrap_or(&l.name);
+            let short = short_module_name(&l.name, all_names);
             let tcc = if l.tcc >= 0.0 {
                 format!("{:.0}%", l.tcc * 100.0)
             } else {
@@ -372,7 +412,7 @@ fn render_terminal_bands(layers: &[graph::LayerInfo]) {
                 format!("⚠{}", l.lcom4)
             };
             println!(
-                "    {:<35} {:>4}f  I={:.2}  TCC={:>4}  {}",
+                "    {:<30} {:>4}f  I={:.2}  TCC={:>4}  {}",
                 short, l.file_count, l.instability, tcc, lcom
             );
         }
@@ -380,18 +420,14 @@ fn render_terminal_bands(layers: &[graph::LayerInfo]) {
     }
 }
 
-fn render_terminal_violations(violations: &[graph::LayerViolation]) {
+fn render_terminal_violations(violations: &[graph::LayerViolation], all_names: &[&str]) {
     if violations.is_empty() {
         return;
     }
     println!("  ⚡ Violations (stable → volatile):");
     for v in violations.iter().take(10) {
-        let f = v
-            .from_module
-            .split('/')
-            .next_back()
-            .unwrap_or(&v.from_module);
-        let t = v.to_module.split('/').next_back().unwrap_or(&v.to_module);
+        let f = short_module_name(&v.from_module, all_names);
+        let t = short_module_name(&v.to_module, all_names);
         println!("    {f} → {t}");
     }
     if violations.len() > 10 {
