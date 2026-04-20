@@ -39,6 +39,7 @@ pub(crate) enum DepsFormat {
     Plantuml,
     Dsm,
     Terminal,
+    Html,
 }
 
 #[derive(Clone, ValueEnum)]

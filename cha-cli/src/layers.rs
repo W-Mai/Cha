@@ -23,6 +23,7 @@ pub fn cmd_layers(paths: &[String], save: bool, format: &DepsFormat, depth: Opti
         DepsFormat::Plantuml => render_plantuml(&layers, &violations),
         DepsFormat::Dsm => render_dsm(&layers, &file_imports, &modules),
         DepsFormat::Terminal => render_terminal(&layers, &violations),
+        DepsFormat::Html => render_html(&layers, &violations),
     }
 
     if save {
@@ -435,4 +436,115 @@ fn render_terminal_violations(violations: &[graph::LayerViolation], all_names: &
     if violations.len() > 10 {
         println!("    ... and {} more", violations.len() - 10);
     }
+}
+
+fn render_html(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation]) {
+    let all_names: Vec<&str> = layers.iter().map(|l| l.name.as_str()).collect();
+    let rows = html_tier_rows(layers, &all_names);
+    let viols = html_violations(violations, &all_names);
+    println!(
+        "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Architecture</title>\
+<style>*{{margin:0;padding:0;box-sizing:border-box}}\
+body{{font-family:-apple-system,sans-serif;background:#f5f5f5;padding:20px}}\
+h1{{text-align:center;font-size:20px;margin-bottom:4px}}\
+.sub{{text-align:center;color:#666;font-size:14px;margin-bottom:20px}}\
+.tier{{margin-bottom:12px;padding:12px 16px;border-radius:8px}}\
+.tl{{font-weight:bold;font-size:15px;margin-bottom:8px}}.tl span{{font-weight:normal;font-size:12px}}\
+.groups{{display:flex;flex-wrap:wrap;gap:10px}}\
+.group{{background:#fff;border:1px solid #ddd;border-radius:6px;padding:8px 10px;min-width:120px}}\
+.gt{{font-weight:600;font-size:13px;color:#333;margin-bottom:4px;border-bottom:1px solid #eee;padding-bottom:3px}}\
+.mods{{display:flex;flex-wrap:wrap;gap:4px}}\
+.mod{{background:#f0f0f0;border-radius:4px;padding:2px 8px;font-size:12px;color:#444;white-space:nowrap}}\
+.fc{{color:#999;margin-left:4px;font-size:11px}}\
+.vbox{{margin-top:16px;padding:12px;background:#fff;border-radius:8px;border-left:4px solid #f44336}}\
+.vbox h3{{color:#f44336;font-size:14px;margin-bottom:6px}}\
+.v{{font-size:12px;color:#666;padding:2px 0}}.v b{{color:#333}}\
+</style></head><body>\
+<h1>Architecture</h1><div class=\"sub\">{} modules · {} violations</div>\
+{rows}<div class=\"vbox\"><h3>⚡ Layer Violations</h3>{viols}</div></body></html>",
+        layers.len(),
+        violations.len()
+    );
+}
+
+const HTML_TIERS: &[(&str, f64, f64, &str, &str)] = &[
+    ("Leaf", 0.8, 1.01, "#f44336", "#ffebee"),
+    ("Volatile", 0.6, 0.8, "#ff9800", "#fff3e0"),
+    ("Mid", 0.4, 0.6, "#ffc107", "#fffde7"),
+    ("Core", 0.2, 0.4, "#2196f3", "#e3f2fd"),
+    ("Stable", 0.0, 0.2, "#4caf50", "#e8f5e9"),
+];
+
+fn html_tier_rows(layers: &[graph::LayerInfo], all_names: &[&str]) -> String {
+    let mut tier_groups: std::collections::BTreeMap<
+        &str,
+        std::collections::BTreeMap<String, Vec<&graph::LayerInfo>>,
+    > = std::collections::BTreeMap::new();
+    for l in layers {
+        if l.file_count < 5 {
+            continue;
+        }
+        let Some((tname, ..)) = HTML_TIERS
+            .iter()
+            .find(|(_, lo, hi, _, _)| l.instability >= *lo && l.instability < *hi)
+        else {
+            continue;
+        };
+        let sn = short_module_name(&l.name, all_names);
+        let group = sn.split('/').next().unwrap_or(&sn).to_string();
+        tier_groups
+            .entry(tname)
+            .or_default()
+            .entry(group)
+            .or_default()
+            .push(l);
+    }
+    let mut rows = String::new();
+    for &(tname, lo, hi, accent, bg) in HTML_TIERS {
+        let Some(groups) = tier_groups.get(tname) else {
+            continue;
+        };
+        let mut sorted: Vec<_> = groups.iter().collect();
+        sorted.sort_by_key(|(_, ms)| {
+            std::cmp::Reverse(ms.iter().map(|m| m.file_count).sum::<usize>())
+        });
+        let mut gh = String::new();
+        for (gname, mods) in &sorted {
+            let mh: String = mods
+                .iter()
+                .map(|m| {
+                    let sn = short_module_name(&m.name, all_names);
+                    format!(
+                        "<div class=\"mod\">{sn}<span class=\"fc\">{}f</span></div>",
+                        m.file_count
+                    )
+                })
+                .collect();
+            gh.push_str(&format!("<div class=\"group\"><div class=\"gt\">{gname}</div><div class=\"mods\">{mh}</div></div>"));
+        }
+        rows.push_str(&format!(
+            "<div class=\"tier\" style=\"border-left:4px solid {accent};background:{bg}\">\
+             <div class=\"tl\" style=\"color:{accent}\">{tname} <span>I={lo:.1}–{hi:.1}</span></div>\
+             <div class=\"groups\">{gh}</div></div>"
+        ));
+    }
+    rows
+}
+
+fn html_violations(violations: &[graph::LayerViolation], all_names: &[&str]) -> String {
+    let mut sorted: Vec<_> = violations.iter().collect();
+    sorted.sort_by_key(|v| std::cmp::Reverse(v.to_level.saturating_sub(v.from_level)));
+    let mut s = String::new();
+    for v in sorted.iter().take(15) {
+        let f = short_module_name(&v.from_module, all_names);
+        let t = short_module_name(&v.to_module, all_names);
+        s.push_str(&format!("<div class=\"v\"><b>{f}</b> → <b>{t}</b></div>"));
+    }
+    if violations.len() > 15 {
+        s.push_str(&format!(
+            "<div class=\"v\" style=\"color:#999\">... and {} more</div>",
+            violations.len() - 15
+        ));
+    }
+    s
 }
