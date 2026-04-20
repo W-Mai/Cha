@@ -35,7 +35,12 @@ impl Plugin for HubLikeDependencyAnalyzer {
     }
 
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
-        let count = ctx.model.imports.len();
+        let count = ctx
+            .model
+            .imports
+            .iter()
+            .filter(|i| !i.is_module_decl)
+            .count();
         if count <= self.max_imports {
             return vec![];
         }

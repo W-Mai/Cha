@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.10] - 2026-04-21
+
+### Added
+- Global `--config <path>` flag for all subcommands — load config from custom file
+- `ImportInfo.is_module_decl` field to distinguish module declarations from imports
+
+### Fixed
+- Rust `mod` declarations no longer inflate `high_coupling` count
+
 ## [1.0.9] - 2026-04-20
 
 ### Added
