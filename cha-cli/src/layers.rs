@@ -118,6 +118,7 @@ fn closest_candidate<'a>(
 }
 
 fn render_mermaid(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation]) {
+    let all_names: Vec<&str> = layers.iter().map(|l| l.name.as_str()).collect();
     println!("graph TD");
     let bands = [
         ("Stable", 0.0, 0.2),
@@ -138,7 +139,7 @@ fn render_mermaid(layers: &[graph::LayerInfo], violations: &[graph::LayerViolati
         println!("  subgraph {id}[\"{label}\"]");
         for l in &members {
             let nid = sanitize(&l.name);
-            let short = l.name.split('/').next_back().unwrap_or(&l.name);
+            let short = short_module_name(&l.name, &all_names);
             println!(
                 "    {nid}[\"{short} ({}f, I={:.2})\"]",
                 l.file_count, l.instability
@@ -154,6 +155,7 @@ fn render_mermaid(layers: &[graph::LayerInfo], violations: &[graph::LayerViolati
 }
 
 fn render_dot(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation]) {
+    let all_names: Vec<&str> = layers.iter().map(|l| l.name.as_str()).collect();
     let active: std::collections::HashSet<&str> = violations
         .iter()
         .flat_map(|v| [v.from_module.as_str(), v.to_module.as_str()])
@@ -167,7 +169,7 @@ fn render_dot(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation])
     println!("  rankdir=LR;");
     println!("  node [shape=box style=filled fillcolor=lightyellow fontsize=10];");
     println!("  edge [color=gray];");
-    render_dot_bands(&shown);
+    render_dot_bands(&shown, &all_names);
     for v in violations {
         println!(
             "  {:?} -> {:?} [color=red penwidth=2];",
@@ -177,7 +179,7 @@ fn render_dot(layers: &[graph::LayerInfo], violations: &[graph::LayerViolation])
     println!("}}");
 }
 
-fn render_dot_bands(shown: &[&graph::LayerInfo]) {
+fn render_dot_bands(shown: &[&graph::LayerInfo], all_names: &[&str]) {
     const BANDS: &[(&str, f64, f64)] = &[
         ("Stable (I<0.2)", 0.0, 0.2),
         ("Core (0.2<=I<0.4)", 0.2, 0.4),
@@ -197,7 +199,7 @@ fn render_dot_bands(shown: &[&graph::LayerInfo]) {
         println!("    label={:?};", label);
         println!("    style=dashed;");
         for l in &members {
-            let short = l.name.split('/').next_back().unwrap_or(&l.name);
+            let short = short_module_name(&l.name, all_names);
             println!(
                 "    {:?} [label={:?}];",
                 l.name,
