@@ -25,6 +25,8 @@ pub struct LayerViolation {
     pub to_level: usize,
     /// Instability gap (to - from). Larger = more severe.
     pub gap: f64,
+    /// Specific file-level imports causing this violation.
+    pub evidence: Vec<(String, String)>,
 }
 
 /// Infer layers from modules and file-level imports.
@@ -117,7 +119,7 @@ fn detect_violations(
         .map(|l| (l.name.as_str(), l.instability))
         .collect();
 
-    let mut seen: BTreeMap<(&str, &str), (usize, usize)> = BTreeMap::new();
+    let mut seen: BTreeMap<(&str, &str), (usize, usize, Vec<(String, String)>)> = BTreeMap::new();
     for (from, to) in file_imports {
         let fm = file_to_mod.get(from.as_str()).copied().unwrap_or("");
         let tm = file_to_mod.get(to.as_str()).copied().unwrap_or("");
@@ -130,13 +132,14 @@ fn detect_violations(
         if let (Some(&fl), Some(&tl)) = (level_map.get(fm), level_map.get(tm))
             && fl < tl
         {
-            seen.entry((fm, tm)).or_insert((fl, tl));
+            let entry = seen.entry((fm, tm)).or_insert((fl, tl, Vec::new()));
+            entry.2.push((from.clone(), to.clone()));
         }
     }
 
     let mut result: Vec<LayerViolation> = seen
         .into_iter()
-        .map(|((from, to), (fl, tl))| {
+        .map(|((from, to), (fl, tl, evidence))| {
             let fi = inst_map.get(from).copied().unwrap_or(0.5);
             let ti = inst_map.get(to).copied().unwrap_or(0.5);
             LayerViolation {
@@ -145,6 +148,7 @@ fn detect_violations(
                 from_level: fl,
                 to_level: tl,
                 gap: ti - fi,
+                evidence,
             }
         })
         .collect();

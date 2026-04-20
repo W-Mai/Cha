@@ -431,10 +431,18 @@ fn render_terminal_violations(violations: &[graph::LayerViolation], all_names: &
     for v in violations.iter().take(10) {
         let f = short_module_name(&v.from_module, all_names);
         let t = short_module_name(&v.to_module, all_names);
-        println!("    {f} → {t}");
+        println!("    {f} → {t}  (gap={:.2})", v.gap);
+        for (src, dst) in v.evidence.iter().take(3) {
+            let sf = src.split('/').last().unwrap_or(src);
+            let sd = dst.split('/').last().unwrap_or(dst);
+            println!("      {sf} includes {sd}");
+        }
+        if v.evidence.len() > 3 {
+            println!("      ... {} more imports", v.evidence.len() - 3);
+        }
     }
     if violations.len() > 10 {
-        println!("    ... and {} more", violations.len() - 10);
+        println!("    ... and {} more violations", violations.len() - 10);
     }
 }
 
