@@ -13,8 +13,14 @@ pub fn cmd_layers(paths: &[String], save: bool, format: &DepsFormat, depth: Opti
 
     let (file_imports, all_files) = build_import_edges(&files, &cwd);
 
-    let modules = graph::infer_modules(&file_imports, &all_files, depth);
-    let (layers, violations) = graph::infer_layers(&modules, &file_imports);
+    let (modules, layers, violations) =
+        if !root_config.layers.modules.is_empty() && !root_config.layers.tiers.is_empty() {
+            manual_layers(&root_config.layers, &all_files, &file_imports, &cwd)
+        } else {
+            let modules = graph::infer_modules(&file_imports, &all_files, depth);
+            let (layers, violations) = graph::infer_layers(&modules, &file_imports);
+            (modules, layers, violations)
+        };
 
     match format {
         DepsFormat::Dot => render_dot(&layers, &violations),
@@ -38,6 +44,94 @@ pub fn cmd_layers(paths: &[String], save: bool, format: &DepsFormat, depth: Opti
     }
 }
 
+fn manual_layers(
+    cfg: &cha_core::LayersConfig,
+    all_files: &[String],
+    file_imports: &[(String, String)],
+    cwd: &std::path::Path,
+) -> (
+    Vec<graph::Module>,
+    Vec<graph::LayerInfo>,
+    Vec<graph::LayerViolation>,
+) {
+    // Build modules from glob patterns
+    let mut modules = Vec::new();
+    let mut file_to_mod: HashMap<String, String> = HashMap::new();
+    for (name, patterns) in &cfg.modules {
+        let mut matched = Vec::new();
+        for f in all_files {
+            let full = cwd.join(f);
+            for pat in patterns {
+                if glob::glob(&cwd.join(pat).to_string_lossy())
+                    .into_iter()
+                    .flatten()
+                    .any(|p| p.as_ref().map(|p| p == &full).unwrap_or(false))
+                {
+                    matched.push(f.clone());
+                    file_to_mod.insert(f.clone(), name.clone());
+                    break;
+                }
+            }
+        }
+        modules.push(graph::Module {
+            name: name.clone(),
+            files: matched,
+            lcom4: 0,
+            tcc: 0.0,
+            cohesion: 0.0,
+        });
+    }
+
+    // Build layers from tiers
+    let mut layers = Vec::new();
+    let mod_map: HashMap<&str, &graph::Module> =
+        modules.iter().map(|m| (m.name.as_str(), m)).collect();
+
+    for (level, tier) in cfg.tiers.iter().enumerate() {
+        for mod_name in &tier.modules {
+            if let Some(m) = mod_map.get(mod_name.as_str()) {
+                layers.push(graph::LayerInfo {
+                    name: mod_name.clone(),
+                    level,
+                    file_count: m.files.len(),
+                    fan_in: 0,
+                    fan_out: 0,
+                    instability: level as f64 / cfg.tiers.len().max(1) as f64,
+                    lcom4: 0,
+                    tcc: 0.0,
+                    cohesion: 0.0,
+                });
+            }
+        }
+    }
+
+    // Detect violations: lower tier importing higher tier
+    let mut violations = Vec::new();
+    let mod_level: HashMap<&str, usize> =
+        layers.iter().map(|l| (l.name.as_str(), l.level)).collect();
+    let mut seen: std::collections::BTreeSet<(String, String)> = std::collections::BTreeSet::new();
+    for (from, to) in file_imports {
+        let fm = file_to_mod.get(from).map(|s| s.as_str()).unwrap_or("");
+        let tm = file_to_mod.get(to).map(|s| s.as_str()).unwrap_or("");
+        if fm.is_empty() || tm.is_empty() || fm == tm {
+            continue;
+        }
+        let fl = mod_level.get(fm).copied().unwrap_or(0);
+        let tl = mod_level.get(tm).copied().unwrap_or(0);
+        if fl < tl && seen.insert((fm.to_string(), tm.to_string())) {
+            violations.push(graph::LayerViolation {
+                from_module: fm.to_string(),
+                to_module: tm.to_string(),
+                from_level: fl,
+                to_level: tl,
+                gap: (tl as f64 - fl as f64) / cfg.tiers.len().max(1) as f64,
+                evidence: vec![(from.clone(), to.clone())],
+            });
+        }
+    }
+
+    (modules, layers, violations)
+}
 fn build_import_edges(
     files: &[PathBuf],
     cwd: &std::path::Path,
@@ -433,8 +527,8 @@ fn render_terminal_violations(violations: &[graph::LayerViolation], all_names: &
         let t = short_module_name(&v.to_module, all_names);
         println!("    {f} → {t}  (gap={:.2})", v.gap);
         for (src, dst) in v.evidence.iter().take(3) {
-            let sf = src.split('/').last().unwrap_or(src);
-            let sd = dst.split('/').last().unwrap_or(dst);
+            let sf = src.split('/').next_back().unwrap_or(src);
+            let sd = dst.split('/').next_back().unwrap_or(dst);
             println!("      {sf} includes {sd}");
         }
         if v.evidence.len() > 3 {

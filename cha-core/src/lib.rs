@@ -15,7 +15,10 @@ pub mod wasm;
 
 pub use baseline::Baseline;
 pub use cache::AnalysisCache;
-pub use config::{Config, DebtWeights, LanguageConfig, Strictness, builtin_language_profile};
+pub use config::{
+    Config, DebtWeights, LanguageConfig, LayersConfig, Strictness, TierConfig,
+    builtin_language_profile,
+};
 pub use health::{Grade, HealthScore, score_files};
 pub use ignore::filter_ignored;
 pub use model::*;

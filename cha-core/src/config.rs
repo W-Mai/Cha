@@ -73,6 +73,27 @@ pub struct Config {
     /// Per-language plugin overrides.
     #[serde(default)]
     pub languages: HashMap<String, LanguageConfig>,
+    /// Manual layer/module configuration for `cha layers`.
+    #[serde(default)]
+    pub layers: LayersConfig,
+}
+
+/// Manual module and tier definitions for architecture analysis.
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct LayersConfig {
+    /// Module name → file glob patterns.
+    #[serde(default)]
+    pub modules: HashMap<String, Vec<String>>,
+    /// Tier name → module names (ordered bottom to top in config).
+    #[serde(default)]
+    pub tiers: Vec<TierConfig>,
+}
+
+/// A single tier definition.
+#[derive(Debug, Clone, Deserialize)]
+pub struct TierConfig {
+    pub name: String,
+    pub modules: Vec<String>,
 }
 
 /// Custom debt estimation weights (minutes per severity level).

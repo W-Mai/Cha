@@ -119,7 +119,8 @@ fn detect_violations(
         .map(|l| (l.name.as_str(), l.instability))
         .collect();
 
-    let mut seen: BTreeMap<(&str, &str), (usize, usize, Vec<(String, String)>)> = BTreeMap::new();
+    type ViolSeen<'a> = BTreeMap<(&'a str, &'a str), (usize, usize, Vec<(String, String)>)>;
+    let mut seen: ViolSeen = BTreeMap::new();
     for (from, to) in file_imports {
         let fm = file_to_mod.get(from.as_str()).copied().unwrap_or("");
         let tm = file_to_mod.get(to.as_str()).copied().unwrap_or("");
