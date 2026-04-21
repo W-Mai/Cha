@@ -112,6 +112,13 @@ jobs:
       - name: Package .vsix
         working-directory: vscode-cha
         run: npx @vscode/vsce package --allow-missing-repository
-      - name: Download e2e test
+      - name: Start xvfb (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y xvfb
+          Xvfb :99 -screen 0 1024x768x24 &
+      - name: E2E — install extension in real VS Code, verify download + LSP
         working-directory: vscode-cha
-        run: npx tsx test/download.test.ts
+        run: npm run test:e2e
+        env:
+          DISPLAY: ':99.0'
