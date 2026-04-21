@@ -9,6 +9,9 @@ struct FileEntry {
     mtime_secs: u64,
     size: u64,
     content_hash: u64,
+    /// Cached import sources for fast unstable_dependency analysis.
+    #[serde(default)]
+    imports: Vec<String>,
 }
 
 /// Per-file findings cache entry.
@@ -167,7 +170,13 @@ impl ProjectCache {
     }
 
     /// Update file metadata after processing.
-    pub fn update_file_entry(&mut self, rel_path: String, path: &Path, chash: u64) {
+    pub fn update_file_entry(
+        &mut self,
+        rel_path: String,
+        path: &Path,
+        chash: u64,
+        imports: Vec<String>,
+    ) {
         let (mtime_secs, size) = file_mtime_and_size(path).unwrap_or((0, 0));
         self.meta.files.insert(
             rel_path,
@@ -175,9 +184,15 @@ impl ProjectCache {
                 mtime_secs,
                 size,
                 content_hash: chash,
+                imports,
             },
         );
         self.dirty = true;
+    }
+
+    /// Get cached imports for a file (from meta, no disk I/O).
+    pub fn get_imports(&self, rel_path: &str) -> Option<&[String]> {
+        self.meta.files.get(rel_path).map(|e| e.imports.as_slice())
     }
 
     /// Flush metadata to disk and clean up orphan cache files.

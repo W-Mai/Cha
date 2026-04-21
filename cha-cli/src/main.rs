@@ -319,13 +319,15 @@ pub(crate) fn cached_parse(
     let content = std::fs::read_to_string(path).ok()?;
     let chash = cha_core::hash_content(&content);
     if let Some(model) = cache.get_model(chash) {
-        cache.update_file_entry(rel.clone(), path, chash);
+        let imports = model.imports.iter().map(|i| i.source.clone()).collect();
+        cache.update_file_entry(rel.clone(), path, chash, imports);
         return Some((rel, model));
     }
     let file = cha_core::SourceFile::new(path.to_path_buf(), content);
     let model = cha_parser::parse_file(&file)?;
     cache.put_model(chash, &model);
-    cache.update_file_entry(rel.clone(), path, chash);
+    let imports = model.imports.iter().map(|i| i.source.clone()).collect();
+    cache.update_file_entry(rel.clone(), path, chash, imports);
     Some((rel, model))
 }
 

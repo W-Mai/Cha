@@ -113,6 +113,13 @@ fn filter_c_oop_false_positives(
     cache: &std::sync::Mutex<cha_core::ProjectCache>,
     cwd: &Path,
 ) -> Vec<Finding> {
+    // Skip expensive C OOP analysis if no lazy_class/data_class findings exist
+    if !findings
+        .iter()
+        .any(|f| matches!(f.smell_name.as_str(), "lazy_class" | "data_class"))
+    {
+        return findings;
+    }
     let has_methods = collect_c_structs_with_methods(files, cache, cwd);
     if has_methods.is_empty() {
         return findings;
@@ -366,13 +373,14 @@ fn analyze_one(
         return cached;
     }
 
-    let findings = analyze_file_with_content(path, &content, project_root, plugin_filter);
+    let (findings, imports) =
+        analyze_file_with_content(path, &content, project_root, plugin_filter);
 
     if let Some(cache) = cache
         && let Ok(mut c) = cache.lock()
     {
         c.put_findings(content_hash, &findings);
-        c.update_file_entry(rel, path, content_hash);
+        c.update_file_entry(rel, path, content_hash, imports);
     }
     findings
 }
@@ -382,12 +390,13 @@ fn analyze_file_with_content(
     content: &str,
     project_root: &Path,
     plugin_filter: &[String],
-) -> Vec<Finding> {
+) -> (Vec<Finding>, Vec<String>) {
     let file = SourceFile::new(path.to_path_buf(), content.to_string());
     let model = match cha_parser::parse_file(&file) {
         Some(m) => m,
-        None => return vec![],
+        None => return (vec![], vec![]),
     };
+    let imports: Vec<String> = model.imports.iter().map(|i| i.source.clone()).collect();
     let mut config =
         Config::load_for_file(path, project_root).resolve_for_language(&model.language);
     if let Some(s) = STRICTNESS_OVERRIDE.get() {
@@ -408,7 +417,8 @@ fn analyze_file_with_content(
         .filter(|p| plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == p.name()))
         .flat_map(|p| p.analyze(&ctx))
         .collect();
-    cha_core::filter_ignored(findings, content)
+    let findings = cha_core::filter_ignored(findings, content);
+    (findings, imports)
 }
 
 fn print_html_report(
@@ -556,16 +566,28 @@ fn detect_unstable_deps(
         }
     };
 
+    // Build reverse index for O(1) import resolution
+    let mut name_to_path: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+    for &k in &known {
+        let basename = k.rsplit('/').next().unwrap_or(k);
+        name_to_path.entry(basename).or_insert(k);
+    }
+    let resolve = |imp: &str| -> Option<&str> {
+        let basename = imp.rsplit('/').next().unwrap_or(imp);
+        name_to_path
+            .get(basename)
+            .copied()
+            .or_else(|| known.get(imp).copied())
+    };
+
     file_imports
         .iter()
         .filter_map(|(file, imports)| {
             let my_i = instability(file);
             let (target, ti) = imports.iter().find_map(|imp| {
-                let t = known
-                    .iter()
-                    .find(|&&k| imp.contains(k) || k.contains(imp.as_str()))?;
+                let t = resolve(imp)?;
                 let ti = instability(t);
-                (my_i < ti && (ti - my_i) > 0.2).then_some((*t, ti))
+                (my_i < ti && (ti - my_i) > 0.2).then_some((t, ti))
             })?;
             Some(Finding {
                 smell_name: "unstable_dependency".into(),
@@ -596,18 +618,30 @@ fn build_file_imports(
     cache: &std::sync::Mutex<cha_core::ProjectCache>,
 ) -> std::collections::HashMap<String, Vec<String>> {
     let mut map = std::collections::HashMap::new();
+    let mut c = match cache.lock() {
+        Ok(c) => c,
+        Err(_) => return map,
+    };
     for path in files {
-        let Some((rel, model)) = cache
-            .lock()
-            .ok()
-            .and_then(|mut c| crate::cached_parse(path, &mut c, cwd))
-        else {
+        let rel = path
+            .strip_prefix(cwd)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string();
+        // Fast: read imports directly from meta (no parse needed)
+        if let Some(imports) = c.get_imports(&rel)
+            && !imports.is_empty()
+        {
+            map.insert(rel, imports.to_vec());
             continue;
-        };
-        map.insert(
-            rel,
-            model.imports.iter().map(|i| i.source.clone()).collect(),
-        );
+        }
+        // Fallback: parse file
+        if let Some((rel, model)) = crate::cached_parse(path, &mut c, cwd) {
+            map.insert(
+                rel,
+                model.imports.iter().map(|i| i.source.clone()).collect(),
+            );
+        }
     }
     map
 }
@@ -616,13 +650,19 @@ fn compute_afferent<'a>(
     file_imports: &'a std::collections::HashMap<String, Vec<String>>,
     known: &std::collections::HashSet<&'a str>,
 ) -> std::collections::HashMap<&'a str, usize> {
+    // Build reverse index: filename → full path for O(1) lookup
+    let mut name_to_path: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+    for &k in known {
+        let basename = k.rsplit('/').next().unwrap_or(k);
+        name_to_path.entry(basename).or_insert(k);
+    }
     let mut ca = std::collections::HashMap::new();
     for imports in file_imports.values() {
         for imp in imports {
-            if let Some(&k) = known
-                .iter()
-                .find(|&&k| imp.contains(k) || k.contains(imp.as_str()))
-            {
+            let basename = imp.rsplit('/').next().unwrap_or(imp.as_str());
+            if let Some(&k) = name_to_path.get(basename) {
+                *ca.entry(k).or_default() += 1;
+            } else if let Some(&k) = known.get(imp.as_str()) {
                 *ca.entry(k).or_default() += 1;
             }
         }
