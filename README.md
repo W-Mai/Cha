@@ -130,15 +130,35 @@ Cha uses a two-level cache (L1 in-memory + L2 bincode on disk) with mtime fast-p
 
 ## 📦 Installation
 
+### Shell (macOS / Linux)
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/W-Mai/Cha/releases/latest/download/cha-cli-installer.sh | sh
+```
+
+### PowerShell (Windows)
+
+```powershell
+powershell -c "irm https://github.com/W-Mai/Cha/releases/latest/download/cha-cli-installer.ps1 | iex"
+```
+
+### Homebrew
+
+```bash
+brew install W-Mai/cellar/cha-cli
+```
+
+### From source
+
 ```bash
 git clone https://github.com/W-Mai/Cha.git
 cd Cha
 cargo build --release
 ```
 
-Binaries `cha` and `cha-lsp` will be in `target/release/`.
-
 Requires [Rust](https://www.rust-lang.org/tools/install) (edition 2024).
+
+See [cha.to01.icu](https://cha.to01.icu) for all platforms and download options.
 
 ## 🔍 Built-in Plugins
 
