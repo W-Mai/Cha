@@ -8,7 +8,7 @@ repository.workspace = true
 homepage.workspace = true
 keywords.workspace = true
 categories.workspace = true
-include = ["src/**", "wit/plugin.wit", "Cargo.toml", "build.rs"]
+include = ["src/**", "tests/**", "wit/plugin.wit", "Cargo.toml", "build.rs"]
 
 [dependencies]
 regex = "1.12.3"
