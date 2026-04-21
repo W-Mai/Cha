@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-04-21
+
+### Added
+- Cache v2: bincode serialization + per-file parse cache + mtime fast-path
+- L1 in-memory parse cache — zero disk I/O for repeated access within same process
+- Cached imports in meta for instant `unstable_dependency` analysis
+- `ProjectCache` with L1/L2 architecture shared across analyze/layers/deps/calibrate
+
+### Changed
+- **Performance**: `cha analyze` 26x faster on warm cache (87s → 3.3s on 3201 files)
+- **Performance**: `cha layers` 16x faster (13s → 0.8s)
+- **Performance**: `cha deps` 14x faster (13s → 0.9s)
+- **Performance**: `cha calibrate` 22x faster (13s → 0.6s)
+
+### Fixed
+- O(n²) algorithm in `unstable_dependency` / `compute_afferent` replaced with HashMap O(1) lookup
+- Findings cache wiped by duplicate `ProjectCache::open` in post-analysis
+- Cache invalidation now includes cha binary version (upgrade = auto-invalidate)
+- Skip `filter_c_oop_false_positives` when no lazy_class/data_class findings exist
+
 ## [1.0.10] - 2026-04-21
 
 ### Added
