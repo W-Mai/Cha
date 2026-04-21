@@ -38,18 +38,10 @@ pub(crate) fn cmd_analyze(opts: &AnalyzeOpts) -> i32 {
     }
 
     let (mut all_findings, cache) = run_analysis(&files, &cwd, opts.plugin_filter);
-    let dummy = std::sync::Mutex::new(crate::open_project_cache(&cwd));
-    let cache_ref = cache.as_ref().unwrap_or(&dummy);
-    all_findings.extend(run_post_analysis(
-        &files,
-        &cwd,
-        opts.plugin_filter,
-        cache_ref,
-    ));
-    all_findings = filter_c_oop_false_positives(all_findings, &files, cache_ref, &cwd);
-    if let Some(cache) = cache
-        && let Ok(c) = cache.into_inner()
-    {
+    let cache = cache.unwrap_or_else(|| std::sync::Mutex::new(crate::open_project_cache(&cwd)));
+    all_findings.extend(run_post_analysis(&files, &cwd, opts.plugin_filter, &cache));
+    all_findings = filter_c_oop_false_positives(all_findings, &files, &cache, &cwd);
+    if let Ok(c) = cache.into_inner() {
         c.flush();
     }
     let all_findings = apply_filters(all_findings, &diff_map, opts.baseline_path, &cwd);
