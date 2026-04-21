@@ -42,13 +42,25 @@ async function ensureBinary(
   context: vscode.ExtensionContext,
   configured: string
 ): Promise<string | undefined> {
+  const expectedVersion = context.extension.packageJSON.version as string;
+
   // 1. User explicitly configured a path — use it
   if (configured !== "cha" && commandExists(configured)) return configured;
 
   // 2. Check extension-managed binary (preferred)
   const bin = process.platform === "win32" ? "cha.exe" : "cha";
   const stored = path.join(context.globalStorageUri.fsPath, bin);
-  if (fs.existsSync(stored) && commandExists(stored)) return stored;
+  if (fs.existsSync(stored) && commandExists(stored)) {
+    if (binaryVersionMatches(stored, expectedVersion)) return stored;
+    // Outdated — offer update
+    const choice = await vscode.window.showInformationMessage(
+      `cha binary is outdated. Update to v${expectedVersion}?`,
+      "Update",
+      "Skip"
+    );
+    if (choice === "Update") return downloadToStorage(context, stored);
+    return stored; // use old version
+  }
 
   // 3. Offer to download
   const choice = await vscode.window.showWarningMessage(
@@ -67,6 +79,17 @@ async function ensureBinary(
   if (choice !== "Download") return undefined;
 
   return downloadToStorage(context, stored);
+}
+
+function binaryVersionMatches(cmd: string, expected: string): boolean {
+  try {
+    const out = cp.execSync(`"${cmd}" --version`, { encoding: "utf8" }).trim();
+    // "cha 1.4.1" → "1.4.1"
+    const installed = out.split(/\s+/).pop() || "";
+    return installed === expected;
+  } catch {
+    return false;
+  }
 }
 
 
