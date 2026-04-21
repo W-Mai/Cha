@@ -400,6 +400,19 @@ fn test_vscode_extension() -> Result {
     }
     run_cmd_in("npx", &["tsc", "--noEmit"], &vscode_dir)?;
     println!("    tsc --noEmit passed ✓");
+    run_cmd_in(
+        "npx",
+        &[
+            "@vscode/vsce",
+            "package",
+            "--allow-missing-repository",
+            "-o",
+            "/tmp/cha-vsce-test.vsix",
+        ],
+        &vscode_dir,
+    )?;
+    let _ = std::fs::remove_file("/tmp/cha-vsce-test.vsix");
+    println!("    vsce package passed ✓");
     Ok(())
 }
 
