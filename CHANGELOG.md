@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-04-21
+
+### Added
+- **LSP Document Symbols**: outline view with ⚠ markers based on actual findings severity
+- **LSP**: Document Symbols ⚠ markers now respect `.cha.toml` thresholds (no hardcoded values)
+
+### Changed
+- Upgraded wasmtime 43 → 44
+- Include tests in cha-core crate package (eliminates publish warnings)
+
 ## [1.2.0] - 2026-04-21
 
 ### Added
