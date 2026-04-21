@@ -7,15 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-04-21
+
+### Added
+- **LSP CodeLens**: show complexity, cognitive, lines, params above every function/class
+- **LSP Hover**: detailed quality report card on hover (markdown table)
+- **LSP Inlay Hints**: inline cx/cog/lines annotations at end of function definitions
+
 ## [1.1.0] - 2026-04-21
 
 ### Added
 - Cache v2: bincode serialization + per-file parse cache + mtime fast-path
 - L1 in-memory parse cache — zero disk I/O for repeated access within same process
 - Cached imports in meta for instant `unstable_dependency` analysis
-- **LSP CodeLens**: show complexity, cognitive, lines, params above every function/class
-- **LSP Hover**: detailed quality report card on hover (markdown table)
-- **LSP Inlay Hints**: inline cx/cog/lines annotations at end of function definitions
 - `ProjectCache` with L1/L2 architecture shared across analyze/layers/deps/calibrate
 
 ### Changed
