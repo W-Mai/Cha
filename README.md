@@ -116,6 +116,18 @@ cha calibrate                   # show P90/P95 suggestions
 cha calibrate --apply           # save to .cha/calibration.toml (auto-applied by analyze)
 ```
 
+
+## ⚡ Performance
+
+Cha uses a two-level cache (L1 in-memory + L2 bincode on disk) with mtime fast-path. Benchmarked on 3,201 C files (NuttX RTOS):
+
+| Command | Cold | Warm Cache | Speedup |
+|---------|------|-----------|---------|
+| `analyze` | 5.7s | **3.3s** | 26× |
+| `layers` | — | **0.8s** | 16× |
+| `deps` | — | **0.9s** | 14× |
+| `calibrate` | — | **0.6s** | 22× |
+
 ## 📦 Installation
 
 ```bash
@@ -283,7 +295,19 @@ See `examples/wasm-plugin-example` (suspicious names) and `examples/wasm-plugin-
 cha lsp
 ```
 
-Provides diagnostics on open/change/save and code action suggestions. Also available as standalone `cha-lsp` binary.
+Full-featured Language Server Protocol support:
+
+- **Diagnostics** — real-time code smell detection on open/change/save
+- **Code Actions** — suggested refactorings + Extract Method
+- **CodeLens** — complexity, lines, params displayed above every function/class
+- **Hover** — detailed quality report card (markdown table)
+- **Inlay Hints** — inline `cx:N cog:N NL` annotations
+- **Document Symbols** — outline view with ⚠ markers for problematic functions
+- **Semantic Tokens** — warning modifier highlights on functions/classes with issues
+- **Workspace Diagnostics** — full project scan without opening files
+- **Progress** — progress notification during workspace scan
+
+Works with any LSP-compatible editor (VS Code, Neovim, Helix, Zed, Sublime).
 
 ## 🔌 Integrations
 
@@ -293,7 +317,7 @@ Provides diagnostics on open/change/save and code action suggestions. Also avail
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/W-Mai/Cha
-    rev: v0.7.0
+    rev: v1.4.1
     hooks:
       - id: cha-analyze
 ```
@@ -302,7 +326,7 @@ repos:
 
 ```yaml
 # .github/workflows/cha.yml
-- uses: W-Mai/Cha@v0.7.0
+- uses: W-Mai/Cha@v1.4.1
   with:
     fail-on: warning
     upload-sarif: true
@@ -310,7 +334,9 @@ repos:
 
 ### VS Code
 
-Install the `vscode-cha` extension (requires `cha` in PATH).
+Install the [Cha extension](https://marketplace.visualstudio.com/items?itemName=BenignX.vscode-cha) from the Marketplace. It automatically downloads the `cha` binary on first launch — no manual setup needed.
+
+Features: all LSP capabilities above + auto-download + auto-update.
 
 ## 🛠️ Development
 
