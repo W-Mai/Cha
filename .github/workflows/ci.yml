@@ -108,6 +108,7 @@ jobs:
         working-directory: vscode-cha
         run: |
           npm install
+          npm run compile
           npx tsc --noEmit
       - name: Package .vsix
         working-directory: vscode-cha
