@@ -92,3 +92,23 @@ jobs:
           echo "$PWD/target/release" >> $GITHUB_PATH
           cargo xtask plugin-test
       - run: cargo xtask plugin-e2e
+
+  vscode:
+    name: VS Code Extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install & type-check
+        working-directory: vscode-cha
+        run: |
+          npm install
+          npx tsc --noEmit
+      - name: Package .vsix
+        working-directory: vscode-cha
+        run: npx @vscode/vsce package --allow-missing-repository
+      - name: Download e2e test
+        working-directory: vscode-cha
+        run: npx tsx test/download.test.ts
