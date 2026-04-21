@@ -57,6 +57,39 @@ fn parse_doc(uri: &Url, text: &str) -> Option<SourceModel> {
     cha_parser::parse_file(&file)
 }
 
+/// Build semantic tokens for functions/classes with warnings (modifier bit 0 = "warning").
+fn build_semantic_tokens(
+    model: &SourceModel,
+    warn_lines: &std::collections::HashSet<usize>,
+) -> Vec<SemanticToken> {
+    let mut tokens = Vec::new();
+    let mut prev_line = 0u32;
+    // Collect (line, col_len, type_index, modifier) sorted by line
+    let mut entries: Vec<(u32, u32, u32, u32)> = Vec::new();
+    for f in &model.functions {
+        let line = f.start_line.saturating_sub(1) as u32;
+        let has_warn = (f.start_line..=f.end_line).any(|l| warn_lines.contains(&l));
+        entries.push((line, f.name.len() as u32, 0, if has_warn { 1 } else { 0 }));
+    }
+    for c in &model.classes {
+        let line = c.start_line.saturating_sub(1) as u32;
+        let has_warn = (c.start_line..=c.end_line).any(|l| warn_lines.contains(&l));
+        entries.push((line, c.name.len() as u32, 1, if has_warn { 1 } else { 0 }));
+    }
+    entries.sort_by_key(|e| e.0);
+    for (line, length, token_type, modifiers) in entries {
+        tokens.push(SemanticToken {
+            delta_line: line - prev_line,
+            delta_start: 0,
+            length,
+            token_type,
+            token_modifiers_bitset: modifiers,
+        });
+        prev_line = line;
+    }
+    tokens
+}
+
 fn build_document_symbols(
     file: &SourceFile,
     registry: &PluginRegistry,
@@ -196,6 +229,21 @@ impl LanguageServer for ChaLsp {
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 inlay_hint_provider: Some(OneOf::Left(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
+                semantic_tokens_provider: Some(
+                    SemanticTokensServerCapabilities::SemanticTokensOptions(
+                        SemanticTokensOptions {
+                            legend: SemanticTokensLegend {
+                                token_types: vec![
+                                    SemanticTokenType::FUNCTION,
+                                    SemanticTokenType::CLASS,
+                                ],
+                                token_modifiers: vec![SemanticTokenModifier::new("warning")],
+                            },
+                            full: Some(SemanticTokensFullOptions::Bool(true)),
+                            ..Default::default()
+                        },
+                    ),
+                ),
                 ..Default::default()
             },
             ..Default::default()
@@ -407,6 +455,45 @@ impl LanguageServer for ChaLsp {
             .unwrap_or_else(|_| PathBuf::from(uri.path()));
         let file = SourceFile::new(path, text.to_string());
         Ok(build_document_symbols(&file, &self.registry))
+    }
+
+    async fn semantic_tokens_full(
+        &self,
+        params: SemanticTokensParams,
+    ) -> Result<Option<SemanticTokensResult>> {
+        let uri = &params.text_document.uri;
+        let docs = self.docs.read().await;
+        let Some(text) = docs.get(uri) else {
+            return Ok(None);
+        };
+        let path = uri
+            .to_file_path()
+            .unwrap_or_else(|_| PathBuf::from(uri.path()));
+        let file = SourceFile::new(path, text.to_string());
+        let Some(model) = cha_parser::parse_file(&file) else {
+            return Ok(None);
+        };
+        let ctx = AnalysisContext {
+            file: &file,
+            model: &model,
+        };
+        let findings: Vec<Finding> = self
+            .registry
+            .plugins()
+            .iter()
+            .flat_map(|p| p.analyze(&ctx))
+            .collect();
+        let warn_lines: std::collections::HashSet<usize> = findings
+            .iter()
+            .filter(|f| matches!(f.severity, Severity::Warning | Severity::Error))
+            .flat_map(|f| f.location.start_line..=f.location.end_line)
+            .collect();
+
+        let tokens = build_semantic_tokens(&model, &warn_lines);
+        Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
+            result_id: None,
+            data: tokens,
+        })))
     }
 
     async fn shutdown(&self) -> Result<()> {
