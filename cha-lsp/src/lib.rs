@@ -57,6 +57,102 @@ fn parse_doc(uri: &Url, text: &str) -> Option<SourceModel> {
     cha_parser::parse_file(&file)
 }
 
+fn build_document_symbols(
+    file: &SourceFile,
+    registry: &PluginRegistry,
+) -> Option<DocumentSymbolResponse> {
+    let model = cha_parser::parse_file(file)?;
+    let ctx = AnalysisContext {
+        file,
+        model: &model,
+    };
+    let findings: Vec<Finding> = registry
+        .plugins()
+        .iter()
+        .flat_map(|p| p.analyze(&ctx))
+        .collect();
+    let warn_lines: std::collections::HashSet<usize> = findings
+        .iter()
+        .filter(|f| matches!(f.severity, Severity::Warning | Severity::Error))
+        .flat_map(|f| f.location.start_line..=f.location.end_line)
+        .collect();
+    let mut symbols: Vec<DocumentSymbol> = model
+        .functions
+        .iter()
+        .map(|f| make_fn_symbol(f, &warn_lines))
+        .collect();
+    symbols.extend(
+        model
+            .classes
+            .iter()
+            .map(|c| make_class_symbol(c, &warn_lines)),
+    );
+    Some(DocumentSymbolResponse::Nested(symbols))
+}
+
+#[allow(deprecated)]
+fn make_fn_symbol(
+    f: &cha_core::FunctionInfo,
+    warn_lines: &std::collections::HashSet<usize>,
+) -> DocumentSymbol {
+    let start = f.start_line.saturating_sub(1) as u32;
+    let end = f.end_line.saturating_sub(1) as u32;
+    let icon = if (f.start_line..=f.end_line).any(|l| warn_lines.contains(&l)) {
+        "⚠ "
+    } else {
+        ""
+    };
+    DocumentSymbol {
+        name: format!("{icon}{}", f.name),
+        detail: Some(format!("cx:{} {}L", f.complexity, f.line_count)),
+        kind: SymbolKind::FUNCTION,
+        tags: None,
+        deprecated: None,
+        range: Range {
+            start: Position::new(start, 0),
+            end: Position::new(end, 0),
+        },
+        selection_range: Range {
+            start: Position::new(start, 0),
+            end: Position::new(start, 0),
+        },
+        children: None,
+    }
+}
+
+#[allow(deprecated)]
+fn make_class_symbol(
+    c: &cha_core::ClassInfo,
+    warn_lines: &std::collections::HashSet<usize>,
+) -> DocumentSymbol {
+    let start = c.start_line.saturating_sub(1) as u32;
+    let end = c.end_line.saturating_sub(1) as u32;
+    let icon = if (c.start_line..=c.end_line).any(|l| warn_lines.contains(&l)) {
+        "⚠ "
+    } else {
+        ""
+    };
+    DocumentSymbol {
+        name: format!("{icon}{}", c.name),
+        detail: Some(format!(
+            "{}m {}f {}L",
+            c.method_count, c.field_count, c.line_count
+        )),
+        kind: SymbolKind::CLASS,
+        tags: None,
+        deprecated: None,
+        range: Range {
+            start: Position::new(start, 0),
+            end: Position::new(end, 0),
+        },
+        selection_range: Range {
+            start: Position::new(start, 0),
+            end: Position::new(start, 0),
+        },
+        children: None,
+    }
+}
+
 fn finding_to_diagnostic(f: &Finding) -> Diagnostic {
     let severity = match f.severity {
         Severity::Error => DiagnosticSeverity::ERROR,
@@ -306,57 +402,11 @@ impl LanguageServer for ChaLsp {
         let Some(text) = docs.get(uri) else {
             return Ok(None);
         };
-        let Some(model) = parse_doc(uri, text) else {
-            return Ok(None);
-        };
-        let mut symbols = Vec::new();
-        for f in &model.functions {
-            let start = f.start_line.saturating_sub(1) as u32;
-            let end = f.end_line.saturating_sub(1) as u32;
-            let icon = if f.complexity >= 10 { "⚠ " } else { "" };
-            #[allow(deprecated)]
-            symbols.push(DocumentSymbol {
-                name: format!("{icon}{}", f.name),
-                detail: Some(format!("cx:{} {}L", f.complexity, f.line_count)),
-                kind: SymbolKind::FUNCTION,
-                tags: None,
-                deprecated: None,
-                range: Range {
-                    start: Position::new(start, 0),
-                    end: Position::new(end, 0),
-                },
-                selection_range: Range {
-                    start: Position::new(start, 0),
-                    end: Position::new(start, 0),
-                },
-                children: None,
-            });
-        }
-        for c in &model.classes {
-            let start = c.start_line.saturating_sub(1) as u32;
-            let end = c.end_line.saturating_sub(1) as u32;
-            #[allow(deprecated)]
-            symbols.push(DocumentSymbol {
-                name: c.name.clone(),
-                detail: Some(format!(
-                    "{}m {}f {}L",
-                    c.method_count, c.field_count, c.line_count
-                )),
-                kind: SymbolKind::CLASS,
-                tags: None,
-                deprecated: None,
-                range: Range {
-                    start: Position::new(start, 0),
-                    end: Position::new(end, 0),
-                },
-                selection_range: Range {
-                    start: Position::new(start, 0),
-                    end: Position::new(start, 0),
-                },
-                children: None,
-            });
-        }
-        Ok(Some(DocumentSymbolResponse::Nested(symbols)))
+        let path = uri
+            .to_file_path()
+            .unwrap_or_else(|_| PathBuf::from(uri.path()));
+        let file = SourceFile::new(path, text.to_string());
+        Ok(build_document_symbols(&file, &self.registry))
     }
 
     async fn shutdown(&self) -> Result<()> {
