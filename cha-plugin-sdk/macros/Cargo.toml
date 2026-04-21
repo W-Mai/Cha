@@ -5,7 +5,7 @@ edition = "2024"
 description = "Proc-macro internals for cha-plugin-sdk"
 license = "MIT"
 repository = "https://github.com/W-Mai/Cha"
-include = ["src/**", "wit/plugin.wit", "Cargo.toml"]
+include = ["src/**", "wit/plugin.wit", "Cargo.toml", "build.rs"]
 
 [lib]
 proc-macro = true
