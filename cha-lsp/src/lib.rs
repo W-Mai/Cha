@@ -547,6 +547,32 @@ impl LanguageServer for ChaLsp {
         })))
     }
 
+    async fn diagnostic(
+        &self,
+        params: DocumentDiagnosticParams,
+    ) -> Result<DocumentDiagnosticReportResult> {
+        let uri = &params.text_document.uri;
+        let docs = self.docs.read().await;
+        let diagnostics = if let Some(text) = docs.get(uri) {
+            let path = uri
+                .to_file_path()
+                .unwrap_or_else(|_| PathBuf::from(uri.path()));
+            let file = SourceFile::new(path, text.to_string());
+            collect_diagnostics(&self.registry, &file)
+        } else {
+            vec![]
+        };
+        Ok(DocumentDiagnosticReportResult::Report(
+            DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
+                related_documents: None,
+                full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                    result_id: None,
+                    items: diagnostics,
+                },
+            }),
+        ))
+    }
+
     async fn workspace_diagnostic(
         &self,
         _params: WorkspaceDiagnosticParams,
