@@ -46,7 +46,8 @@ async function ensureBinary(
   if (configured !== "cha" && commandExists(configured)) return configured;
 
   // 2. Check extension-managed binary (preferred)
-  const stored = path.join(context.globalStorageUri.fsPath, "cha");
+  const bin = process.platform === "win32" ? "cha.exe" : "cha";
+  const stored = path.join(context.globalStorageUri.fsPath, bin);
   if (fs.existsSync(stored) && commandExists(stored)) return stored;
 
   // 3. Offer to download
@@ -114,31 +115,51 @@ async function downloadLatest(
   token: vscode.CancellationToken
 ): Promise<void> {
   const arch = process.arch === "arm64" ? "aarch64" : "x86_64";
+  const isWin = process.platform === "win32";
   const platform =
     process.platform === "darwin"
       ? `${arch}-apple-darwin`
-      : `${arch}-unknown-linux-gnu`;
+      : isWin
+        ? `${arch}-pc-windows-msvc`
+        : `${arch}-unknown-linux-gnu`;
 
   progress(0, "fetching release info...");
   const release = await fetchJson(
     "https://api.github.com/repos/W-Mai/Cha/releases/latest"
   );
   const tag = release.tag_name;
-  const url = `https://github.com/W-Mai/Cha/releases/download/${tag}/cha-cli-${platform}.tar.xz`;
 
-  const tarball = dest + ".tar.xz";
-  await downloadFileWithProgress(url, tarball, (pct) => {
-    progress(pct, `downloading ${tag}... ${pct.toFixed(0)}%`);
-  }, token);
-
-  progress(0, "extracting...");
   const dir = path.dirname(dest);
-  cp.execSync(`tar xJf "${tarball}" -C "${dir}"`, { stdio: "ignore" });
-  fs.unlinkSync(tarball);
-  const extracted = path.join(dir, `cha-cli-${platform}`, "cha");
-  if (fs.existsSync(extracted)) {
-    fs.renameSync(extracted, dest);
-    fs.rmSync(path.join(dir, `cha-cli-${platform}`), { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+
+  if (isWin) {
+    const url = `https://github.com/W-Mai/Cha/releases/download/${tag}/cha-cli-${platform}.zip`;
+    const zipPath = dest + ".zip";
+    await downloadFileWithProgress(url, zipPath, (pct) => {
+      progress(pct, `downloading ${tag}... ${pct.toFixed(0)}%`);
+    }, token);
+    progress(0, "extracting...");
+    cp.execSync(`powershell -Command "Expand-Archive -Force '${zipPath}' '${dir}'"`, { stdio: "ignore" });
+    fs.unlinkSync(zipPath);
+    const extracted = path.join(dir, `cha-cli-${platform}`, "cha.exe");
+    if (fs.existsSync(extracted)) {
+      fs.renameSync(extracted, dest + ".exe");
+      fs.rmSync(path.join(dir, `cha-cli-${platform}`), { recursive: true, force: true });
+    }
+  } else {
+    const url = `https://github.com/W-Mai/Cha/releases/download/${tag}/cha-cli-${platform}.tar.xz`;
+    const tarball = dest + ".tar.xz";
+    await downloadFileWithProgress(url, tarball, (pct) => {
+      progress(pct, `downloading ${tag}... ${pct.toFixed(0)}%`);
+    }, token);
+    progress(0, "extracting...");
+    cp.execSync(`tar xJf "${tarball}" -C "${dir}"`, { stdio: "ignore" });
+    fs.unlinkSync(tarball);
+    const extracted = path.join(dir, `cha-cli-${platform}`, "cha");
+    if (fs.existsSync(extracted)) {
+      fs.renameSync(extracted, dest);
+      fs.rmSync(path.join(dir, `cha-cli-${platform}`), { recursive: true, force: true });
+    }
   }
 }
 
