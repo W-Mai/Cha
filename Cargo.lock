@@ -347,6 +347,7 @@ version = "1.3.0"
 dependencies = [
  "cha-core",
  "cha-parser",
+ "ignore",
  "serde_json",
  "tokio",
  "tower-lsp",

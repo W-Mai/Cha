@@ -58,6 +58,49 @@ fn parse_doc(uri: &Url, text: &str) -> Option<SourceModel> {
 }
 
 /// Build semantic tokens for functions/classes with warnings (modifier bit 0 = "warning").
+fn scan_workspace(
+    cwd: &std::path::Path,
+    registry: &PluginRegistry,
+) -> Vec<WorkspaceDocumentDiagnosticReport> {
+    let walker = ignore::WalkBuilder::new(cwd)
+        .hidden(true)
+        .git_ignore(true)
+        .build();
+    let exts = [
+        "rs", "ts", "tsx", "py", "go", "c", "h", "cpp", "cc", "cxx", "hpp",
+    ];
+    walker
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            e.file_type().is_some_and(|ft| ft.is_file())
+                && e.path()
+                    .extension()
+                    .and_then(|x| x.to_str())
+                    .is_some_and(|x| exts.contains(&x))
+        })
+        .filter_map(|e| {
+            let path = e.into_path();
+            let content = std::fs::read_to_string(&path).ok()?;
+            let file = SourceFile::new(path.clone(), content);
+            let diagnostics = collect_diagnostics(registry, &file);
+            if diagnostics.is_empty() {
+                return None;
+            }
+            let uri = Url::from_file_path(&path).ok()?;
+            Some(WorkspaceDocumentDiagnosticReport::Full(
+                WorkspaceFullDocumentDiagnosticReport {
+                    uri,
+                    version: None,
+                    full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                        result_id: None,
+                        items: diagnostics,
+                    },
+                },
+            ))
+        })
+        .collect()
+}
+
 fn build_semantic_tokens(
     model: &SourceModel,
     warn_lines: &std::collections::HashSet<usize>,
@@ -244,6 +287,14 @@ impl LanguageServer for ChaLsp {
                         },
                     ),
                 ),
+                diagnostic_provider: Some(DiagnosticServerCapabilities::Options(
+                    DiagnosticOptions {
+                        identifier: Some("cha".into()),
+                        inter_file_dependencies: false,
+                        workspace_diagnostics: true,
+                        ..Default::default()
+                    },
+                )),
                 ..Default::default()
             },
             ..Default::default()
@@ -494,6 +545,17 @@ impl LanguageServer for ChaLsp {
             result_id: None,
             data: tokens,
         })))
+    }
+
+    async fn workspace_diagnostic(
+        &self,
+        _params: WorkspaceDiagnosticParams,
+    ) -> Result<WorkspaceDiagnosticReportResult> {
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let items = scan_workspace(&cwd, &self.registry);
+        Ok(WorkspaceDiagnosticReportResult::Report(
+            WorkspaceDiagnosticReport { items },
+        ))
     }
 
     async fn shutdown(&self) -> Result<()> {
