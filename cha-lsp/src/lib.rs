@@ -3,7 +3,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use cha_core::{AnalysisContext, Config, Finding, PluginRegistry, Severity, SourceFile};
+use cha_core::{
+    AnalysisContext, Config, Finding, PluginRegistry, Severity, SourceFile, SourceModel,
+};
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
@@ -14,42 +16,45 @@ struct ChaLsp {
     docs: Arc<RwLock<HashMap<Url, String>>>,
 }
 
-impl ChaLsp {
-    fn analyze_and_publish(&self, uri: &Url, text: &str) {
-        let path = uri
-            .to_file_path()
-            .unwrap_or_else(|_| PathBuf::from(uri.path()));
-        let file = SourceFile::new(path, text.to_string());
+fn analyze_and_publish(client: &Client, registry: &PluginRegistry, uri: &Url, text: &str) {
+    let path = uri
+        .to_file_path()
+        .unwrap_or_else(|_| PathBuf::from(uri.path()));
+    let file = SourceFile::new(path, text.to_string());
+    let diagnostics = collect_diagnostics(registry, &file);
+    publish(client, uri.clone(), diagnostics);
+}
 
-        let diagnostics = self.collect_diagnostics(&file);
-        self.publish(uri.clone(), diagnostics);
-    }
+fn collect_diagnostics(registry: &PluginRegistry, file: &SourceFile) -> Vec<Diagnostic> {
+    let model = match cha_parser::parse_file(file) {
+        Some(m) => m,
+        None => return vec![],
+    };
+    let ctx = AnalysisContext {
+        file,
+        model: &model,
+    };
+    registry
+        .plugins()
+        .iter()
+        .flat_map(|p| p.analyze(&ctx))
+        .map(|f| finding_to_diagnostic(&f))
+        .collect()
+}
 
-    // Run all plugins on a single file and convert findings to diagnostics.
-    fn collect_diagnostics(&self, file: &SourceFile) -> Vec<Diagnostic> {
-        let model = match cha_parser::parse_file(file) {
-            Some(m) => m,
-            None => return vec![],
-        };
-        let ctx = AnalysisContext {
-            file,
-            model: &model,
-        };
-        self.registry
-            .plugins()
-            .iter()
-            .flat_map(|p| p.analyze(&ctx))
-            .map(|f| finding_to_diagnostic(&f))
-            .collect()
-    }
+fn publish(client: &Client, uri: Url, diagnostics: Vec<Diagnostic>) {
+    let client = client.clone();
+    tokio::spawn(async move {
+        client.publish_diagnostics(uri, diagnostics, None).await;
+    });
+}
 
-    // Spawn an async task to publish diagnostics to the client.
-    fn publish(&self, uri: Url, diagnostics: Vec<Diagnostic>) {
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            client.publish_diagnostics(uri, diagnostics, None).await;
-        });
-    }
+fn parse_doc(uri: &Url, text: &str) -> Option<SourceModel> {
+    let path = uri
+        .to_file_path()
+        .unwrap_or_else(|_| PathBuf::from(uri.path()));
+    let file = SourceFile::new(path, text.to_string());
+    cha_parser::parse_file(&file)
 }
 
 fn finding_to_diagnostic(f: &Finding) -> Diagnostic {
@@ -89,6 +94,11 @@ impl LanguageServer for ChaLsp {
                     TextDocumentSyncKind::FULL,
                 )),
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+                code_lens_provider: Some(CodeLensOptions {
+                    resolve_provider: Some(false),
+                }),
+                hover_provider: Some(HoverProviderCapability::Simple(true)),
+                inlay_hint_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             ..Default::default()
@@ -105,7 +115,7 @@ impl LanguageServer for ChaLsp {
         let uri = params.text_document.uri.clone();
         let text = params.text_document.text.clone();
         self.docs.write().await.insert(uri.clone(), text.clone());
-        self.analyze_and_publish(&uri, &text);
+        analyze_and_publish(&self.client, &self.registry, &uri, &text);
     }
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
@@ -114,7 +124,12 @@ impl LanguageServer for ChaLsp {
                 .write()
                 .await
                 .insert(params.text_document.uri.clone(), text.clone());
-            self.analyze_and_publish(&params.text_document.uri, &text);
+            analyze_and_publish(
+                &self.client,
+                &self.registry,
+                &params.text_document.uri,
+                &text,
+            );
         }
     }
 
@@ -124,7 +139,12 @@ impl LanguageServer for ChaLsp {
                 .write()
                 .await
                 .insert(params.text_document.uri.clone(), change.text.clone());
-            self.analyze_and_publish(&params.text_document.uri, &change.text);
+            analyze_and_publish(
+                &self.client,
+                &self.registry,
+                &params.text_document.uri,
+                &change.text,
+            );
         }
     }
 
@@ -142,6 +162,138 @@ impl LanguageServer for ChaLsp {
         } else {
             Some(actions)
         })
+    }
+
+    async fn code_lens(&self, params: CodeLensParams) -> Result<Option<Vec<CodeLens>>> {
+        let uri = &params.text_document.uri;
+        let docs = self.docs.read().await;
+        let Some(text) = docs.get(uri) else {
+            return Ok(None);
+        };
+        let Some(model) = parse_doc(uri, text) else {
+            return Ok(None);
+        };
+        let mut lenses = Vec::new();
+        for f in &model.functions {
+            let line = f.start_line.saturating_sub(1) as u32;
+            let mut parts = Vec::new();
+            parts.push(format!("complexity: {}", f.complexity));
+            if f.cognitive_complexity > 0 {
+                parts.push(format!("cognitive: {}", f.cognitive_complexity));
+            }
+            parts.push(format!("{} lines", f.line_count));
+            if f.parameter_count > 0 {
+                parts.push(format!("{} params", f.parameter_count));
+            }
+            lenses.push(CodeLens {
+                range: Range {
+                    start: Position::new(line, 0),
+                    end: Position::new(line, 0),
+                },
+                command: Some(Command {
+                    title: parts.join(" | "),
+                    command: String::new(),
+                    arguments: None,
+                }),
+                data: None,
+            });
+        }
+        for c in &model.classes {
+            let line = c.start_line.saturating_sub(1) as u32;
+            lenses.push(CodeLens {
+                range: Range {
+                    start: Position::new(line, 0),
+                    end: Position::new(line, 0),
+                },
+                command: Some(Command {
+                    title: format!(
+                        "{} methods | {} fields | {} lines",
+                        c.method_count, c.field_count, c.line_count
+                    ),
+                    command: String::new(),
+                    arguments: None,
+                }),
+                data: None,
+            });
+        }
+        Ok(Some(lenses))
+    }
+
+    async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
+        let uri = &params.text_document_position_params.text_document.uri;
+        let pos = params.text_document_position_params.position;
+        let line = pos.line as usize + 1;
+        let docs = self.docs.read().await;
+        let Some(text) = docs.get(uri) else {
+            return Ok(None);
+        };
+        let Some(model) = parse_doc(uri, text) else {
+            return Ok(None);
+        };
+        // Find function at cursor line
+        for f in &model.functions {
+            if line >= f.start_line && line <= f.end_line {
+                let card = format!(
+                    "### 📊 `{}`\n\n\
+                     | Metric | Value |\n|---|---|\n\
+                     | Lines | {} |\n\
+                     | Cyclomatic complexity | {} |\n\
+                     | Cognitive complexity | {} |\n\
+                     | Parameters | {} |\n\
+                     | Chain depth | {} |",
+                    f.name,
+                    f.line_count,
+                    f.complexity,
+                    f.cognitive_complexity,
+                    f.parameter_count,
+                    f.chain_depth,
+                );
+                return Ok(Some(Hover {
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: card,
+                    }),
+                    range: None,
+                }));
+            }
+        }
+        Ok(None)
+    }
+
+    async fn inlay_hint(&self, params: InlayHintParams) -> Result<Option<Vec<InlayHint>>> {
+        let uri = &params.text_document.uri;
+        let docs = self.docs.read().await;
+        let Some(text) = docs.get(uri) else {
+            return Ok(None);
+        };
+        let Some(model) = parse_doc(uri, text) else {
+            return Ok(None);
+        };
+        let lines: Vec<&str> = text.lines().collect();
+        let mut hints = Vec::new();
+        for f in &model.functions {
+            let line = f.start_line.saturating_sub(1);
+            if line >= lines.len() {
+                continue;
+            }
+            let col = lines[line].len() as u32;
+            let mut parts = vec![format!("cx:{}", f.complexity)];
+            if f.cognitive_complexity > 0 && f.cognitive_complexity != f.complexity {
+                parts.push(format!("cog:{}", f.cognitive_complexity));
+            }
+            parts.push(format!("{}L", f.line_count));
+            hints.push(InlayHint {
+                position: Position::new(line as u32, col),
+                label: InlayHintLabel::String(format!("  {}", parts.join(" "))),
+                kind: Some(InlayHintKind::PARAMETER),
+                text_edits: None,
+                tooltip: None,
+                padding_left: Some(true),
+                padding_right: None,
+                data: None,
+            });
+        }
+        Ok(Some(hints))
     }
 
     async fn shutdown(&self) -> Result<()> {
