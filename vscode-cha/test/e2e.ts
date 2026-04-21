@@ -15,7 +15,6 @@ async function main() {
     extensionDevelopmentPath,
     extensionTestsPath,
     launchArgs: [
-      "--disable-extensions",
       "--disable-gpu",
       path.resolve(__dirname, "..", ".."), // open project root as workspace
     ],
