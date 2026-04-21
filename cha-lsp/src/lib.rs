@@ -99,6 +99,7 @@ impl LanguageServer for ChaLsp {
                 }),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 inlay_hint_provider: Some(OneOf::Left(true)),
+                document_symbol_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             ..Default::default()
@@ -294,6 +295,68 @@ impl LanguageServer for ChaLsp {
             });
         }
         Ok(Some(hints))
+    }
+
+    async fn document_symbol(
+        &self,
+        params: DocumentSymbolParams,
+    ) -> Result<Option<DocumentSymbolResponse>> {
+        let uri = &params.text_document.uri;
+        let docs = self.docs.read().await;
+        let Some(text) = docs.get(uri) else {
+            return Ok(None);
+        };
+        let Some(model) = parse_doc(uri, text) else {
+            return Ok(None);
+        };
+        let mut symbols = Vec::new();
+        for f in &model.functions {
+            let start = f.start_line.saturating_sub(1) as u32;
+            let end = f.end_line.saturating_sub(1) as u32;
+            let icon = if f.complexity >= 10 { "⚠ " } else { "" };
+            #[allow(deprecated)]
+            symbols.push(DocumentSymbol {
+                name: format!("{icon}{}", f.name),
+                detail: Some(format!("cx:{} {}L", f.complexity, f.line_count)),
+                kind: SymbolKind::FUNCTION,
+                tags: None,
+                deprecated: None,
+                range: Range {
+                    start: Position::new(start, 0),
+                    end: Position::new(end, 0),
+                },
+                selection_range: Range {
+                    start: Position::new(start, 0),
+                    end: Position::new(start, 0),
+                },
+                children: None,
+            });
+        }
+        for c in &model.classes {
+            let start = c.start_line.saturating_sub(1) as u32;
+            let end = c.end_line.saturating_sub(1) as u32;
+            #[allow(deprecated)]
+            symbols.push(DocumentSymbol {
+                name: c.name.clone(),
+                detail: Some(format!(
+                    "{}m {}f {}L",
+                    c.method_count, c.field_count, c.line_count
+                )),
+                kind: SymbolKind::CLASS,
+                tags: None,
+                deprecated: None,
+                range: Range {
+                    start: Position::new(start, 0),
+                    end: Position::new(end, 0),
+                },
+                selection_range: Range {
+                    start: Position::new(start, 0),
+                    end: Position::new(start, 0),
+                },
+                children: None,
+            });
+        }
+        Ok(Some(DocumentSymbolResponse::Nested(symbols)))
     }
 
     async fn shutdown(&self) -> Result<()> {
