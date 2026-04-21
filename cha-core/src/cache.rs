@@ -121,6 +121,8 @@ impl AnalysisCache {
     pub fn env_hash(project_root: &Path, plugin_dirs: &[PathBuf]) -> u64 {
         use std::hash::{Hash, Hasher};
         let mut h = std::collections::hash_map::DefaultHasher::new();
+        // Invalidate when cha version changes (plugin logic may differ)
+        env!("CARGO_PKG_VERSION").hash(&mut h);
         // Hash all .cha.toml files (root + subdirectories)
         hash_all_configs(project_root, &mut h);
         for dir in plugin_dirs {
