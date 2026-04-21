@@ -26,9 +26,6 @@ suite("VS Code Extension E2E", () => {
     }
     assert.ok(ext.isActive, "Extension failed to activate");
 
-    // Give it time to download binary if needed
-    await new Promise((r) => setTimeout(r, 30_000));
-
     // Write a temp file (LSP only handles file: scheme, not untitled:)
     const tmpDir = require("os").tmpdir();
     const tmpFile = require("path").join(tmpDir, "cha-e2e-test.ts");
@@ -41,15 +38,19 @@ suite("VS Code Extension E2E", () => {
     );
     await vscode.window.showTextDocument(doc);
 
-    // Wait for LSP diagnostics
-    await new Promise((r) => setTimeout(r, 15_000));
-    const diags = vscode.languages.getDiagnostics(doc.uri);
-    const chaFindings = diags.filter((d) => d.source === "cha");
+    // Poll for diagnostics — binary download + LSP startup may take up to 90s on CI
+    let chaFindings: vscode.Diagnostic[] = [];
+    for (let i = 0; i < 18; i++) {
+      await new Promise((r) => setTimeout(r, 5_000));
+      const diags = vscode.languages.getDiagnostics(doc.uri);
+      chaFindings = diags.filter((d) => d.source === "cha");
+      console.log(`  → poll ${i + 1}: ${chaFindings.length} cha diagnostics`);
+      if (chaFindings.length > 0) break;
+    }
 
     // Cleanup
-    require("fs").unlinkSync(tmpFile);
+    try { require("fs").unlinkSync(tmpFile); } catch {}
 
-    console.log(`  → ${chaFindings.length} cha diagnostics found`);
     assert.ok(
       chaFindings.length > 0,
       "Expected cha diagnostics for a 60-line function (long_method)"
