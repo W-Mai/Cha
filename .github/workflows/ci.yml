@@ -94,8 +94,11 @@ jobs:
       - run: cargo xtask plugin-e2e
 
   vscode:
-    name: VS Code Extension
-    runs-on: ubuntu-latest
+    name: VS Code Extension (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -109,3 +112,6 @@ jobs:
       - name: Package .vsix
         working-directory: vscode-cha
         run: npx @vscode/vsce package --allow-missing-repository
+      - name: Download e2e test
+        working-directory: vscode-cha
+        run: npx tsx test/download.test.ts
