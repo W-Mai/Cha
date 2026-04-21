@@ -552,7 +552,38 @@ impl LanguageServer for ChaLsp {
         _params: WorkspaceDiagnosticParams,
     ) -> Result<WorkspaceDiagnosticReportResult> {
         let cwd = std::env::current_dir().unwrap_or_default();
+
+        // Create progress token
+        let token = NumberOrString::String("cha/workspace-diagnostic".into());
+        let _ = self
+            .client
+            .send_request::<request::WorkDoneProgressCreate>(WorkDoneProgressCreateParams {
+                token: token.clone(),
+            })
+            .await;
+        self.client
+            .send_notification::<notification::Progress>(ProgressParams {
+                token: token.clone(),
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(
+                    WorkDoneProgressBegin {
+                        title: "Cha: analyzing workspace".into(),
+                        ..Default::default()
+                    },
+                )),
+            })
+            .await;
+
         let items = scan_workspace(&cwd, &self.registry);
+
+        self.client
+            .send_notification::<notification::Progress>(ProgressParams {
+                token,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(WorkDoneProgressEnd {
+                    message: Some(format!("{} files analyzed", items.len())),
+                })),
+            })
+            .await;
+
         Ok(WorkspaceDiagnosticReportResult::Report(
             WorkspaceDiagnosticReport { items },
         ))
