@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-04-21
+
+### Added
+- **LSP Semantic Tokens**: highlight functions/classes with warning modifier based on findings
+- **LSP Workspace Diagnostics**: full project analysis without opening files
+- **LSP textDocument/diagnostic**: pull-based diagnostics per file
+- **LSP Progress**: progress notification during workspace diagnostics scan
+
 ## [1.3.0] - 2026-04-21
 
 ### Added

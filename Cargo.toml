@@ -4,7 +4,7 @@ exclude = ["examples/wasm-plugin-example", "examples/wasm-plugin-hardcoded", "ch
 resolver = "2"
 
 [workspace.package]
-version = "1.3.0"
+version = "1.4.0"
 edition = "2024"
 license = "MIT"
 authors = ["W-Mai <w-mai@outlook.com>"]
@@ -14,8 +14,8 @@ keywords = ["code-quality", "static-analysis", "linter", "ast", "wasm"]
 categories = ["development-tools", "development-tools::testing"]
 
 [workspace.dependencies]
-cha-core = { path = "cha-core", version = "1.3.0" }
-cha-parser = { path = "cha-parser", version = "1.3.0" }
+cha-core = { path = "cha-core", version = "1.4.0" }
+cha-parser = { path = "cha-parser", version = "1.4.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
