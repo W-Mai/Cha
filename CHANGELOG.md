@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-04-21
+
+### Added
+- VS Code extension CI: `vsce package` validation + download e2e test on GitHub Actions
+- Download e2e test imports actual extension code (shared `download.ts` module)
+
+### Fixed
+- Windows binary download: use `.zip` + PowerShell extraction + `.exe` binary name
+
 ## [1.4.0] - 2026-04-21
 
 ### Added
