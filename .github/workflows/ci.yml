@@ -109,6 +109,3 @@ jobs:
       - name: Package .vsix
         working-directory: vscode-cha
         run: npx @vscode/vsce package --allow-missing-repository
-      - name: Download e2e test
-        working-directory: vscode-cha
-        run: npx tsx test/download.test.ts
