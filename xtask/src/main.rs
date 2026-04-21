@@ -413,6 +413,8 @@ fn test_vscode_extension() -> Result {
     )?;
     let _ = std::fs::remove_file("/tmp/cha-vsce-test.vsix");
     println!("    vsce package passed ✓");
+    run_cmd_in("npx", &["tsx", "test/download.test.ts"], &vscode_dir)?;
+    println!("    download e2e passed ✓");
     Ok(())
 }
 
