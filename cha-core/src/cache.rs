@@ -30,6 +30,8 @@ pub struct ProjectCache {
     root: PathBuf,
     meta: CacheMeta,
     dirty: bool,
+    /// L1 in-memory parse cache (avoids repeated disk reads within same process).
+    mem_models: HashMap<u64, SourceModel>,
 }
 
 fn hash_all_configs(dir: &Path, h: &mut impl std::hash::Hasher) {
@@ -98,6 +100,7 @@ impl ProjectCache {
             root: project_root.to_path_buf(),
             meta,
             dirty: false,
+            mem_models: HashMap::new(),
         }
     }
 
@@ -116,17 +119,23 @@ impl ProjectCache {
         FileStatus::Changed
     }
 
-    /// Get cached SourceModel for a file by content hash.
-    pub fn get_model(&self, chash: u64) -> Option<SourceModel> {
+    /// Get cached SourceModel: L1 memory → L2 disk.
+    pub fn get_model(&mut self, chash: u64) -> Option<SourceModel> {
+        if let Some(m) = self.mem_models.get(&chash) {
+            return Some(m.clone());
+        }
         let path = cache_dir(&self.root)
             .join("parse")
             .join(format!("{chash:016x}.bin"));
         let bytes = std::fs::read(&path).ok()?;
-        bincode::deserialize(&bytes).ok()
+        let model: SourceModel = bincode::deserialize(&bytes).ok()?;
+        self.mem_models.insert(chash, model.clone());
+        Some(model)
     }
 
-    /// Store a SourceModel in the parse cache.
+    /// Store a SourceModel in L1 + L2.
     pub fn put_model(&mut self, chash: u64, model: &SourceModel) {
+        self.mem_models.insert(chash, model.clone());
         let dir = cache_dir(&self.root).join("parse");
         let _ = std::fs::create_dir_all(&dir);
         if let Ok(bytes) = bincode::serialize(model) {
