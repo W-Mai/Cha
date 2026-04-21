@@ -37,9 +37,21 @@ pub(crate) fn cmd_analyze(opts: &AnalyzeOpts) -> i32 {
         return 0;
     }
 
-    let mut all_findings = run_analysis(&files, &cwd, opts.plugin_filter);
-    all_findings.extend(run_post_analysis(&files, &cwd, opts.plugin_filter));
-    all_findings = filter_c_oop_false_positives(all_findings, &files);
+    let (mut all_findings, cache) = run_analysis(&files, &cwd, opts.plugin_filter);
+    let dummy = std::sync::Mutex::new(crate::open_project_cache(&cwd));
+    let cache_ref = cache.as_ref().unwrap_or(&dummy);
+    all_findings.extend(run_post_analysis(
+        &files,
+        &cwd,
+        opts.plugin_filter,
+        cache_ref,
+    ));
+    all_findings = filter_c_oop_false_positives(all_findings, &files, cache_ref, &cwd);
+    if let Some(cache) = cache
+        && let Ok(c) = cache.into_inner()
+    {
+        c.flush();
+    }
     let all_findings = apply_filters(all_findings, &diff_map, opts.baseline_path, &cwd);
     let mut all_findings = all_findings;
     cha_core::prioritize_findings(&mut all_findings);
@@ -77,11 +89,16 @@ pub(crate) const POST_ANALYSIS_PASSES: &[(&str, &str)] = &[
     ),
 ];
 
-fn run_post_analysis(files: &[PathBuf], cwd: &Path, plugin_filter: &[String]) -> Vec<Finding> {
+fn run_post_analysis(
+    files: &[PathBuf],
+    cwd: &Path,
+    plugin_filter: &[String],
+    cache: &std::sync::Mutex<cha_core::ProjectCache>,
+) -> Vec<Finding> {
     let mut findings = Vec::new();
     let pass = |name: &str| plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == name);
     if pass("unstable_dependency") {
-        findings.extend(detect_unstable_deps(files, cwd));
+        findings.extend(detect_unstable_deps(files, cwd, cache));
     }
     if pass("test_ratio") {
         findings.extend(check_test_ratio(files));
@@ -98,8 +115,13 @@ fn run_post_analysis(files: &[PathBuf], cwd: &Path, plugin_filter: &[String]) ->
 /// Remove lazy_class/data_class false positives for C structs that have
 /// cross-file methods (functions in the same directory whose first param
 /// is a pointer to the struct or its typedef alias).
-fn filter_c_oop_false_positives(findings: Vec<Finding>, files: &[PathBuf]) -> Vec<Finding> {
-    let has_methods = collect_c_structs_with_methods(files);
+fn filter_c_oop_false_positives(
+    findings: Vec<Finding>,
+    files: &[PathBuf],
+    cache: &std::sync::Mutex<cha_core::ProjectCache>,
+    cwd: &Path,
+) -> Vec<Finding> {
+    let has_methods = collect_c_structs_with_methods(files, cache, cwd);
     if has_methods.is_empty() {
         return findings;
     }
@@ -116,16 +138,20 @@ fn filter_c_oop_false_positives(findings: Vec<Finding>, files: &[PathBuf]) -> Ve
 }
 
 /// Parse C files and find structs that have cross-file methods.
-fn collect_c_structs_with_methods(files: &[PathBuf]) -> std::collections::HashSet<String> {
+fn collect_c_structs_with_methods(
+    files: &[PathBuf],
+    cache: &std::sync::Mutex<cha_core::ProjectCache>,
+    cwd: &Path,
+) -> std::collections::HashSet<String> {
     use std::collections::{HashMap, HashSet};
 
     let models: Vec<(PathBuf, cha_core::SourceModel)> = files
         .iter()
         .filter(|f| matches!(f.extension().and_then(|e| e.to_str()), Some("c" | "h")))
         .filter_map(|p| {
-            let content = std::fs::read_to_string(p).ok()?;
-            let file = cha_core::SourceFile::new(p.clone(), content);
-            cha_parser::parse_file(&file).map(|m| (p.clone(), m))
+            let mut c = cache.lock().ok()?;
+            let (_, model) = crate::cached_parse(p, &mut c, cwd)?;
+            Some((p.clone(), model))
         })
         .collect();
     if models.is_empty() {
@@ -275,7 +301,10 @@ pub(crate) fn run_analysis(
     files: &[PathBuf],
     project_root: &Path,
     plugin_filter: &[String],
-) -> Vec<Finding> {
+) -> (
+    Vec<Finding>,
+    Option<std::sync::Mutex<cha_core::ProjectCache>>,
+) {
     let cache = open_cache(project_root, !plugin_filter.is_empty());
 
     let pb = crate::new_progress_bar(files.len() as u64);
@@ -289,19 +318,14 @@ pub(crate) fn run_analysis(
         .collect();
     pb.finish_and_clear();
 
-    if let Some(cache) = cache
-        && let Ok(c) = cache.into_inner()
-    {
-        c.flush();
-    }
-    results
+    (results, cache)
 }
 
 fn open_cache(
     project_root: &Path,
     no_cache: bool,
-) -> Option<std::sync::Mutex<cha_core::AnalysisCache>> {
-    use cha_core::AnalysisCache;
+) -> Option<std::sync::Mutex<cha_core::ProjectCache>> {
+    use cha_core::ProjectCache;
     if no_cache {
         return None;
     }
@@ -309,8 +333,8 @@ fn open_cache(
         project_root.join(".cha/plugins"),
         dirs::home_dir().unwrap_or_default().join(".cha/plugins"),
     ];
-    let env_hash = AnalysisCache::env_hash(project_root, &plugin_dirs);
-    Some(std::sync::Mutex::new(AnalysisCache::open(
+    let env_hash = cha_core::env_hash(project_root, &plugin_dirs);
+    Some(std::sync::Mutex::new(ProjectCache::open(
         project_root,
         env_hash,
     )))
@@ -320,26 +344,34 @@ fn analyze_one(
     path: &Path,
     project_root: &Path,
     plugin_filter: &[String],
-    cache: &Option<std::sync::Mutex<cha_core::AnalysisCache>>,
+    cache: &Option<std::sync::Mutex<cha_core::ProjectCache>>,
 ) -> Vec<Finding> {
-    use cha_core::AnalysisCache;
-
-    let content = match std::fs::read_to_string(path) {
-        Ok(c) => c,
-        Err(_) => return vec![],
-    };
     let rel = path
         .strip_prefix(project_root)
         .unwrap_or(path)
         .to_string_lossy()
         .to_string();
-    let content_hash = AnalysisCache::hash_content(&content);
+
+    // Fast path: mtime+size unchanged → return cached findings without reading file
+    if let Some(cache) = cache
+        && let Ok(c) = cache.lock()
+        && let cha_core::FileStatus::Unchanged(chash) = c.check_file(&rel, path)
+        && let Some(cached) = c.get_findings(chash)
+    {
+        return cached;
+    }
+
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return vec![],
+    };
+    let content_hash = cha_core::hash_content(&content);
 
     if let Some(cache) = cache
         && let Ok(c) = cache.lock()
-        && let Some(cached) = c.get(&rel, content_hash)
+        && let Some(cached) = c.get_findings(content_hash)
     {
-        return cached.to_vec();
+        return cached;
     }
 
     let findings = analyze_file_with_content(path, &content, project_root, plugin_filter);
@@ -347,7 +379,8 @@ fn analyze_one(
     if let Some(cache) = cache
         && let Ok(mut c) = cache.lock()
     {
-        c.put(rel, content_hash, findings.clone());
+        c.put_findings(content_hash, &findings);
+        c.update_file_entry(rel, path, content_hash);
     }
     findings
 }
@@ -512,8 +545,12 @@ fn format_duration(minutes: u32) -> String {
 ///
 /// [1] R. C. Martin, "Agile Software Development," Prentice Hall, 2003. Ch. 20.
 /// [2] F. Arcelli Fontana et al., ECSA 2019. doi: 10.1145/3344948.3344982.
-fn detect_unstable_deps(files: &[PathBuf], cwd: &Path) -> Vec<Finding> {
-    let file_imports = build_file_imports(files, cwd);
+fn detect_unstable_deps(
+    files: &[PathBuf],
+    cwd: &Path,
+    cache: &std::sync::Mutex<cha_core::ProjectCache>,
+) -> Vec<Finding> {
+    let file_imports = build_file_imports(files, cwd, cache);
     let known: std::collections::HashSet<&str> = file_imports.keys().map(|s| s.as_str()).collect();
     let ca = compute_afferent(&file_imports, &known);
 
@@ -564,21 +601,17 @@ fn detect_unstable_deps(files: &[PathBuf], cwd: &Path) -> Vec<Finding> {
 fn build_file_imports(
     files: &[PathBuf],
     cwd: &Path,
+    cache: &std::sync::Mutex<cha_core::ProjectCache>,
 ) -> std::collections::HashMap<String, Vec<String>> {
     let mut map = std::collections::HashMap::new();
     for path in files {
-        let Ok(content) = std::fs::read_to_string(path) else {
+        let Some((rel, model)) = cache
+            .lock()
+            .ok()
+            .and_then(|mut c| crate::cached_parse(path, &mut c, cwd))
+        else {
             continue;
         };
-        let file = SourceFile::new(path.clone(), content);
-        let Some(model) = cha_parser::parse_file(&file) else {
-            continue;
-        };
-        let rel = path
-            .strip_prefix(cwd)
-            .unwrap_or(path)
-            .to_string_lossy()
-            .to_string();
         map.insert(
             rel,
             model.imports.iter().map(|i| i.source.clone()).collect(),

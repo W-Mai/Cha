@@ -14,7 +14,7 @@ mod source;
 pub mod wasm;
 
 pub use baseline::Baseline;
-pub use cache::AnalysisCache;
+pub use cache::{FileStatus, ProjectCache, env_hash, hash_content};
 pub use config::{
     Config, DebtWeights, LanguageConfig, LayersConfig, Strictness, TierConfig,
     builtin_language_profile,

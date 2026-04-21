@@ -288,6 +288,47 @@ pub(crate) fn load_config(cwd: &std::path::Path) -> Config {
     }
 }
 
+/// Open a shared ProjectCache for the given project root.
+pub(crate) fn open_project_cache(cwd: &std::path::Path) -> cha_core::ProjectCache {
+    let plugin_dirs = vec![
+        cwd.join(".cha/plugins"),
+        dirs::home_dir().unwrap_or_default().join(".cha/plugins"),
+    ];
+    let eh = cha_core::env_hash(cwd, &plugin_dirs);
+    cha_core::ProjectCache::open(cwd, eh)
+}
+
+/// Parse a file with cache support: mtime check → content hash → parse on miss.
+pub(crate) fn cached_parse(
+    path: &std::path::Path,
+    cache: &mut cha_core::ProjectCache,
+    cwd: &std::path::Path,
+) -> Option<(String, cha_core::SourceModel)> {
+    let rel = path
+        .strip_prefix(cwd)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .to_string();
+    // Fast path: mtime+size unchanged → use cached model without reading file
+    if let cha_core::FileStatus::Unchanged(chash) = cache.check_file(&rel, path)
+        && let Some(model) = cache.get_model(chash)
+    {
+        return Some((rel, model));
+    }
+    // Slow path: read file, hash, check/parse
+    let content = std::fs::read_to_string(path).ok()?;
+    let chash = cha_core::hash_content(&content);
+    if let Some(model) = cache.get_model(chash) {
+        cache.update_file_entry(rel.clone(), path, chash);
+        return Some((rel, model));
+    }
+    let file = cha_core::SourceFile::new(path.to_path_buf(), content);
+    let model = cha_parser::parse_file(&file)?;
+    cache.put_model(chash, &model);
+    cache.update_file_entry(rel.clone(), path, chash);
+    Some((rel, model))
+}
+
 fn main() {
     clap_complete::CompleteEnv::with_factory(Args::command).complete();
     let args = Args::parse();
@@ -598,7 +639,7 @@ fn cmd_baseline(paths: &[String], output: Option<&str>) {
     let cwd = std::env::current_dir().unwrap_or_default();
     let root_config = load_config(&cwd);
     let files = analyze::filter_excluded(collect_files(paths), &root_config.exclude, &cwd);
-    let findings = analyze::run_analysis(&files, &cwd, &[]);
+    let (findings, _) = analyze::run_analysis(&files, &cwd, &[]);
     let baseline = cha_core::Baseline::from_findings(&findings, &cwd);
     let out = Path::new(output.unwrap_or(".cha/baseline.json"));
     match baseline.save(out) {
@@ -670,7 +711,7 @@ fn cmd_fix(paths: &[String], diff: bool, dry_run: bool) {
     }
     let project_root = std::env::current_dir().unwrap_or_default();
     let filter = vec!["naming".to_string()];
-    let findings = analyze::run_analysis(&files, &project_root, &filter);
+    let (findings, _) = analyze::run_analysis(&files, &project_root, &filter);
 
     let fixable: Vec<&Finding> = findings
         .iter()

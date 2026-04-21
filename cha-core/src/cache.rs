@@ -1,31 +1,34 @@
-use crate::Finding;
+use crate::{Finding, SourceModel};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-/// Cache entry: content hash → findings.
+/// Per-file cache metadata.
 #[derive(Debug, Serialize, Deserialize)]
-struct CacheEntry {
+struct FileEntry {
+    mtime_secs: u64,
+    size: u64,
+    content_hash: u64,
+}
+
+/// Per-file findings cache entry.
+#[derive(Debug, Serialize, Deserialize)]
+struct FindingsEntry {
     content_hash: u64,
     findings: Vec<Finding>,
 }
 
-/// On-disk analysis cache stored at `.cha/cache/analysis.json`.
+/// On-disk cache metadata.
 #[derive(Debug, Serialize, Deserialize, Default)]
-struct CacheData {
-    /// Hash of all config files + plugin versions; if changed, entire cache is invalid.
+struct CacheMeta {
     env_hash: u64,
-    entries: HashMap<String, CacheEntry>,
+    files: HashMap<String, FileEntry>,
 }
 
-/// Incremental analysis cache.
-///
-/// Key = file path (relative), value = (content_hash, findings).
-/// The entire cache is invalidated when `env_hash` changes
-/// (config edits, plugin additions/removals).
-pub struct AnalysisCache {
-    path: PathBuf,
-    data: CacheData,
+/// Unified project cache: parse results + findings.
+pub struct ProjectCache {
+    root: PathBuf,
+    meta: CacheMeta,
     dirty: bool,
 }
 
@@ -50,91 +53,191 @@ fn hash_all_configs(dir: &Path, h: &mut impl std::hash::Hasher) {
     }
 }
 
-impl AnalysisCache {
-    /// Open (or create) a cache for the given project root.
+fn cache_dir(root: &Path) -> PathBuf {
+    root.join(".cha/cache")
+}
+
+fn content_hash(content: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    content.hash(&mut h);
+    h.finish()
+}
+
+fn file_mtime_and_size(path: &Path) -> Option<(u64, u64)> {
+    let meta = std::fs::metadata(path).ok()?;
+    let mtime = meta
+        .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_secs();
+    Some((mtime, meta.len()))
+}
+
+impl ProjectCache {
+    /// Open or create a cache for the given project root.
     pub fn open(project_root: &Path, env_hash: u64) -> Self {
-        let path = project_root.join(".cha/cache/analysis.json");
-        let data = std::fs::read_to_string(&path)
+        let dir = cache_dir(project_root);
+        let meta_path = dir.join("meta.bin");
+        let meta = std::fs::read(&meta_path)
             .ok()
-            .and_then(|s| serde_json::from_str::<CacheData>(&s).ok())
+            .and_then(|b| bincode::deserialize::<CacheMeta>(&b).ok())
             .unwrap_or_default();
-        // Invalidate if environment changed.
-        let data = if data.env_hash != env_hash {
-            CacheData {
+        let meta = if meta.env_hash != env_hash {
+            // Environment changed — full invalidation
+            let _ = std::fs::remove_dir_all(&dir);
+            CacheMeta {
                 env_hash,
-                entries: HashMap::new(),
+                ..Default::default()
             }
         } else {
-            data
+            meta
         };
         Self {
-            path,
-            data,
+            root: project_root.to_path_buf(),
+            meta,
             dirty: false,
         }
     }
 
-    /// Look up cached findings for a file. Returns `Some` if content hash matches.
-    pub fn get(&self, rel_path: &str, content_hash: u64) -> Option<&[Finding]> {
-        let entry = self.data.entries.get(rel_path)?;
-        if entry.content_hash == content_hash {
-            Some(&entry.findings)
-        } else {
-            None
+    /// Check if a file is unchanged (mtime + size match).
+    /// Returns (is_unchanged, content_hash) — hash is 0 if unchanged and not yet computed.
+    pub fn check_file(&self, rel_path: &str, path: &Path) -> FileStatus {
+        let Some(entry) = self.meta.files.get(rel_path) else {
+            return FileStatus::Changed;
+        };
+        if let Some((mtime, size)) = file_mtime_and_size(path)
+            && mtime == entry.mtime_secs
+            && size == entry.size
+        {
+            return FileStatus::Unchanged(entry.content_hash);
+        }
+        FileStatus::Changed
+    }
+
+    /// Get cached SourceModel for a file by content hash.
+    pub fn get_model(&self, chash: u64) -> Option<SourceModel> {
+        let path = cache_dir(&self.root)
+            .join("parse")
+            .join(format!("{chash:016x}.bin"));
+        let bytes = std::fs::read(&path).ok()?;
+        bincode::deserialize(&bytes).ok()
+    }
+
+    /// Store a SourceModel in the parse cache.
+    pub fn put_model(&mut self, chash: u64, model: &SourceModel) {
+        let dir = cache_dir(&self.root).join("parse");
+        let _ = std::fs::create_dir_all(&dir);
+        if let Ok(bytes) = bincode::serialize(model) {
+            let _ = std::fs::write(dir.join(format!("{chash:016x}.bin")), bytes);
         }
     }
 
+    /// Get cached findings for a file.
+    pub fn get_findings(&self, chash: u64) -> Option<Vec<Finding>> {
+        let path = cache_dir(&self.root)
+            .join("findings")
+            .join(format!("{chash:016x}.bin"));
+        let bytes = std::fs::read(&path).ok()?;
+        let entry: FindingsEntry = bincode::deserialize(&bytes).ok()?;
+        (entry.content_hash == chash).then_some(entry.findings)
+    }
+
     /// Store findings for a file.
-    pub fn put(&mut self, rel_path: String, content_hash: u64, findings: Vec<Finding>) {
-        self.data.entries.insert(
+    pub fn put_findings(&mut self, chash: u64, findings: &[Finding]) {
+        let dir = cache_dir(&self.root).join("findings");
+        let _ = std::fs::create_dir_all(&dir);
+        let entry = FindingsEntry {
+            content_hash: chash,
+            findings: findings.to_vec(),
+        };
+        if let Ok(bytes) = bincode::serialize(&entry) {
+            let _ = std::fs::write(dir.join(format!("{chash:016x}.bin")), bytes);
+        }
+    }
+
+    /// Update file metadata after processing.
+    pub fn update_file_entry(&mut self, rel_path: String, path: &Path, chash: u64) {
+        let (mtime_secs, size) = file_mtime_and_size(path).unwrap_or((0, 0));
+        self.meta.files.insert(
             rel_path,
-            CacheEntry {
-                content_hash,
-                findings,
+            FileEntry {
+                mtime_secs,
+                size,
+                content_hash: chash,
             },
         );
         self.dirty = true;
     }
 
-    /// Flush to disk if anything changed.
+    /// Flush metadata to disk and clean up orphan cache files.
     pub fn flush(&self) {
         if !self.dirty {
             return;
         }
-        if let Some(dir) = self.path.parent() {
-            let _ = std::fs::create_dir_all(dir);
+        let dir = cache_dir(&self.root);
+        let _ = std::fs::create_dir_all(&dir);
+        if let Ok(bytes) = bincode::serialize(&self.meta) {
+            let _ = std::fs::write(dir.join("meta.bin"), bytes);
         }
-        if let Ok(json) = serde_json::to_string(&self.data) {
-            let _ = std::fs::write(&self.path, json);
-        }
+        self.gc();
     }
 
-    /// Compute a content hash using the same fast hasher.
-    pub fn hash_content(content: &str) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut h = std::collections::hash_map::DefaultHasher::new();
-        content.hash(&mut h);
-        h.finish()
-    }
-
-    /// Compute an environment hash from config content + plugin file mtimes.
-    pub fn env_hash(project_root: &Path, plugin_dirs: &[PathBuf]) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut h = std::collections::hash_map::DefaultHasher::new();
-        // Invalidate when cha version changes (plugin logic may differ)
-        env!("CARGO_PKG_VERSION").hash(&mut h);
-        // Hash all .cha.toml files (root + subdirectories)
-        hash_all_configs(project_root, &mut h);
-        for dir in plugin_dirs {
-            if let Ok(entries) = std::fs::read_dir(dir) {
-                for entry in entries.flatten() {
-                    if let Ok(mtime) = entry.metadata().and_then(|m| m.modified()) {
-                        mtime.hash(&mut h);
-                    }
-                    entry.file_name().hash(&mut h);
+    /// Remove orphan cache files not referenced by meta.
+    fn gc(&self) {
+        let hashes: std::collections::HashSet<String> = self
+            .meta
+            .files
+            .values()
+            .map(|e| format!("{:016x}.bin", e.content_hash))
+            .collect();
+        for subdir in &["parse", "findings"] {
+            let dir = cache_dir(&self.root).join(subdir);
+            let Ok(entries) = std::fs::read_dir(&dir) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.ends_with(".bin") && !hashes.contains(&name) {
+                    let _ = std::fs::remove_file(entry.path());
                 }
             }
         }
-        h.finish()
+        // Remove legacy analysis.json
+        let legacy = cache_dir(&self.root).join("analysis.json");
+        let _ = std::fs::remove_file(legacy);
     }
+}
+
+/// Result of checking a file against cache.
+pub enum FileStatus {
+    /// File unchanged — content hash from cache.
+    Unchanged(u64),
+    /// File changed or not in cache.
+    Changed,
+}
+
+/// Compute a content hash.
+pub fn hash_content(s: &str) -> u64 {
+    content_hash(s)
+}
+
+/// Compute environment hash from config + plugins + cha version.
+pub fn env_hash(project_root: &Path, plugin_dirs: &[PathBuf]) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    env!("CARGO_PKG_VERSION").hash(&mut h);
+    hash_all_configs(project_root, &mut h);
+    for dir in plugin_dirs {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                if let Ok(mtime) = entry.metadata().and_then(|m| m.modified()) {
+                    mtime.hash(&mut h);
+                }
+                entry.file_name().hash(&mut h);
+            }
+        }
+    }
+    h.finish()
 }

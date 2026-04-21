@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use cha_core::SourceFile;
 use cha_core::graph;
 
 use crate::{DepsFormat, analyze::filter_excluded, collect_files};
@@ -11,7 +10,9 @@ pub fn cmd_layers(paths: &[String], save: bool, format: &DepsFormat, depth: Opti
     let root_config = crate::load_config(&cwd);
     let files = filter_excluded(collect_files(paths), &root_config.exclude, &cwd);
 
-    let (file_imports, all_files) = build_import_edges(&files, &cwd);
+    let mut cache = crate::open_project_cache(&cwd);
+    let (file_imports, all_files) = build_import_edges(&files, &cwd, &mut cache);
+    cache.flush();
 
     let (modules, layers, violations) =
         if !root_config.layers.modules.is_empty() && !root_config.layers.tiers.is_empty() {
@@ -155,9 +156,10 @@ fn manual_violations(
 fn build_import_edges(
     files: &[PathBuf],
     cwd: &std::path::Path,
+    cache: &mut cha_core::ProjectCache,
 ) -> (Vec<(String, String)>, Vec<String>) {
     let (name_to_paths, all_files) = index_files(files, cwd);
-    let edges = resolve_edges(files, cwd, &name_to_paths);
+    let edges = resolve_edges(files, cwd, &name_to_paths, cache);
     (edges, all_files)
 }
 
@@ -188,19 +190,11 @@ fn resolve_edges(
     files: &[PathBuf],
     cwd: &std::path::Path,
     name_to_paths: &HashMap<String, Vec<String>>,
+    cache: &mut cha_core::ProjectCache,
 ) -> Vec<(String, String)> {
     let mut edges = Vec::new();
     for path in files {
-        let rel = path
-            .strip_prefix(cwd)
-            .unwrap_or(path)
-            .to_string_lossy()
-            .to_string();
-        let Ok(content) = std::fs::read_to_string(path) else {
-            continue;
-        };
-        let file = SourceFile::new(path.clone(), content);
-        let Some(model) = cha_parser::parse_file(&file) else {
+        let Some((rel, model)) = crate::cached_parse(path, cache, cwd) else {
             continue;
         };
 

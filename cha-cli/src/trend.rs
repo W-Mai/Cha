@@ -88,7 +88,7 @@ fn analyze_dir(dir: &Path, hash: &str, message: &str) -> TrendPoint {
     let short = &hash[..7];
 
     let files = collect_source_files(dir);
-    let findings = analyze::run_analysis(&files, dir, &[]);
+    let (findings, _) = analyze::run_analysis(&files, dir, &[]);
 
     eprintln!("  {short} — {} issues", findings.len());
 

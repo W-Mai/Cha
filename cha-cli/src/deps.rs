@@ -1,8 +1,6 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use cha_core::SourceFile;
-
 use crate::{
     DepsDepth, DepsDirection, DepsFormat, DepsType, analyze::filter_excluded, collect_files,
 };
@@ -23,11 +21,12 @@ pub fn cmd_deps(
     let cwd = std::env::current_dir().unwrap_or_default();
     let root_config = crate::load_config(&cwd);
     let files = filter_excluded(collect_files(paths), &root_config.exclude, &cwd);
+    let mut cache = crate::open_project_cache(&cwd);
 
     let edges = match graph_type {
         DepsType::Imports => build_import_graph(&files, &cwd, depth),
-        DepsType::Classes => build_class_graph(&files),
-        DepsType::Calls => build_call_graph(&files),
+        DepsType::Classes => build_class_graph(&files, &cwd, &mut cache),
+        DepsType::Calls => build_call_graph(&files, &cwd, &mut cache),
     };
 
     let edges = apply_filter(edges, filter, exact, direction);
@@ -39,11 +38,12 @@ pub fn cmd_deps(
     };
 
     if detail && matches!(graph_type, DepsType::Classes) {
-        let parsed = parse_all_models(&files);
+        let parsed = parse_all_models(&files, &cwd, &mut cache);
         render_detail_classes(&edges, &parsed, format, filter, exact);
     } else {
         render(&edges, &cycles, format, &style);
     }
+    cache.flush();
 
     if !cycles.is_empty() {
         let label = match style {
@@ -142,27 +142,12 @@ const SKIP_PREFIXES: &[&str] = &["std::", "core::", "alloc::", "crate::", "super
 fn build_import_graph(files: &[PathBuf], cwd: &Path, depth: &DepsDepth) -> Vec<Edge> {
     let pb = crate::new_progress_bar(files.len() as u64);
     let mut edges = Vec::new();
+    let mut cache = crate::open_project_cache(cwd);
     for path in files {
-        let content = match std::fs::read_to_string(path) {
-            Ok(c) => c,
-            Err(_) => {
-                pb.inc(1);
-                continue;
-            }
+        let Some((src, model)) = crate::cached_parse(path, &mut cache, cwd) else {
+            pb.inc(1);
+            continue;
         };
-        let file = SourceFile::new(path.clone(), content);
-        let model = match cha_parser::parse_file(&file) {
-            Some(m) => m,
-            None => {
-                pb.inc(1);
-                continue;
-            }
-        };
-        let src = path
-            .strip_prefix(cwd)
-            .unwrap_or(path)
-            .to_string_lossy()
-            .to_string();
         for imp in &model.imports {
             if SKIP_PREFIXES.iter().any(|p| imp.source.starts_with(p)) {
                 continue;
@@ -176,6 +161,7 @@ fn build_import_graph(files: &[PathBuf], cwd: &Path, depth: &DepsDepth) -> Vec<E
         pb.inc(1);
     }
     pb.finish_and_clear();
+    cache.flush();
     if matches!(depth, DepsDepth::Dir) {
         aggregate_to_dirs(edges)
     } else {
@@ -218,14 +204,16 @@ fn aggregate_to_dirs(edges: Vec<Edge>) -> Vec<Edge> {
 
 // ── Class graph ──
 
-fn parse_all_models(files: &[PathBuf]) -> Vec<(PathBuf, cha_core::SourceModel)> {
+fn parse_all_models(
+    files: &[PathBuf],
+    cwd: &std::path::Path,
+    cache: &mut cha_core::ProjectCache,
+) -> Vec<(PathBuf, cha_core::SourceModel)> {
     let pb = crate::new_progress_bar(files.len() as u64);
     let result = files
         .iter()
         .filter_map(|path| {
-            let content = std::fs::read_to_string(path).ok()?;
-            let file = SourceFile::new(path.clone(), content);
-            let model = cha_parser::parse_file(&file)?;
+            let (_, model) = crate::cached_parse(path, cache, cwd)?;
             pb.inc(1);
             Some((path.clone(), model))
         })
@@ -279,8 +267,12 @@ impl ClassContext {
     }
 }
 
-fn build_class_graph(files: &[PathBuf]) -> Vec<Edge> {
-    let parsed = parse_all_models(files);
+fn build_class_graph(
+    files: &[PathBuf],
+    cwd: &std::path::Path,
+    cache: &mut cha_core::ProjectCache,
+) -> Vec<Edge> {
+    let parsed = parse_all_models(files, cwd, cache);
     let models: Vec<_> = parsed.iter().map(|(_, m)| m).collect();
     let ctx = ClassContext::from_files(files, &models);
     models
@@ -340,8 +332,12 @@ fn collect_typedef_aliases(files: &[PathBuf]) -> HashMap<String, String> {
 
 // ── Call graph ──
 
-fn build_call_graph(files: &[PathBuf]) -> Vec<Edge> {
-    let parsed = parse_all_models(files);
+fn build_call_graph(
+    files: &[PathBuf],
+    cwd: &std::path::Path,
+    cache: &mut cha_core::ProjectCache,
+) -> Vec<Edge> {
+    let parsed = parse_all_models(files, cwd, cache);
     let known: HashSet<String> = parsed
         .iter()
         .flat_map(|(_, m)| &m.functions)

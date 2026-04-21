@@ -1,5 +1,3 @@
-use cha_core::SourceFile;
-
 use crate::{analyze::filter_excluded, collect_files};
 
 pub fn cmd_calibrate(paths: &[String], apply: bool) {
@@ -7,7 +5,9 @@ pub fn cmd_calibrate(paths: &[String], apply: bool) {
     let root_config = crate::load_config(&cwd);
     let files = filter_excluded(collect_files(paths), &root_config.exclude, &cwd);
 
-    let (mut lines, mut cx, mut cog) = collect_stats(&files);
+    let mut cache = crate::open_project_cache(&cwd);
+    let (mut lines, mut cx, mut cog) = collect_stats(&files, &cwd, &mut cache);
+    cache.flush();
     if lines.is_empty() {
         println!("No functions found.");
         return;
@@ -26,14 +26,14 @@ pub fn cmd_calibrate(paths: &[String], apply: bool) {
     }
 }
 
-fn collect_stats(files: &[std::path::PathBuf]) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
+fn collect_stats(
+    files: &[std::path::PathBuf],
+    cwd: &std::path::Path,
+    cache: &mut cha_core::ProjectCache,
+) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
     let (mut lines, mut cx, mut cog) = (Vec::new(), Vec::new(), Vec::new());
     for path in files {
-        let Ok(content) = std::fs::read_to_string(path) else {
-            continue;
-        };
-        let file = SourceFile::new(path.clone(), content);
-        let Some(model) = cha_parser::parse_file(&file) else {
+        let Some((_, model)) = crate::cached_parse(path, cache, cwd) else {
             continue;
         };
         for f in &model.functions {

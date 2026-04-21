@@ -1,5 +1,5 @@
 /// Extracted function info from AST.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct FunctionInfo {
     pub name: String,
     pub start_line: usize,
@@ -40,7 +40,7 @@ pub struct FunctionInfo {
 }
 
 /// Extracted class/struct info from AST.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ClassInfo {
     pub name: String,
     pub start_line: usize,
@@ -74,7 +74,7 @@ pub struct ClassInfo {
 }
 
 /// Extracted import info.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ImportInfo {
     pub source: String,
     pub line: usize,
@@ -83,14 +83,14 @@ pub struct ImportInfo {
 }
 
 /// A comment extracted from source code by the language parser.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CommentInfo {
     pub text: String,
     pub line: usize,
 }
 
 /// Unified source model produced by parsing.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SourceModel {
     pub language: String,
     pub total_lines: usize,
