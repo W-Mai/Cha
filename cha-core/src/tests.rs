@@ -37,6 +37,7 @@ fn arb_function_info() -> impl Strategy<Value = FunctionInfo> {
                 optional_param_count: 0,
                 called_functions: Vec::new(),
                 cognitive_complexity: 0,
+                ..Default::default()
             },
         )
 }
@@ -67,6 +68,7 @@ fn arb_class_info() -> impl Strategy<Value = ClassInfo> {
             self_call_count: 0,
             has_listener_field: false,
             has_notify_method: false,
+            ..Default::default()
         })
 }
 
@@ -136,7 +138,9 @@ fn default_test_location() -> crate::Location {
     crate::Location {
         path: PathBuf::from("test.rs"),
         start_line: 1,
+        start_col: 0,
         end_line: 10,
+        end_col: 0,
         name: Some("test".into()),
     }
 }

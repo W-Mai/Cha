@@ -177,6 +177,7 @@ fn hint(
             start_line: loc.0,
             end_line: loc.1,
             name: loc.2.map(String::from),
+            ..Default::default()
         },
         message,
         suggested_refactorings: vec![],

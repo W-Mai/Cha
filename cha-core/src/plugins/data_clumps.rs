@@ -55,6 +55,7 @@ impl Plugin for DataClumpsAnalyzer {
                     start_line: f.start_line,
                     end_line: f.end_line,
                     name: Some(f.name.clone()),
+                    ..Default::default()
                 },
                 message: format!(
                     "Function `{}` shares parameter signature [{}] with {} other functions",

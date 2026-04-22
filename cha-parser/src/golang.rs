@@ -61,7 +61,10 @@ fn collect_top_level(
 }
 
 fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
-    let name = node_text(node.child_by_field_name("name")?, src).to_string();
+    let name_node = node.child_by_field_name("name")?;
+    let name = node_text(name_node, src).to_string();
+    let name_col = name_node.start_position().column;
+    let name_end_col = name_node.end_position().column;
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body");
@@ -75,6 +78,8 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         name,
         start_line,
         end_line,
+        name_col,
+        name_end_col,
         line_count: end_line - start_line + 1,
         complexity: count_complexity(node),
         body_hash: body.map(hash_ast),
@@ -111,7 +116,10 @@ fn extract_type_decl(node: Node, src: &[u8], classes: &mut Vec<ClassInfo>) {
 }
 
 fn extract_struct(node: Node, src: &[u8]) -> Option<ClassInfo> {
-    let name = node_text(node.child_by_field_name("name")?, src).to_string();
+    let name_node = node.child_by_field_name("name")?;
+    let name = node_text(name_node, src).to_string();
+    let name_col = name_node.start_position().column;
+    let name_end_col = name_node.end_position().column;
     let type_node = node.child_by_field_name("type")?;
     if type_node.kind() != "struct_type" && type_node.kind() != "interface_type" {
         return None;
@@ -126,6 +134,8 @@ fn extract_struct(node: Node, src: &[u8]) -> Option<ClassInfo> {
         name,
         start_line,
         end_line,
+        name_col,
+        name_end_col,
         line_count: end_line - start_line + 1,
         method_count: 0,
         is_exported,
@@ -159,12 +169,14 @@ fn collect_imports(node: Node, src: &[u8], imports: &mut Vec<ImportInfo>) {
     visit_all(node, &mut cursor, &mut |n| {
         if n.kind() == "import_spec" {
             let line = n.start_position().row + 1;
+            let col = n.start_position().column;
             let path_node = n.child_by_field_name("path").unwrap_or(n);
             let text = node_text(path_node, src).trim_matches('"').to_string();
             if !text.is_empty() {
                 imports.push(ImportInfo {
                     source: text,
                     line,
+                    col,
                     ..Default::default()
                 });
             }

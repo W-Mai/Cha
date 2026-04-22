@@ -45,6 +45,7 @@ impl Plugin for CommentsAnalyzer {
                         start_line: f.start_line,
                         end_line: f.end_line,
                         name: Some(f.name.clone()),
+                        ..Default::default()
                     },
                     message: format!(
                         "Function `{}` has {:.0}% comment lines ({}/{}), consider Extract Method",

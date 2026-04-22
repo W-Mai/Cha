@@ -48,6 +48,7 @@ impl Plugin for SpeculativeGeneralityAnalyzer {
                         start_line: iface.start_line,
                         end_line: iface.end_line,
                         name: Some(iface.name.clone()),
+                        ..Default::default()
                     },
                     message: format!(
                         "Interface `{}` has only {} implementation(s) in this file, consider Collapse Hierarchy",

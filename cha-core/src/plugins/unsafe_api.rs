@@ -40,6 +40,7 @@ impl Plugin for UnsafeApiAnalyzer {
                             start_line: i + 1,
                             end_line: i + 1,
                             name: None,
+                            ..Default::default()
                         },
                         message: format!("Potentially dangerous: `{pat}` — {msg}"),
                         suggested_refactorings: vec!["Use a safe alternative".into()],

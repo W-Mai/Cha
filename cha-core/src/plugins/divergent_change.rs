@@ -91,6 +91,7 @@ impl Plugin for DivergentChangeAnalyzer {
                 start_line: 1,
                 end_line: 1,
                 name: None,
+                ..Default::default()
             },
             message: format!(
                 "`{}` was changed for ~{} distinct reasons in last {} commits, consider Extract Class",

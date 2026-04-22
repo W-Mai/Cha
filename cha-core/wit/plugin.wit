@@ -23,7 +23,9 @@ interface types {
     record location {
         path: string,
         start-line: u32,
+        start-col: u32,
         end-line: u32,
+        end-col: u32,
         name: option<string>,
     }
 

@@ -54,6 +54,7 @@ fn make_finding(ctx: &AnalysisContext, imp: &crate::ImportInfo, current: &str) -
             start_line: imp.line,
             end_line: imp.line,
             name: None,
+            ..Default::default()
         },
         message: format!(
             "Bidirectional dependency between `{}` and `{}`, consider Move Method or Hide Delegate",

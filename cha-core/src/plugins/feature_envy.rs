@@ -55,6 +55,7 @@ impl Plugin for FeatureEnvyAnalyzer {
                         start_line: f.start_line,
                         end_line: f.end_line,
                         name: Some(f.name.clone()),
+                        ..Default::default()
                     },
                     message: format!(
                         "Function `{}` references external objects more than its own data",

@@ -55,6 +55,7 @@ impl Plugin for HubLikeDependencyAnalyzer {
                 start_line: first,
                 end_line: last,
                 name: None,
+                ..Default::default()
             },
             message: format!(
                 "File has {} imports (threshold: {}), acting as a hub — consider splitting",

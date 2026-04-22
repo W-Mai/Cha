@@ -66,6 +66,7 @@ impl ApiSurfaceAnalyzer {
                 start_line: 1,
                 end_line: 1,
                 name: None,
+                ..Default::default()
             },
             message: format!(
                 "File exports {}/{} items ({:.0}%), consider narrowing the public API",

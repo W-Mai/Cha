@@ -88,7 +88,10 @@ fn collect_top_level(
 }
 
 fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
-    let name = node_text(node.child_by_field_name("name")?, src).to_string();
+    let name_node = node.child_by_field_name("name")?;
+    let name = node_text(name_node, src).to_string();
+    let name_col = name_node.start_position().column;
+    let name_end_col = name_node.end_position().column;
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body");
@@ -101,6 +104,8 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         name,
         start_line,
         end_line,
+        name_col,
+        name_end_col,
         line_count: end_line - start_line + 1,
         complexity: count_complexity(node),
         body_hash: body.map(hash_ast_structure),
@@ -233,7 +238,10 @@ fn extract_class(
     src: &[u8],
     top_functions: &mut Vec<FunctionInfo>,
 ) -> Option<ClassInfo> {
-    let name = node_text(node.child_by_field_name("name")?, src).to_string();
+    let name_node = node.child_by_field_name("name")?;
+    let name = node_text(name_node, src).to_string();
+    let name_col = name_node.start_position().column;
+    let name_end_col = name_node.end_position().column;
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body")?;
@@ -245,6 +253,8 @@ fn extract_class(
         name,
         start_line,
         end_line,
+        name_col,
+        name_end_col,
         line_count: end_line - start_line + 1,
         method_count,
         is_exported: true,
@@ -266,6 +276,7 @@ fn extract_class(
 
 fn collect_import(node: Node, src: &[u8], imports: &mut Vec<ImportInfo>) {
     let line = node.start_position().row + 1;
+    let col = node.start_position().column;
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() == "dotted_name" || child.kind() == "aliased_import" {
@@ -273,6 +284,7 @@ fn collect_import(node: Node, src: &[u8], imports: &mut Vec<ImportInfo>) {
             imports.push(ImportInfo {
                 source: text.to_string(),
                 line,
+                col,
                 ..Default::default()
             });
         }
@@ -281,6 +293,7 @@ fn collect_import(node: Node, src: &[u8], imports: &mut Vec<ImportInfo>) {
 
 fn collect_import_from(node: Node, src: &[u8], imports: &mut Vec<ImportInfo>) {
     let line = node.start_position().row + 1;
+    let col = node.start_position().column;
     let module = node
         .child_by_field_name("module_name")
         .map(|n| node_text(n, src).to_string())
@@ -294,6 +307,7 @@ fn collect_import_from(node: Node, src: &[u8], imports: &mut Vec<ImportInfo>) {
                 imports.push(ImportInfo {
                     source: format!("{module}.{n}"),
                     line,
+                    col,
                     ..Default::default()
                 });
                 has_names = true;
@@ -304,6 +318,7 @@ fn collect_import_from(node: Node, src: &[u8], imports: &mut Vec<ImportInfo>) {
         imports.push(ImportInfo {
             source: module,
             line,
+            col,
             ..Default::default()
         });
     }

@@ -43,6 +43,7 @@ impl Plugin for MiddleManAnalyzer {
                     start_line: c.start_line,
                     end_line: c.end_line,
                     name: Some(c.name.clone()),
+                    ..Default::default()
                 },
                 message: format!(
                     "Class `{}` delegates {}/{} methods, acting as a middle man",

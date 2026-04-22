@@ -126,6 +126,8 @@ fn walk_hash(node: Node, hasher: &mut DefaultHasher) {
 fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
     let name_node = node.child_by_field_name("name")?;
     let name = node_text(name_node, src).to_string();
+    let name_col = name_node.start_position().column;
+    let name_end_col = name_node.end_position().column;
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body");
@@ -142,6 +144,8 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         name,
         start_line,
         end_line,
+        name_col,
+        name_end_col,
         line_count: end_line - start_line + 1,
         complexity: count_complexity(node),
         body_hash,
@@ -180,13 +184,14 @@ fn extract_arrow_functions(
 
 // Try to extract an arrow function from a variable declarator.
 fn try_extract_arrow(child: Node, decl: Node, src: &[u8], exported: bool) -> Option<FunctionInfo> {
-    let name = child
-        .child_by_field_name("name")
-        .map(|n| node_text(n, src).to_string())?;
+    let name_node = child.child_by_field_name("name")?;
+    let name = node_text(name_node, src).to_string();
     let value = child.child_by_field_name("value")?;
     if value.kind() != "arrow_function" {
         return None;
     }
+    let name_col = name_node.start_position().column;
+    let name_end_col = name_node.end_position().column;
     let start_line = decl.start_position().row + 1;
     let end_line = decl.end_position().row + 1;
     let body = value.child_by_field_name("body");
@@ -195,6 +200,8 @@ fn try_extract_arrow(child: Node, decl: Node, src: &[u8], exported: bool) -> Opt
         name,
         start_line,
         end_line,
+        name_col,
+        name_end_col,
         line_count: end_line - start_line + 1,
         complexity: count_complexity(value),
         body_hash,
@@ -220,6 +227,8 @@ fn try_extract_arrow(child: Node, decl: Node, src: &[u8], exported: bool) -> Opt
 fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
     let name_node = node.child_by_field_name("name")?;
     let name = node_text(name_node, src).to_string();
+    let name_col = name_node.start_position().column;
+    let name_end_col = name_node.end_position().column;
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body")?;
@@ -233,6 +242,8 @@ fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
         name,
         start_line,
         end_line,
+        name_col,
+        name_end_col,
         method_count: methods,
         line_count: end_line - start_line + 1,
         is_exported: false,
@@ -479,6 +490,7 @@ fn extract_import(node: Node, src: &[u8]) -> Option<ImportInfo> {
             return Some(ImportInfo {
                 source,
                 line: node.start_position().row + 1,
+                col: node.start_position().column,
                 ..Default::default()
             });
         }

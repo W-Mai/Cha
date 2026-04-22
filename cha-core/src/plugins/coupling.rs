@@ -49,6 +49,7 @@ impl Plugin for CouplingAnalyzer {
                     start_line: first,
                     end_line: last,
                     name: None,
+                    ..Default::default()
                 },
                 message: format!(
                     "File has {} imports (threshold: {})",

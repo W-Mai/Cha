@@ -46,6 +46,7 @@ impl Plugin for RefusedBequestAnalyzer {
                         start_line: c.start_line,
                         end_line: c.end_line,
                         name: Some(c.name.clone()),
+                        ..Default::default()
                     },
                     message: format!(
                         "Class `{}` overrides {}/{} methods from `{}`, consider Replace Inheritance with Delegation",

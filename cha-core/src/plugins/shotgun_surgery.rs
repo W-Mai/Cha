@@ -109,6 +109,7 @@ impl Plugin for ShotgunSurgeryAnalyzer {
                     start_line: 1,
                     end_line: 1,
                     name: None,
+                    ..Default::default()
                 },
                 message: format!(
                     "`{}` changed together with `{}` in {} commits, consider Move Method/Field",

@@ -147,6 +147,7 @@ mod tests {
                 start_line: start,
                 end_line: start + 5,
                 name: None,
+                ..Default::default()
             },
             message: "test".into(),
             suggested_refactorings: vec![],

@@ -203,7 +203,9 @@ fn from_wit_finding(f: wit::Finding) -> Finding {
         location: Location {
             path: PathBuf::from(&f.location.path),
             start_line: f.location.start_line as usize,
+            start_col: f.location.start_col as usize,
             end_line: f.location.end_line as usize,
+            end_col: f.location.end_col as usize,
             name: f.location.name,
         },
         message: f.message,

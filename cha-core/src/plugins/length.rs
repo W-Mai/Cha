@@ -57,6 +57,7 @@ impl LengthAnalyzer {
                     start_line: f.start_line,
                     end_line: f.end_line,
                     name: Some(f.name.clone()),
+                    ..Default::default()
                 },
                 message: format!(
                     "Function `{}` is {} lines (threshold: {}, risk: {:.1})",
@@ -104,6 +105,7 @@ impl LengthAnalyzer {
                 start_line: c.start_line,
                 end_line: c.end_line,
                 name: Some(c.name.clone()),
+                ..Default::default()
             },
             message: format!("Class `{}` is too large ({})", c.name, reasons.join(", ")),
             suggested_refactorings: vec!["Extract Class".into()],
@@ -123,6 +125,7 @@ impl LengthAnalyzer {
                     start_line: 1,
                     end_line: 1,
                     name: None,
+                    ..Default::default()
                 },
                 message: format!(
                     "File is {} lines (threshold: {})",

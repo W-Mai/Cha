@@ -34,7 +34,13 @@ pub enum SmellCategory {
 pub struct Location {
     pub path: PathBuf,
     pub start_line: usize,
+    /// 0-based column of the start position.
+    #[serde(default, skip_serializing_if = "crate::is_zero_usize")]
+    pub start_col: usize,
     pub end_line: usize,
+    /// 0-based column of the end position.
+    #[serde(default, skip_serializing_if = "crate::is_zero_usize")]
+    pub end_col: usize,
     pub name: Option<String>,
 }
 

@@ -193,10 +193,12 @@ fn try_extract_macro_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
         return None;
     }
     // The real class name is the "identifier" child (what tree-sitter thinks is the func name)
-    let name = node
+    let name_node = node
         .child_by_field_name("declarator")
-        .filter(|d| d.kind() == "identifier")
-        .map(|d| node_text(d, src).to_string())?;
+        .filter(|d| d.kind() == "identifier")?;
+    let name = node_text(name_node, src).to_string();
+    let name_col = name_node.start_position().column;
+    let name_end_col = name_node.end_position().column;
     let body = node.child_by_field_name("body")?;
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
@@ -210,6 +212,8 @@ fn try_extract_macro_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
         name,
         start_line,
         end_line,
+        name_col,
+        name_end_col,
         line_count: end_line - start_line + 1,
         method_count,
         is_exported: true,
@@ -229,7 +233,10 @@ fn try_extract_macro_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
 
 fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
     let declarator = node.child_by_field_name("declarator")?;
-    let name = find_func_name(declarator, src)?.to_string();
+    let name_node = find_func_name_node(declarator)?;
+    let name = node_text(name_node, src).to_string();
+    let name_col = name_node.start_position().column;
+    let name_end_col = name_node.end_position().column;
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body");
@@ -240,6 +247,8 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         name,
         start_line,
         end_line,
+        name_col,
+        name_end_col,
         line_count: end_line - start_line + 1,
         complexity: count_complexity(node),
         body_hash: body.map(hash_ast),
@@ -279,14 +288,13 @@ fn has_storage_class(node: Node, src: &[u8], keyword: &str) -> bool {
     false
 }
 
-fn find_func_name<'a>(declarator: Node<'a>, src: &'a [u8]) -> Option<&'a str> {
-    // function_declarator -> declarator (identifier or qualified_identifier)
+fn find_func_name_node(declarator: Node) -> Option<Node> {
     if declarator.kind() == "identifier" {
-        return Some(node_text(declarator, src));
+        return Some(declarator);
     }
     declarator
         .child_by_field_name("declarator")
-        .and_then(|d| find_func_name(d, src))
+        .and_then(find_func_name_node)
 }
 
 fn extract_params(declarator: Node, src: &[u8]) -> (usize, Vec<String>) {
@@ -314,10 +322,12 @@ fn extract_params(declarator: Node, src: &[u8]) -> (usize, Vec<String>) {
 }
 
 fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
-    let name = node
-        .child_by_field_name("name")
+    let name_node = node.child_by_field_name("name");
+    let name = name_node
         .map(|n| node_text(n, src).to_string())
         .unwrap_or_default();
+    let name_col = name_node.map(|n| n.start_position().column).unwrap_or(0);
+    let name_end_col = name_node.map(|n| n.end_position().column).unwrap_or(0);
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body");
@@ -329,6 +339,8 @@ fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
         name,
         start_line,
         end_line,
+        name_col,
+        name_end_col,
         line_count: end_line - start_line + 1,
         method_count,
         is_exported: true,
@@ -389,6 +401,7 @@ fn extract_include(node: Node, src: &[u8]) -> Option<ImportInfo> {
     Some(ImportInfo {
         source: text,
         line: node.start_position().row + 1,
+        col: node.start_position().column,
         ..Default::default()
     })
 }

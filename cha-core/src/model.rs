@@ -1,9 +1,13 @@
 /// Extracted function info from AST.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct FunctionInfo {
     pub name: String,
     pub start_line: usize,
     pub end_line: usize,
+    /// 0-based column of the function name identifier.
+    pub name_col: usize,
+    /// 0-based end column of the function name identifier.
+    pub name_end_col: usize,
     pub line_count: usize,
     /// Cyclomatic complexity (1 + number of branch points).
     pub complexity: usize,
@@ -40,11 +44,15 @@ pub struct FunctionInfo {
 }
 
 /// Extracted class/struct info from AST.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ClassInfo {
     pub name: String,
     pub start_line: usize,
     pub end_line: usize,
+    /// 0-based column of the class/struct name identifier.
+    pub name_col: usize,
+    /// 0-based end column of the class/struct name identifier.
+    pub name_end_col: usize,
     pub method_count: usize,
     pub line_count: usize,
     /// Whether this class is exported.
@@ -78,6 +86,8 @@ pub struct ClassInfo {
 pub struct ImportInfo {
     pub source: String,
     pub line: usize,
+    /// 0-based column of the import statement.
+    pub col: usize,
     /// True for module declarations (e.g. Rust `mod foo;`).
     pub is_module_decl: bool,
 }

@@ -121,6 +121,7 @@ impl<'a> ParseContext<'a> {
             self.col.imports.push(crate::ImportInfo {
                 source: format!("{name}.rs"),
                 line: node.start_position().row + 1,
+                col: node.start_position().column,
                 is_module_decl: true,
             });
         }
@@ -251,6 +252,8 @@ fn walk_complexity(node: Node, count: &mut usize) {
 fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
     let name_node = node.child_by_field_name("name")?;
     let name = node_text(name_node, src).to_string();
+    let name_col = name_node.start_position().column;
+    let name_end_col = name_node.end_position().column;
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body");
@@ -267,6 +270,8 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
         name,
         start_line,
         end_line,
+        name_col,
+        name_end_col,
         line_count: end_line - start_line + 1,
         complexity: count_complexity(node),
         body_hash,
@@ -290,6 +295,8 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
 fn extract_struct(node: Node, src: &[u8]) -> Option<(ClassInfo, Vec<String>)> {
     let name_node = node.child_by_field_name("name")?;
     let name = node_text(name_node, src).to_string();
+    let name_col = name_node.start_position().column;
+    let name_end_col = name_node.end_position().column;
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
     let (field_count, field_names, callback_fields) = extract_fields(node, src);
@@ -300,6 +307,8 @@ fn extract_struct(node: Node, src: &[u8]) -> Option<(ClassInfo, Vec<String>)> {
             name,
             start_line,
             end_line,
+            name_col,
+            name_end_col,
             method_count: 0,
             line_count: end_line - start_line + 1,
             is_exported: false,
@@ -486,6 +495,7 @@ fn extract_use(node: Node, src: &[u8]) -> Option<ImportInfo> {
     Some(ImportInfo {
         source,
         line: node.start_position().row + 1,
+        col: node.start_position().column,
         ..Default::default()
     })
 }

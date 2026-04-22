@@ -46,6 +46,7 @@ fn check_comment(c: &crate::CommentInfo, ctx: &AnalysisContext) -> Option<Findin
             start_line: c.line,
             end_line: c.line,
             name: None,
+            ..Default::default()
         },
         message: format!(
             "{tag}: {}",

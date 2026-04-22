@@ -23,6 +23,7 @@ pub fn detect_tangled(count: usize, threshold: usize) -> Vec<Finding> {
                     start_line: 1,
                     end_line: 1,
                     name: Some(hash[..7].to_string()),
+                    ..Default::default()
                 },
                 message: format!(
                     "Commit {} touches {} directories ({}) — {}",

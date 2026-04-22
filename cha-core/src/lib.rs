@@ -32,6 +32,11 @@ pub fn is_zero_f64(v: &f64) -> bool {
     *v == 0.0
 }
 
+/// Helper for serde skip_serializing_if on usize fields.
+pub fn is_zero_usize(v: &usize) -> bool {
+    *v == 0
+}
+
 /// Sort findings by priority descending (most important first).
 /// priority = severity_weight × overshoot × compound_factor
 pub fn prioritize_findings(findings: &mut [Finding]) {

@@ -52,6 +52,7 @@ impl Plugin for ErrorHandlingAnalyzer {
                         start_line: f.start_line,
                         end_line: f.end_line,
                         name: Some(f.name.clone()),
+                        ..Default::default()
                     },
                     message: format!(
                         "Function `{}` has {} unwrap/expect calls (threshold: {})",
@@ -110,6 +111,7 @@ fn detect_empty_catch(lines: &[&str], ctx: &AnalysisContext, findings: &mut Vec<
                         start_line: i + 1,
                         end_line: i + 2,
                         name: None,
+                        ..Default::default()
                     },
                     message: "Empty catch/except block — errors are silently swallowed".into(),
                     suggested_refactorings: vec![

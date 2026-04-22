@@ -24,6 +24,7 @@ fn middle_man_triggers() {
         self_call_count: 0,
         has_listener_field: false,
         has_notify_method: false,
+        ..Default::default()
     };
     let model = make_model(vec![], vec![c], vec![], 10);
     let findings = analyze(&MiddleManAnalyzer::default(), &model);
@@ -51,6 +52,7 @@ fn middle_man_below_ratio() {
         self_call_count: 0,
         has_listener_field: false,
         has_notify_method: false,
+        ..Default::default()
     };
     let model = make_model(vec![], vec![c], vec![], 10);
     let findings = analyze(&MiddleManAnalyzer::default(), &model);
@@ -77,6 +79,7 @@ fn middle_man_too_few_methods() {
         self_call_count: 0,
         has_listener_field: false,
         has_notify_method: false,
+        ..Default::default()
     };
     let model = make_model(vec![], vec![c], vec![], 5);
     let findings = analyze(&MiddleManAnalyzer::default(), &model);

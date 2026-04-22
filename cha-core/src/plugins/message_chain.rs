@@ -34,6 +34,7 @@ impl Plugin for MessageChainAnalyzer {
                     start_line: f.start_line,
                     end_line: f.end_line,
                     name: Some(f.name.clone()),
+                    ..Default::default()
                 },
                 message: format!(
                     "Function `{}` has chain depth {} (threshold: {})",

@@ -52,6 +52,7 @@ impl Plugin for HardcodedSecretAnalyzer {
                             start_line: ln,
                             end_line: ln,
                             name: Some(label.to_string()),
+                            ..Default::default()
                         },
                         message: format!("Possible hardcoded {label} detected"),
                         suggested_refactorings: vec![

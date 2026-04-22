@@ -598,6 +598,7 @@ fn detect_unstable_deps(
                     start_line: 1,
                     end_line: 1,
                     name: None,
+                    ..Default::default()
                 },
                 message: format!(
                     "`{file}` (I={my_i:.2}) depends on `{target}` (I={ti:.2}) which is less stable"
@@ -694,6 +695,7 @@ fn detect_bus_factor(files: &[PathBuf], cwd: &Path) -> Vec<Finding> {
                         start_line: 1,
                         end_line: 1,
                         name: None,
+                        ..Default::default()
                     },
                     message: format!(
                         "`{}` has only 1 contributor — bus factor risk",
@@ -762,6 +764,7 @@ fn check_test_ratio(files: &[PathBuf]) -> Vec<Finding> {
             start_line: 1,
             end_line: 1,
             name: None,
+            ..Default::default()
         },
         message: format!(
             "Test-to-code ratio is {:.0}% ({test_lines} test / {prod_lines} production lines)",
