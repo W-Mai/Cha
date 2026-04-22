@@ -241,6 +241,76 @@ fn make_class_symbol(
     }
 }
 
+fn count_findings_in_range(findings: Option<&Vec<Finding>>, start: usize, end: usize) -> usize {
+    findings
+        .map(|fs| {
+            fs.iter()
+                .filter(|fd| fd.location.start_line <= end && fd.location.end_line >= start)
+                .count()
+        })
+        .unwrap_or(0)
+}
+
+fn collect_findings_in_range(
+    findings: Option<&Vec<Finding>>,
+    start: usize,
+    end: usize,
+) -> Vec<&Finding> {
+    findings
+        .map(|fs| {
+            fs.iter()
+                .filter(|fd| fd.location.start_line <= end && fd.location.end_line >= start)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn make_code_lens(start_line: usize, title: &str) -> CodeLens {
+    let line = start_line.saturating_sub(1) as u32;
+    CodeLens {
+        range: Range {
+            start: Position::new(line, 0),
+            end: Position::new(line, 0),
+        },
+        command: Some(Command {
+            title: title.to_string(),
+            command: String::new(),
+            arguments: None,
+        }),
+        data: None,
+    }
+}
+
+fn build_hover_card(f: &cha_core::FunctionInfo, findings: &[&Finding]) -> String {
+    let mut card = format!(
+        "### 📊 `{}`\n\n\
+         | Metric | Value |\n|---|---|\n\
+         | Lines | {} |\n\
+         | Cyclomatic complexity | {} |\n\
+         | Cognitive complexity | {} |\n\
+         | Parameters | {} |\n\
+         | Chain depth | {} |",
+        f.name,
+        f.line_count,
+        f.complexity,
+        f.cognitive_complexity,
+        f.parameter_count,
+        f.chain_depth,
+    );
+    if !findings.is_empty() {
+        card.push_str("\n\n**Findings:**\n");
+        for fd in findings {
+            let icon = match fd.severity {
+                Severity::Error => "❌",
+                Severity::Warning => "⚠️",
+                Severity::Hint => "💡",
+            };
+            card.push_str(&format!("- {icon} `{}`: {}\n", fd.smell_name, fd.message));
+        }
+    }
+    card
+}
+
 fn finding_to_diagnostic(f: &Finding) -> Diagnostic {
     let severity = match f.severity {
         Severity::Error => DiagnosticSeverity::ERROR,
@@ -383,67 +453,22 @@ impl LanguageServer for ChaLsp {
         let findings = findings_map.get(uri);
         let mut lenses = Vec::new();
         for f in &model.functions {
-            let line = f.start_line.saturating_sub(1) as u32;
-            let count = findings
-                .map(|fs| {
-                    fs.iter()
-                        .filter(|fd| {
-                            fd.location.start_line <= f.end_line
-                                && fd.location.end_line >= f.start_line
-                        })
-                        .count()
-                })
-                .unwrap_or(0);
+            let count = count_findings_in_range(findings, f.start_line, f.end_line);
             let title = if count > 0 {
                 format!("⚠ {} issue(s) | {} lines", count, f.line_count)
             } else {
                 format!("✓ {} lines", f.line_count)
             };
-            lenses.push(CodeLens {
-                range: Range {
-                    start: Position::new(line, 0),
-                    end: Position::new(line, 0),
-                },
-                command: Some(Command {
-                    title,
-                    command: String::new(),
-                    arguments: None,
-                }),
-                data: None,
-            });
+            lenses.push(make_code_lens(f.start_line, &title));
         }
         for c in &model.classes {
-            let line = c.start_line.saturating_sub(1) as u32;
-            let count = findings
-                .map(|fs| {
-                    fs.iter()
-                        .filter(|fd| {
-                            fd.location.start_line <= c.end_line
-                                && fd.location.end_line >= c.start_line
-                        })
-                        .count()
-                })
-                .unwrap_or(0);
+            let count = count_findings_in_range(findings, c.start_line, c.end_line);
             let title = if count > 0 {
                 format!("⚠ {} issue(s) | {} lines", count, c.line_count)
             } else {
-                format!(
-                    "✓ {} methods | {} fields | {} lines",
-                    c.method_count, c.field_count, c.line_count
-                )
+                format!("✓ {}m {}f {}L", c.method_count, c.field_count, c.line_count)
             };
-            lenses.push(CodeLens {
-                range: Range {
-                    start: Position::new(line, 0),
-                    end: Position::new(line, 0),
-                },
-                command: Some(Command {
-                    title,
-                    command: String::new(),
-                    arguments: None,
-                }),
-                data: None,
-            });
+            lenses.push(make_code_lens(c.start_line, &title));
         }
         Ok(Some(lenses))
     }
@@ -461,42 +486,8 @@ impl LanguageServer for ChaLsp {
 
         for f in &model.functions {
             if line >= f.start_line && line <= f.end_line {
-                let fn_findings: Vec<&Finding> = findings
-                    .map(|fs| {
-                        fs.iter()
-                            .filter(|fd| {
-                                fd.location.start_line <= f.end_line
-                                    && fd.location.end_line >= f.start_line
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                let mut card = format!(
-                    "### 📊 `{}`\n\n\
-                     | Metric | Value |\n|---|---|\n\
-                     | Lines | {} |\n\
-                     | Cyclomatic complexity | {} |\n\
-                     | Cognitive complexity | {} |\n\
-                     | Parameters | {} |\n\
-                     | Chain depth | {} |",
-                    f.name,
-                    f.line_count,
-                    f.complexity,
-                    f.cognitive_complexity,
-                    f.parameter_count,
-                    f.chain_depth,
-                );
-                if !fn_findings.is_empty() {
-                    card.push_str("\n\n**Findings:**\n");
-                    for fd in &fn_findings {
-                        let icon = match fd.severity {
-                            Severity::Error => "❌",
-                            Severity::Warning => "⚠️",
-                            Severity::Hint => "💡",
-                        };
-                        card.push_str(&format!("- {icon} `{}`: {}\n", fd.smell_name, fd.message));
-                    }
-                }
+                let fn_findings = collect_findings_in_range(findings, f.start_line, f.end_line);
+                let card = build_hover_card(f, &fn_findings);
                 return Ok(Some(Hover {
                     contents: HoverContents::Markup(MarkupContent {
                         kind: MarkupKind::Markdown,
