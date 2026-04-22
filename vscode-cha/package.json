@@ -47,7 +47,7 @@
           "default": [
             "large_file"
           ],
-          "description": "List of plugin names to disable (e.g. large_file, todo_tracker)"
+          "description": "List of finding names to suppress (e.g. large_file, todo_comment, high_coupling)"
         }
       }
     }

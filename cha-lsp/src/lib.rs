@@ -33,8 +33,8 @@ fn collect_diagnostics(
     registry
         .plugins()
         .iter()
-        .filter(|p| !disabled.iter().any(|d| d == p.name()))
         .flat_map(|p| p.analyze(&ctx))
+        .filter(|f| !disabled.iter().any(|d| d == &f.smell_name))
         .map(|f| finding_to_diagnostic(&f))
         .collect()
 }
