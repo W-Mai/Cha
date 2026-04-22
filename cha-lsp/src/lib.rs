@@ -17,21 +17,6 @@ struct ChaLsp {
     disabled_plugins: Arc<RwLock<Vec<String>>>,
 }
 
-fn analyze_and_publish(
-    client: &Client,
-    registry: &PluginRegistry,
-    uri: &Url,
-    text: &str,
-    disabled: &[String],
-) {
-    let path = uri
-        .to_file_path()
-        .unwrap_or_else(|_| PathBuf::from(uri.path()));
-    let file = SourceFile::new(path, text.to_string());
-    let diagnostics = collect_diagnostics(registry, &file, disabled);
-    publish(client, uri.clone(), diagnostics);
-}
-
 fn collect_diagnostics(
     registry: &PluginRegistry,
     file: &SourceFile,
@@ -52,13 +37,6 @@ fn collect_diagnostics(
         .flat_map(|p| p.analyze(&ctx))
         .map(|f| finding_to_diagnostic(&f))
         .collect()
-}
-
-fn publish(client: &Client, uri: Url, diagnostics: Vec<Diagnostic>) {
-    let client = client.clone();
-    tokio::spawn(async move {
-        client.publish_diagnostics(uri, diagnostics, None).await;
-    });
 }
 
 fn parse_doc(uri: &Url, text: &str) -> Option<SourceModel> {
@@ -329,11 +307,7 @@ impl LanguageServer for ChaLsp {
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let uri = params.text_document.uri.clone();
         let text = params.text_document.text.clone();
-        self.docs.write().await.insert(uri.clone(), text.clone());
-        {
-            let disabled = self.disabled_plugins.read().await;
-            analyze_and_publish(&self.client, &self.registry, &uri, &text, &disabled);
-        }
+        self.docs.write().await.insert(uri, text);
     }
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
@@ -341,17 +315,7 @@ impl LanguageServer for ChaLsp {
             self.docs
                 .write()
                 .await
-                .insert(params.text_document.uri.clone(), text.clone());
-            {
-                let disabled = self.disabled_plugins.read().await;
-                analyze_and_publish(
-                    &self.client,
-                    &self.registry,
-                    &params.text_document.uri,
-                    &text,
-                    &disabled,
-                );
-            }
+                .insert(params.text_document.uri.clone(), text);
         }
     }
 
@@ -361,16 +325,6 @@ impl LanguageServer for ChaLsp {
                 .write()
                 .await
                 .insert(params.text_document.uri.clone(), change.text.clone());
-            {
-                let disabled = self.disabled_plugins.read().await;
-                analyze_and_publish(
-                    &self.client,
-                    &self.registry,
-                    &params.text_document.uri,
-                    &change.text,
-                    &disabled,
-                );
-            }
         }
     }
 
