@@ -56,9 +56,10 @@ fn build_duplicate_findings(ctx: &AnalysisContext, group: &[&crate::FunctionInfo
                 location: Location {
                     path: ctx.file.path.clone(),
                     start_line: f.start_line,
-                    end_line: f.end_line,
+                    start_col: f.name_col,
+                    end_line: f.start_line,
+                    end_col: f.name_end_col,
                     name: Some(f.name.clone()),
-                    ..Default::default()
                 },
                 message: format!(
                     "Function `{}` has duplicate structure with: {}",

@@ -61,6 +61,7 @@ impl LayerViolationAnalyzer {
             location: Location {
                 path: ctx.file.path.clone(),
                 start_line: imp.line,
+                start_col: imp.col,
                 end_line: imp.line,
                 name: None,
                 ..Default::default()

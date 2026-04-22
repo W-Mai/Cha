@@ -40,7 +40,9 @@ impl NamingAnalyzer {
                 kind: "Function",
                 path: &ctx.file.path,
                 start_line: f.start_line,
-                end_line: f.end_line,
+                start_col: f.name_col,
+                end_line: f.start_line,
+                end_col: f.name_end_col,
             };
             if let Some(finding) = check_name(&check, self.min_name_length, self.max_name_length) {
                 findings.push(finding);
@@ -58,7 +60,9 @@ impl NamingAnalyzer {
                 kind: "Class",
                 path: &ctx.file.path,
                 start_line: c.start_line,
-                end_line: c.end_line,
+                start_col: c.name_col,
+                end_line: c.start_line,
+                end_col: c.name_end_col,
             };
             if let Some(f) = check_name(&check, self.min_name_length, self.max_name_length) {
                 findings.push(f);
@@ -79,9 +83,10 @@ fn check_pascal_case(c: &crate::ClassInfo, path: &std::path::Path) -> Option<Fin
         location: Location {
             path: path.to_path_buf(),
             start_line: c.start_line,
-            end_line: c.end_line,
+            start_col: c.name_col,
+            end_line: c.start_line,
+            end_col: c.name_end_col,
             name: Some(c.name.clone()),
-            ..Default::default()
         },
         message: format!("Class `{}` should use PascalCase", c.name),
         suggested_refactorings: vec!["Rename Method".into()],
@@ -94,7 +99,9 @@ struct NameCheck<'a> {
     kind: &'a str,
     path: &'a std::path::Path,
     start_line: usize,
+    start_col: usize,
     end_line: usize,
+    end_col: usize,
 }
 
 fn check_name(check: &NameCheck, min_len: usize, max_len: usize) -> Option<Finding> {
@@ -113,9 +120,10 @@ fn check_name(check: &NameCheck, min_len: usize, max_len: usize) -> Option<Findi
         location: Location {
             path: check.path.to_path_buf(),
             start_line: check.start_line,
+            start_col: check.start_col,
             end_line: check.end_line,
+            end_col: check.end_col,
             name: Some(check.name.to_string()),
-            ..Default::default()
         },
         message: format!(
             "{} `{}` name is too {} ({} chars, {}: {})",

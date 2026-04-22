@@ -45,6 +45,7 @@ impl Plugin for HubLikeDependencyAnalyzer {
             return vec![];
         }
         let first = ctx.model.imports.first().map(|i| i.line).unwrap_or(1);
+        let first_col = ctx.model.imports.first().map(|i| i.col).unwrap_or(0);
         let last = ctx.model.imports.last().map(|i| i.line).unwrap_or(1);
         vec![Finding {
             smell_name: "hub_like_dependency".into(),
@@ -53,6 +54,7 @@ impl Plugin for HubLikeDependencyAnalyzer {
             location: Location {
                 path: ctx.file.path.clone(),
                 start_line: first,
+                start_col: first_col,
                 end_line: last,
                 name: None,
                 ..Default::default()

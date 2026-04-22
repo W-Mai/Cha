@@ -53,9 +53,10 @@ impl Plugin for DataClumpsAnalyzer {
                 location: Location {
                     path: ctx.file.path.clone(),
                     start_line: f.start_line,
-                    end_line: f.end_line,
+                    start_col: f.name_col,
+                    end_line: f.start_line,
+                    end_col: f.name_end_col,
                     name: Some(f.name.clone()),
-                    ..Default::default()
                 },
                 message: format!(
                     "Function `{}` shares parameter signature [{}] with {} other functions",

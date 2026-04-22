@@ -39,7 +39,7 @@ fn check_strategy(ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
         };
         findings.push(hint(
             ctx,
-            (f.start_line, f.end_line, Some(&f.name)),
+            (f.start_line, f.name_col, f.name_end_col, Some(&f.name)),
             "strategy_pattern",
             format!(
                 "Function `{}` dispatches on `{}` with {} arms — consider Strategy pattern",
@@ -58,7 +58,7 @@ fn check_state(ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
         };
         findings.push(hint(
             ctx,
-            (f.start_line, f.end_line, Some(&f.name)),
+            (f.start_line, f.name_col, f.name_end_col, Some(&f.name)),
             "state_pattern",
             format!(
                 "Function `{}` dispatches on `{}` — consider State pattern",
@@ -74,7 +74,7 @@ fn check_builder(ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
         if f.parameter_count >= 7 || (f.parameter_count >= 5 && f.optional_param_count >= 3) {
             findings.push(hint(
                 ctx,
-                (f.start_line, f.end_line, Some(&f.name)),
+                (f.start_line, f.name_col, f.name_end_col, Some(&f.name)),
                 "builder_pattern",
                 format!(
                     "Function `{}` has {} params ({} optional) — consider Builder pattern",
@@ -97,7 +97,7 @@ fn check_null_object(ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
         if *count >= 3 {
             findings.push(hint(
                 ctx,
-                (1, ctx.model.total_lines, None),
+                (1, 0, 0, None),
                 "null_object_pattern",
                 format!(
                     "Field `{}` is null-checked in {} functions — consider Null Object pattern",
@@ -114,7 +114,7 @@ fn check_template_method(ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
         if c.self_call_count >= 3 && c.method_count >= 4 {
             findings.push(hint(
                 ctx,
-                (c.start_line, c.end_line, Some(&c.name)),
+                (c.start_line, c.name_col, c.name_end_col, Some(&c.name)),
                 "template_method_pattern",
                 format!(
                     "Class `{}` has a method calling {} self-methods — consider Template Method",
@@ -141,7 +141,7 @@ fn check_observer(ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
         };
         findings.push(hint(
             ctx,
-            (c.start_line, c.end_line, Some(&c.name)),
+            (c.start_line, c.name_col, c.name_end_col, Some(&c.name)),
             "observer_pattern",
             msg,
         ));
@@ -164,7 +164,7 @@ fn is_state_field(name: &str) -> bool {
 
 fn hint(
     ctx: &AnalysisContext,
-    loc: (usize, usize, Option<&str>),
+    loc: (usize, usize, usize, Option<&str>),
     smell: &str,
     message: String,
 ) -> Finding {
@@ -175,9 +175,10 @@ fn hint(
         location: Location {
             path: ctx.file.path.clone(),
             start_line: loc.0,
-            end_line: loc.1,
-            name: loc.2.map(String::from),
-            ..Default::default()
+            start_col: loc.1,
+            end_line: loc.0,
+            end_col: loc.2,
+            name: loc.3.map(String::from),
         },
         message,
         suggested_refactorings: vec![],

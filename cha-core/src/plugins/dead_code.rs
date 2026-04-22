@@ -31,7 +31,8 @@ fn check_dead_functions(ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
             findings.push(make_dead_code_finding(
                 ctx,
                 f.start_line,
-                f.end_line,
+                f.name_col,
+                f.name_end_col,
                 &f.name,
                 "Function",
             ));
@@ -48,7 +49,8 @@ fn check_dead_classes(ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
         findings.push(make_dead_code_finding(
             ctx,
             c.start_line,
-            c.end_line,
+            c.name_col,
+            c.name_end_col,
             &c.name,
             "Class",
         ));
@@ -59,7 +61,8 @@ fn check_dead_classes(ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
 fn make_dead_code_finding(
     ctx: &AnalysisContext,
     start_line: usize,
-    end_line: usize,
+    name_col: usize,
+    name_end_col: usize,
     name: &str,
     kind: &str,
 ) -> Finding {
@@ -70,9 +73,10 @@ fn make_dead_code_finding(
         location: Location {
             path: ctx.file.path.clone(),
             start_line,
-            end_line,
+            start_col: name_col,
+            end_line: start_line,
+            end_col: name_end_col,
             name: Some(name.to_string()),
-            ..Default::default()
         },
         message: format!("{} `{}` is not exported and may be unused", kind, name),
         suggested_refactorings: vec!["Remove dead code".into()],

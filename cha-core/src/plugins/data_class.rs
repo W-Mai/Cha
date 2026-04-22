@@ -35,9 +35,10 @@ impl Plugin for DataClassAnalyzer {
                     location: Location {
                         path: ctx.file.path.clone(),
                         start_line: c.start_line,
-                        end_line: c.end_line,
+                        start_col: c.name_col,
+                        end_line: c.start_line,
+                        end_col: c.name_end_col,
                         name: Some(c.name.clone()),
-                        ..Default::default()
                     },
                     message: format!(
                         "Class `{}` has {} fields but no behavior methods, consider Move Method",

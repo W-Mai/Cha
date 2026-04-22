@@ -52,6 +52,7 @@ fn make_finding(ctx: &AnalysisContext, imp: &crate::ImportInfo, current: &str) -
         location: Location {
             path: ctx.file.path.clone(),
             start_line: imp.line,
+            start_col: imp.col,
             end_line: imp.line,
             name: None,
             ..Default::default()

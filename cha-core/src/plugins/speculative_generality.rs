@@ -46,9 +46,10 @@ impl Plugin for SpeculativeGeneralityAnalyzer {
                     location: Location {
                         path: ctx.file.path.clone(),
                         start_line: iface.start_line,
-                        end_line: iface.end_line,
+                        start_col: iface.name_col,
+                        end_line: iface.start_line,
+                        end_col: iface.name_end_col,
                         name: Some(iface.name.clone()),
-                        ..Default::default()
                     },
                     message: format!(
                         "Interface `{}` has only {} implementation(s) in this file, consider Collapse Hierarchy",

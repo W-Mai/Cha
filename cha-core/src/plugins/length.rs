@@ -55,9 +55,10 @@ impl LengthAnalyzer {
                 location: Location {
                     path: ctx.file.path.clone(),
                     start_line: f.start_line,
-                    end_line: f.end_line,
+                    start_col: f.name_col,
+                    end_line: f.start_line,
+                    end_col: f.name_end_col,
                     name: Some(f.name.clone()),
-                    ..Default::default()
                 },
                 message: format!(
                     "Function `{}` is {} lines (threshold: {}, risk: {:.1})",
@@ -103,9 +104,10 @@ impl LengthAnalyzer {
             location: Location {
                 path: ctx.file.path.clone(),
                 start_line: c.start_line,
-                end_line: c.end_line,
+                start_col: c.name_col,
+                end_line: c.start_line,
+                end_col: c.name_end_col,
                 name: Some(c.name.clone()),
-                ..Default::default()
             },
             message: format!("Class `{}` is too large ({})", c.name, reasons.join(", ")),
             suggested_refactorings: vec!["Extract Class".into()],
