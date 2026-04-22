@@ -566,7 +566,6 @@ fn detect_unstable_deps(
         }
     };
 
-    // Build reverse index for O(1) import resolution
     let mut name_to_path: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
     for &k in &known {
         let basename = k.rsplit('/').next().unwrap_or(k);
@@ -589,28 +588,32 @@ fn detect_unstable_deps(
                 let ti = instability(t);
                 (my_i < ti && (ti - my_i) > 0.2).then_some((t, ti))
             })?;
-            Some(Finding {
-                smell_name: "unstable_dependency".into(),
-                category: cha_core::SmellCategory::Couplers,
-                severity: cha_core::Severity::Hint,
-                location: cha_core::Location {
-                    path: PathBuf::from(file),
-                    start_line: 1,
-                    end_line: 1,
-                    name: None,
-                    ..Default::default()
-                },
-                message: format!(
-                    "`{file}` (I={my_i:.2}) depends on `{target}` (I={ti:.2}) which is less stable"
-                ),
-                suggested_refactorings: vec![
-                    "Depend on abstractions".into(),
-                    "Stable Dependencies Principle".into(),
-                ],
-                ..Default::default()
-            })
+            Some(make_unstable_finding(file, my_i, target, ti))
         })
         .collect()
+}
+
+fn make_unstable_finding(file: &str, my_i: f64, target: &str, ti: f64) -> Finding {
+    Finding {
+        smell_name: "unstable_dependency".into(),
+        category: cha_core::SmellCategory::Couplers,
+        severity: cha_core::Severity::Hint,
+        location: cha_core::Location {
+            path: PathBuf::from(file),
+            start_line: 1,
+            end_line: 1,
+            name: None,
+            ..Default::default()
+        },
+        message: format!(
+            "`{file}` (I={my_i:.2}) depends on `{target}` (I={ti:.2}) which is less stable"
+        ),
+        suggested_refactorings: vec![
+            "Depend on abstractions".into(),
+            "Stable Dependencies Principle".into(),
+        ],
+        ..Default::default()
+    }
 }
 
 fn build_file_imports(
