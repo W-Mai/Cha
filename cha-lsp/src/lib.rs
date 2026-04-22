@@ -407,28 +407,38 @@ impl LanguageServer for ChaLsp {
         let Some(text) = docs.get(uri) else {
             return Ok(None);
         };
-        let Some(model) = parse_doc(uri, text) else {
+        let path = uri
+            .to_file_path()
+            .unwrap_or_else(|_| PathBuf::from(uri.path()));
+        let file = SourceFile::new(path, text.to_string());
+        let Some(model) = cha_parser::parse_file(&file) else {
             return Ok(None);
         };
+        let disabled = self.disabled_plugins.read().await;
+        let ctx = AnalysisContext {
+            file: &file,
+            model: &model,
+        };
+        let findings: Vec<Finding> = self
+            .registry
+            .plugins()
+            .iter()
+            .flat_map(|p| p.analyze(&ctx))
+            .filter(|f| !disabled.iter().any(|d| d == &f.smell_name))
+            .collect();
+
         // Find function at cursor line
         for f in &model.functions {
             if line >= f.start_line && line <= f.end_line {
-                let line_ratio = f.line_count as f64 / 50.0;
-                let cx_factor = (f.complexity as f64 / 10.0).max(1.0);
-                let risk = line_ratio * cx_factor;
-                let risk_label = if risk >= 4.0 {
-                    "🔴"
-                } else if risk >= 2.0 {
-                    "🟡"
-                } else if risk >= 1.0 {
-                    "🟢"
-                } else {
-                    "⚪"
-                };
-                let card = format!(
+                let fn_findings: Vec<&Finding> = findings
+                    .iter()
+                    .filter(|fd| {
+                        fd.location.start_line <= f.end_line && fd.location.end_line >= f.start_line
+                    })
+                    .collect();
+                let mut card = format!(
                     "### 📊 `{}`\n\n\
                      | Metric | Value |\n|---|---|\n\
-                     | Risk | {risk_label} {risk:.1} |\n\
                      | Lines | {} |\n\
                      | Cyclomatic complexity | {} |\n\
                      | Cognitive complexity | {} |\n\
@@ -441,6 +451,17 @@ impl LanguageServer for ChaLsp {
                     f.parameter_count,
                     f.chain_depth,
                 );
+                if !fn_findings.is_empty() {
+                    card.push_str("\n\n**Findings:**\n");
+                    for fd in &fn_findings {
+                        let icon = match fd.severity {
+                            Severity::Error => "❌",
+                            Severity::Warning => "⚠️",
+                            Severity::Hint => "💡",
+                        };
+                        card.push_str(&format!("- {icon} `{}`: {}\n", fd.smell_name, fd.message));
+                    }
+                }
                 return Ok(Some(Hover {
                     contents: HoverContents::Markup(MarkupContent {
                         kind: MarkupKind::Markdown,
