@@ -45,7 +45,7 @@ impl Plugin for CognitiveComplexityAnalyzer {
                     smell_name: "cognitive_complexity".into(),
                     category: SmellCategory::Bloaters,
                     severity,
-                    location: func_location(&ctx.file.path, f, &severity),
+                    location: func_location(&ctx.file.path, f),
                     message: format!(
                         "Function `{}` has cognitive complexity {} (threshold: {})",
                         f.name, f.cognitive_complexity, self.threshold

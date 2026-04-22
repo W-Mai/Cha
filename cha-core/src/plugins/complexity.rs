@@ -48,7 +48,7 @@ impl ComplexityAnalyzer {
             smell_name: "high_complexity".into(),
             category: SmellCategory::Bloaters,
             severity,
-            location: func_location(&ctx.file.path, f, &severity),
+            location: func_location(&ctx.file.path, f),
             message: format!(
                 "Function `{}` has complexity {} (threshold: {})",
                 f.name, f.complexity, self.warn_threshold
