@@ -43,31 +43,40 @@ async function ensureBinary(
   configured: string
 ): Promise<string | undefined> {
   const expectedVersion = context.extension.packageJSON.version as string;
+  console.log(`[cha] ensureBinary: configured="${configured}", expected=${expectedVersion}, platform=${process.platform}`);
 
   // 1. User explicitly configured a path — use it
-  if (configured !== "cha" && commandExists(configured)) return configured;
+  if (configured !== "cha" && commandExists(configured)) {
+    console.log(`[cha] using configured path: ${configured}`);
+    return configured;
+  }
 
   // 2. Check extension-managed binary (preferred)
   const bin = process.platform === "win32" ? "cha.exe" : "cha";
   const stored = path.join(context.globalStorageUri.fsPath, bin);
+  console.log(`[cha] stored path: ${stored}, exists=${fs.existsSync(stored)}`);
   if (fs.existsSync(stored) && commandExists(stored)) {
-    if (binaryVersionMatches(stored, expectedVersion)) return stored;
-    // Outdated — offer update
+    const matches = binaryVersionMatches(stored, expectedVersion);
+    console.log(`[cha] stored binary found, version matches=${matches}`);
+    if (matches) return stored;
     const choice = await vscode.window.showInformationMessage(
       `cha binary is outdated. Update to v${expectedVersion}?`,
       "Update",
       "Skip"
     );
+    console.log(`[cha] update choice: ${choice}`);
     if (choice === "Update") return downloadToStorage(context, stored);
-    return stored; // use old version
+    return stored;
   }
 
   // 3. Offer to download
+  console.log(`[cha] binary not found, showing download prompt`);
   const choice = await vscode.window.showWarningMessage(
     "cha binary not found. Download from GitHub?",
     "Download",
     "Configure Path"
   );
+  console.log(`[cha] download choice: ${choice}`);
 
   if (choice === "Configure Path") {
     vscode.commands.executeCommand(
