@@ -1,2 +1,9 @@
 [plugins.length]
 max_class_methods = 15
+max_function_lines = 80
+
+[plugins.cognitive_complexity]
+threshold = 20
+
+[plugins.brain_method]
+enabled = false

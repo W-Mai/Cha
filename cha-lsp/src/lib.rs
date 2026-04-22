@@ -53,97 +53,96 @@ fn run_full_analyze(
         {
             continue;
         }
-        let rel = path
-            .strip_prefix(cwd)
-            .unwrap_or(&path)
-            .to_string_lossy()
-            .to_string();
-
-        // Try mtime fast path for model
-        let (content, chash, model) =
-            if let cha_core::FileStatus::Unchanged(ch) = c.check_file(&rel, &path) {
-                if let Some(m) = c.get_model(ch) {
-                    (None, ch, m)
-                } else {
-                    let content = match std::fs::read_to_string(&path) {
-                        Ok(s) => s,
-                        Err(_) => continue,
-                    };
-                    let ch2 = cha_core::hash_content(&content);
-                    let file = SourceFile::new(path.clone(), content.clone());
-                    let Some(m) = cha_parser::parse_file(&file) else {
-                        continue;
-                    };
-                    c.put_model(ch2, &m);
-                    c.update_file_entry(
-                        rel.clone(),
-                        &path,
-                        ch2,
-                        m.imports.iter().map(|i| i.source.clone()).collect(),
-                    );
-                    (Some(content), ch2, m)
-                }
-            } else {
-                let content = match std::fs::read_to_string(&path) {
-                    Ok(s) => s,
-                    Err(_) => continue,
-                };
-                let ch = cha_core::hash_content(&content);
-                if let Some(m) = c.get_model(ch) {
-                    c.update_file_entry(
-                        rel.clone(),
-                        &path,
-                        ch,
-                        m.imports.iter().map(|i| i.source.clone()).collect(),
-                    );
-                    (Some(content), ch, m)
-                } else {
-                    let file = SourceFile::new(path.clone(), content.clone());
-                    let Some(m) = cha_parser::parse_file(&file) else {
-                        continue;
-                    };
-                    c.put_model(ch, &m);
-                    c.update_file_entry(
-                        rel.clone(),
-                        &path,
-                        ch,
-                        m.imports.iter().map(|i| i.source.clone()).collect(),
-                    );
-                    (Some(content), ch, m)
-                }
-            };
-
-        // Get findings from cache or run plugins
-        let findings = if let Some(cached) = c.get_findings(chash) {
-            cached
-        } else {
-            let content =
-                content.unwrap_or_else(|| std::fs::read_to_string(&path).unwrap_or_default());
-            let file = SourceFile::new(path.clone(), content);
-            let ctx = AnalysisContext {
-                file: &file,
-                model: &model,
-            };
-            let findings: Vec<Finding> = registry
-                .plugins()
-                .iter()
-                .flat_map(|p| p.analyze(&ctx))
-                .collect();
-            c.put_findings(chash, &findings);
-            findings
-        };
-
-        let uri = Url::from_file_path(&path)
-            .unwrap_or_else(|_| Url::parse(&format!("file://{}", path.display())).unwrap());
-        let filtered: Vec<Finding> = findings
-            .into_iter()
-            .filter(|f| !disabled.iter().any(|d| d == &f.smell_name))
-            .collect();
-        all_findings.insert(uri.clone(), filtered);
-        all_models.insert(uri, model);
+        if let Some((uri, model, findings)) =
+            analyze_one_file(&path, cwd, registry, &mut c, disabled)
+        {
+            all_findings.insert(uri.clone(), findings);
+            all_models.insert(uri, model);
+        }
     }
     c.flush();
     (all_findings, all_models)
+}
+
+fn analyze_one_file(
+    path: &std::path::Path,
+    cwd: &std::path::Path,
+    registry: &PluginRegistry,
+    c: &mut ProjectCache,
+    disabled: &[String],
+) -> Option<(Url, SourceModel, Vec<Finding>)> {
+    let rel = path
+        .strip_prefix(cwd)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .to_string();
+    let (content, chash, model) = resolve_model(path, &rel, c)?;
+    let findings = resolve_findings(path, content, chash, &model, registry, c);
+    let uri = Url::from_file_path(path)
+        .unwrap_or_else(|_| Url::parse(&format!("file://{}", path.display())).unwrap());
+    let filtered = findings
+        .into_iter()
+        .filter(|f| !disabled.iter().any(|d| d == &f.smell_name))
+        .collect();
+    Some((uri, model, filtered))
+}
+
+/// Resolve SourceModel from cache (mtime → L1 → L2 → parse).
+fn resolve_model(
+    path: &std::path::Path,
+    rel: &str,
+    c: &mut ProjectCache,
+) -> Option<(Option<String>, u64, SourceModel)> {
+    if let cha_core::FileStatus::Unchanged(ch) = c.check_file(rel, path)
+        && let Some(m) = c.get_model(ch)
+    {
+        return Some((None, ch, m));
+    }
+    let content = std::fs::read_to_string(path).ok()?;
+    let ch = cha_core::hash_content(&content);
+    if let Some(m) = c.get_model(ch) {
+        c.update_file_entry(
+            rel.to_string(),
+            path,
+            ch,
+            m.imports.iter().map(|i| i.source.clone()).collect(),
+        );
+        return Some((Some(content), ch, m));
+    }
+    let file = SourceFile::new(path.to_path_buf(), content.clone());
+    let m = cha_parser::parse_file(&file)?;
+    c.put_model(ch, &m);
+    c.update_file_entry(
+        rel.to_string(),
+        path,
+        ch,
+        m.imports.iter().map(|i| i.source.clone()).collect(),
+    );
+    Some((Some(content), ch, m))
+}
+
+/// Resolve findings from cache or run plugins.
+fn resolve_findings(
+    path: &std::path::Path,
+    content: Option<String>,
+    chash: u64,
+    model: &SourceModel,
+    registry: &PluginRegistry,
+    c: &mut ProjectCache,
+) -> Vec<Finding> {
+    if let Some(cached) = c.get_findings(chash) {
+        return cached;
+    }
+    let content = content.unwrap_or_else(|| std::fs::read_to_string(path).unwrap_or_default());
+    let file = SourceFile::new(path.to_path_buf(), content);
+    let ctx = AnalysisContext { file: &file, model };
+    let findings: Vec<Finding> = registry
+        .plugins()
+        .iter()
+        .flat_map(|p| p.analyze(&ctx))
+        .collect();
+    c.put_findings(chash, &findings);
+    findings
 }
 
 /// Build semantic tokens for functions/classes with warnings (modifier bit 0 = "warning").
