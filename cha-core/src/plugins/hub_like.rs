@@ -51,7 +51,7 @@ impl Plugin for HubLikeDependencyAnalyzer {
             location: Location {
                 path: ctx.file.path.clone(),
                 start_line: 1,
-                end_line: ctx.model.total_lines,
+                end_line: 1,
                 name: None,
             },
             message: format!(
