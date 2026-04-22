@@ -1,4 +1,4 @@
-use crate::{AnalysisContext, Finding, Location, Plugin, Severity, SmellCategory};
+use crate::{AnalysisContext, Finding, Plugin, Severity, SmellCategory, func_location};
 
 /// Configurable thresholds for cyclomatic complexity.
 pub struct ComplexityAnalyzer {
@@ -39,22 +39,16 @@ impl ComplexityAnalyzer {
         if f.complexity < self.warn_threshold {
             return None;
         }
+        let severity = if f.complexity >= self.error_threshold {
+            Severity::Error
+        } else {
+            Severity::Warning
+        };
         Some(Finding {
             smell_name: "high_complexity".into(),
             category: SmellCategory::Bloaters,
-            severity: if f.complexity >= self.error_threshold {
-                Severity::Error
-            } else {
-                Severity::Warning
-            },
-            location: Location {
-                path: ctx.file.path.clone(),
-                start_line: f.start_line,
-                start_col: f.name_col,
-                end_line: f.start_line,
-                end_col: f.name_end_col,
-                name: Some(f.name.clone()),
-            },
+            severity,
+            location: func_location(&ctx.file.path, f, &severity),
             message: format!(
                 "Function `{}` has complexity {} (threshold: {})",
                 f.name, f.complexity, self.warn_threshold

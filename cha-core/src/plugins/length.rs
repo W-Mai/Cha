@@ -1,4 +1,7 @@
-use crate::{AnalysisContext, Finding, Location, Plugin, Severity, SmellCategory};
+use crate::{
+    AnalysisContext, Finding, Location, Plugin, Severity, SmellCategory, class_location,
+    func_location,
+};
 
 /// Configurable thresholds for length checks.
 pub struct LengthAnalyzer {
@@ -48,18 +51,12 @@ impl LengthAnalyzer {
                 continue;
             }
             let severity = risk_severity(risk);
+            let location = func_location(&ctx.file.path, f, &severity);
             findings.push(Finding {
                 smell_name: "long_method".into(),
                 category: SmellCategory::Bloaters,
                 severity,
-                location: Location {
-                    path: ctx.file.path.clone(),
-                    start_line: f.start_line,
-                    start_col: f.name_col,
-                    end_line: f.start_line,
-                    end_col: f.name_end_col,
-                    name: Some(f.name.clone()),
-                },
+                location,
                 message: format!(
                     "Function `{}` is {} lines (threshold: {}, risk: {:.1})",
                     f.name, f.line_count, self.max_function_lines, risk
@@ -86,29 +83,24 @@ impl LengthAnalyzer {
         if !over_methods && !over_lines {
             return None;
         }
-        let mut reasons = Vec::new();
-        if over_methods {
-            reasons.push(format!("{} methods", c.method_count));
-        }
-        if over_lines {
-            reasons.push(format!("{} lines", c.line_count));
-        }
+        let is_error = over_methods && over_lines;
+        let reasons: Vec<_> = [
+            over_methods.then(|| format!("{} methods", c.method_count)),
+            over_lines.then(|| format!("{} lines", c.line_count)),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        let severity = if is_error {
+            Severity::Error
+        } else {
+            Severity::Warning
+        };
         Some(Finding {
             smell_name: "large_class".into(),
             category: SmellCategory::Bloaters,
-            severity: if over_methods && over_lines {
-                Severity::Error
-            } else {
-                Severity::Warning
-            },
-            location: Location {
-                path: ctx.file.path.clone(),
-                start_line: c.start_line,
-                start_col: c.name_col,
-                end_line: c.start_line,
-                end_col: c.name_end_col,
-                name: Some(c.name.clone()),
-            },
+            severity,
+            location: class_location(&ctx.file.path, c, &severity),
             message: format!("Class `{}` is too large ({})", c.name, reasons.join(", ")),
             suggested_refactorings: vec!["Extract Class".into()],
             actual_value: Some(c.line_count as f64),

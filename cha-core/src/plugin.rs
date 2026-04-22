@@ -90,3 +90,70 @@ pub trait Plugin: Send + Sync {
     /// Run analysis on a single file and return findings.
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding>;
 }
+
+/// Build a Location for a function finding.
+/// Error severity → spans entire function body; Warning/Hint → points at function name.
+// cha:ignore duplicate_code
+pub fn func_location(
+    path: &std::path::Path,
+    f: &crate::FunctionInfo,
+    severity: &Severity,
+) -> Location {
+    span_or_name(
+        path,
+        f.start_line,
+        f.end_line,
+        f.name_col,
+        f.name_end_col,
+        &f.name,
+        severity,
+    )
+}
+
+/// Build a Location for a class finding.
+/// Error severity → spans entire class body; Warning/Hint → points at class name.
+// cha:ignore duplicate_code
+pub fn class_location(
+    path: &std::path::Path,
+    c: &crate::ClassInfo,
+    severity: &Severity,
+) -> Location {
+    span_or_name(
+        path,
+        c.start_line,
+        c.end_line,
+        c.name_col,
+        c.name_end_col,
+        &c.name,
+        severity,
+    )
+}
+
+fn span_or_name(
+    path: &std::path::Path,
+    start_line: usize,
+    end_line: usize,
+    name_col: usize,
+    name_end_col: usize,
+    name: &str,
+    severity: &Severity,
+) -> Location {
+    if matches!(severity, Severity::Error) {
+        Location {
+            path: path.into(),
+            start_line,
+            end_line,
+            name: Some(name.into()),
+            ..Default::default()
+        }
+    } else {
+        Location {
+            path: path.into(),
+            start_line,
+            start_col: name_col,
+            end_line: start_line,
+            end_col: name_end_col,
+            name: Some(name.into()),
+        }
+    }
+}

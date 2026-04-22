@@ -1,4 +1,4 @@
-use crate::{AnalysisContext, Finding, Location, Plugin, Severity, SmellCategory};
+use crate::{AnalysisContext, Finding, Plugin, Severity, SmellCategory, func_location};
 
 /// Detect functions with high cognitive complexity.
 ///
@@ -35,32 +35,28 @@ impl Plugin for CognitiveComplexityAnalyzer {
             .functions
             .iter()
             .filter(|f| f.cognitive_complexity > self.threshold)
-            .map(|f| Finding {
-                smell_name: "cognitive_complexity".into(),
-                category: SmellCategory::Bloaters,
-                severity: if f.cognitive_complexity > self.threshold * 2 {
+            .map(|f| {
+                let severity = if f.cognitive_complexity > self.threshold * 2 {
                     Severity::Error
                 } else {
                     Severity::Warning
-                },
-                location: Location {
-                    path: ctx.file.path.clone(),
-                    start_line: f.start_line,
-                    start_col: f.name_col,
-                    end_line: f.start_line,
-                    end_col: f.name_end_col,
-                    name: Some(f.name.clone()),
-                },
-                message: format!(
-                    "Function `{}` has cognitive complexity {} (threshold: {})",
-                    f.name, f.cognitive_complexity, self.threshold
-                ),
-                suggested_refactorings: vec![
-                    "Extract Method".into(),
-                    "Replace Nested Conditional with Guard Clauses".into(),
-                ],
-                actual_value: Some(f.cognitive_complexity as f64),
-                threshold: Some(self.threshold as f64),
+                };
+                Finding {
+                    smell_name: "cognitive_complexity".into(),
+                    category: SmellCategory::Bloaters,
+                    severity,
+                    location: func_location(&ctx.file.path, f, &severity),
+                    message: format!(
+                        "Function `{}` has cognitive complexity {} (threshold: {})",
+                        f.name, f.cognitive_complexity, self.threshold
+                    ),
+                    suggested_refactorings: vec![
+                        "Extract Method".into(),
+                        "Replace Nested Conditional with Guard Clauses".into(),
+                    ],
+                    actual_value: Some(f.cognitive_complexity as f64),
+                    threshold: Some(self.threshold as f64),
+                }
             })
             .collect()
     }
