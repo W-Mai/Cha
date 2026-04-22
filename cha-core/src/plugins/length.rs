@@ -1,7 +1,4 @@
-use crate::{
-    AnalysisContext, Finding, Location, Plugin, Severity, SmellCategory, class_location,
-    func_location,
-};
+use crate::{AnalysisContext, Finding, Location, Plugin, Severity, SmellCategory};
 
 /// Configurable thresholds for length checks.
 pub struct LengthAnalyzer {
@@ -51,12 +48,18 @@ impl LengthAnalyzer {
                 continue;
             }
             let severity = risk_severity(risk);
-            let location = func_location(&ctx.file.path, f, &severity);
             findings.push(Finding {
                 smell_name: "long_method".into(),
                 category: SmellCategory::Bloaters,
                 severity,
-                location,
+                location: Location {
+                    path: ctx.file.path.clone(),
+                    start_line: f.start_line,
+                    start_col: f.name_col,
+                    end_line: f.start_line,
+                    end_col: f.name_end_col,
+                    name: Some(f.name.clone()),
+                },
                 message: format!(
                     "Function `{}` is {} lines (threshold: {}, risk: {:.1})",
                     f.name, f.line_count, self.max_function_lines, risk
@@ -100,7 +103,14 @@ impl LengthAnalyzer {
             smell_name: "large_class".into(),
             category: SmellCategory::Bloaters,
             severity,
-            location: class_location(&ctx.file.path, c, &severity),
+            location: Location {
+                path: ctx.file.path.clone(),
+                start_line: c.start_line,
+                start_col: c.name_col,
+                end_line: c.start_line,
+                end_col: c.name_end_col,
+                name: Some(c.name.clone()),
+            },
             message: format!("Class `{}` is too large ({})", c.name, reasons.join(", ")),
             suggested_refactorings: vec!["Extract Class".into()],
             actual_value: Some(c.line_count as f64),
