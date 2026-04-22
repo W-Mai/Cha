@@ -38,6 +38,16 @@
           "type": "boolean",
           "default": true,
           "description": "Enable cha LSP for real-time diagnostics"
+        },
+        "cha.disabledPlugins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "large_file"
+          ],
+          "description": "List of plugin names to disable (e.g. large_file, todo_tracker)"
         }
       }
     }

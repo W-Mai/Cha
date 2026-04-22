@@ -14,18 +14,29 @@ struct ChaLsp {
     client: Client,
     registry: Arc<PluginRegistry>,
     docs: Arc<RwLock<HashMap<Url, String>>>,
+    disabled_plugins: Arc<RwLock<Vec<String>>>,
 }
 
-fn analyze_and_publish(client: &Client, registry: &PluginRegistry, uri: &Url, text: &str) {
+fn analyze_and_publish(
+    client: &Client,
+    registry: &PluginRegistry,
+    uri: &Url,
+    text: &str,
+    disabled: &[String],
+) {
     let path = uri
         .to_file_path()
         .unwrap_or_else(|_| PathBuf::from(uri.path()));
     let file = SourceFile::new(path, text.to_string());
-    let diagnostics = collect_diagnostics(registry, &file);
+    let diagnostics = collect_diagnostics(registry, &file, disabled);
     publish(client, uri.clone(), diagnostics);
 }
 
-fn collect_diagnostics(registry: &PluginRegistry, file: &SourceFile) -> Vec<Diagnostic> {
+fn collect_diagnostics(
+    registry: &PluginRegistry,
+    file: &SourceFile,
+    disabled: &[String],
+) -> Vec<Diagnostic> {
     let model = match cha_parser::parse_file(file) {
         Some(m) => m,
         None => return vec![],
@@ -37,6 +48,7 @@ fn collect_diagnostics(registry: &PluginRegistry, file: &SourceFile) -> Vec<Diag
     registry
         .plugins()
         .iter()
+        .filter(|p| !disabled.iter().any(|d| d == p.name()))
         .flat_map(|p| p.analyze(&ctx))
         .map(|f| finding_to_diagnostic(&f))
         .collect()
@@ -61,6 +73,7 @@ fn parse_doc(uri: &Url, text: &str) -> Option<SourceModel> {
 fn scan_workspace(
     cwd: &std::path::Path,
     registry: &PluginRegistry,
+    disabled: &[String],
 ) -> Vec<WorkspaceDocumentDiagnosticReport> {
     let walker = ignore::WalkBuilder::new(cwd)
         .hidden(true)
@@ -82,7 +95,7 @@ fn scan_workspace(
             let path = e.into_path();
             let content = std::fs::read_to_string(&path).ok()?;
             let file = SourceFile::new(path.clone(), content);
-            let diagnostics = collect_diagnostics(registry, &file);
+            let diagnostics = collect_diagnostics(registry, &file, disabled);
             if diagnostics.is_empty() {
                 return None;
             }
@@ -259,7 +272,13 @@ fn finding_to_diagnostic(f: &Finding) -> Diagnostic {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for ChaLsp {
-    async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
+    async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
+        if let Some(opts) = params.initialization_options
+            && let Some(disabled) = opts.get("disabledPlugins")
+            && let Ok(list) = serde_json::from_value::<Vec<String>>(disabled.clone())
+        {
+            *self.disabled_plugins.write().await = list;
+        }
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
@@ -311,7 +330,10 @@ impl LanguageServer for ChaLsp {
         let uri = params.text_document.uri.clone();
         let text = params.text_document.text.clone();
         self.docs.write().await.insert(uri.clone(), text.clone());
-        analyze_and_publish(&self.client, &self.registry, &uri, &text);
+        {
+            let disabled = self.disabled_plugins.read().await;
+            analyze_and_publish(&self.client, &self.registry, &uri, &text, &disabled);
+        }
     }
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
@@ -320,12 +342,16 @@ impl LanguageServer for ChaLsp {
                 .write()
                 .await
                 .insert(params.text_document.uri.clone(), text.clone());
-            analyze_and_publish(
-                &self.client,
-                &self.registry,
-                &params.text_document.uri,
-                &text,
-            );
+            {
+                let disabled = self.disabled_plugins.read().await;
+                analyze_and_publish(
+                    &self.client,
+                    &self.registry,
+                    &params.text_document.uri,
+                    &text,
+                    &disabled,
+                );
+            }
         }
     }
 
@@ -335,12 +361,16 @@ impl LanguageServer for ChaLsp {
                 .write()
                 .await
                 .insert(params.text_document.uri.clone(), change.text.clone());
-            analyze_and_publish(
-                &self.client,
-                &self.registry,
-                &params.text_document.uri,
-                &change.text,
-            );
+            {
+                let disabled = self.disabled_plugins.read().await;
+                analyze_and_publish(
+                    &self.client,
+                    &self.registry,
+                    &params.text_document.uri,
+                    &change.text,
+                    &disabled,
+                );
+            }
         }
     }
 
@@ -558,7 +588,8 @@ impl LanguageServer for ChaLsp {
                 .to_file_path()
                 .unwrap_or_else(|_| PathBuf::from(uri.path()));
             let file = SourceFile::new(path, text.to_string());
-            collect_diagnostics(&self.registry, &file)
+            let disabled = self.disabled_plugins.read().await;
+            collect_diagnostics(&self.registry, &file, &disabled)
         } else {
             vec![]
         };
@@ -599,7 +630,8 @@ impl LanguageServer for ChaLsp {
             })
             .await;
 
-        let items = scan_workspace(&cwd, &self.registry);
+        let disabled = self.disabled_plugins.read().await;
+        let items = scan_workspace(&cwd, &self.registry, &disabled);
 
         self.client
             .send_notification::<notification::Progress>(ProgressParams {
@@ -758,6 +790,7 @@ pub async fn run_lsp() {
         client,
         registry: registry.clone(),
         docs: Arc::new(RwLock::new(HashMap::new())),
+        disabled_plugins: Arc::new(RwLock::new(Vec::new())),
     });
 
     Server::new(stdin, stdout, socket).serve(service).await;

@@ -28,6 +28,9 @@ export async function activate(context: vscode.ExtensionContext) {
       { scheme: "file", language: "c" },
       { scheme: "file", language: "cpp" },
     ],
+    initializationOptions: {
+      disabledPlugins: config.get<string[]>("disabledPlugins", []),
+    },
   };
 
   client = new LanguageClient("cha", "Cha LSP", serverOptions, clientOptions);
