@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::sync::RwLock;
 
 use cha_core::{
-    AnalysisContext, Config, Finding, PluginRegistry, Severity, SourceFile, SourceModel,
+    AnalysisContext, Config, Finding, PluginRegistry, ProjectCache, Severity, SourceFile,
+    SourceModel,
 };
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
@@ -13,85 +14,139 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 struct ChaLsp {
     client: Client,
     registry: Arc<PluginRegistry>,
+    cwd: PathBuf,
     docs: Arc<RwLock<HashMap<Url, String>>>,
     disabled_plugins: Arc<RwLock<Vec<String>>>,
+    cache: Arc<Mutex<ProjectCache>>,
+    /// All findings from last full analyze, keyed by file URI.
+    findings: Arc<RwLock<HashMap<Url, Vec<Finding>>>>,
+    /// All models from last full analyze, keyed by file URI.
+    models: Arc<RwLock<HashMap<Url, SourceModel>>>,
 }
 
-fn collect_diagnostics(
-    registry: &PluginRegistry,
-    file: &SourceFile,
-    disabled: &[String],
-) -> Vec<Diagnostic> {
-    let model = match cha_parser::parse_file(file) {
-        Some(m) => m,
-        None => return vec![],
-    };
-    let ctx = AnalysisContext {
-        file,
-        model: &model,
-    };
-    registry
-        .plugins()
-        .iter()
-        .flat_map(|p| p.analyze(&ctx))
-        .filter(|f| !disabled.iter().any(|d| d == &f.smell_name))
-        .map(|f| finding_to_diagnostic(&f))
-        .collect()
-}
-
-fn parse_doc(uri: &Url, text: &str) -> Option<SourceModel> {
-    let path = uri
-        .to_file_path()
-        .unwrap_or_else(|_| PathBuf::from(uri.path()));
-    let file = SourceFile::new(path, text.to_string());
-    cha_parser::parse_file(&file)
-}
-
-/// Build semantic tokens for functions/classes with warnings (modifier bit 0 = "warning").
-fn scan_workspace(
+/// Run full workspace analyze: scan all files, use ProjectCache, populate findings + models.
+fn run_full_analyze(
     cwd: &std::path::Path,
     registry: &PluginRegistry,
+    cache: &Mutex<ProjectCache>,
     disabled: &[String],
-) -> Vec<WorkspaceDocumentDiagnosticReport> {
+) -> (HashMap<Url, Vec<Finding>>, HashMap<Url, SourceModel>) {
+    let mut all_findings: HashMap<Url, Vec<Finding>> = HashMap::new();
+    let mut all_models: HashMap<Url, SourceModel> = HashMap::new();
+    let exts = [
+        "rs", "ts", "tsx", "py", "go", "c", "h", "cpp", "cc", "cxx", "hpp",
+    ];
     let walker = ignore::WalkBuilder::new(cwd)
         .hidden(true)
         .git_ignore(true)
         .build();
-    let exts = [
-        "rs", "ts", "tsx", "py", "go", "c", "h", "cpp", "cc", "cxx", "hpp",
-    ];
-    walker
-        .filter_map(|e| e.ok())
-        .filter(|e| {
-            e.file_type().is_some_and(|ft| ft.is_file())
-                && e.path()
-                    .extension()
-                    .and_then(|x| x.to_str())
-                    .is_some_and(|x| exts.contains(&x))
-        })
-        .filter_map(|e| {
-            let path = e.into_path();
-            let content = std::fs::read_to_string(&path).ok()?;
+    let mut c = cache.lock().unwrap();
+    for entry in walker.filter_map(|e| e.ok()) {
+        if !entry.file_type().is_some_and(|ft| ft.is_file()) {
+            continue;
+        }
+        let path = entry.into_path();
+        if !path
+            .extension()
+            .and_then(|x| x.to_str())
+            .is_some_and(|x| exts.contains(&x))
+        {
+            continue;
+        }
+        let rel = path
+            .strip_prefix(cwd)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .to_string();
+
+        // Try mtime fast path for model
+        let (content, chash, model) =
+            if let cha_core::FileStatus::Unchanged(ch) = c.check_file(&rel, &path) {
+                if let Some(m) = c.get_model(ch) {
+                    (None, ch, m)
+                } else {
+                    let content = match std::fs::read_to_string(&path) {
+                        Ok(s) => s,
+                        Err(_) => continue,
+                    };
+                    let ch2 = cha_core::hash_content(&content);
+                    let file = SourceFile::new(path.clone(), content.clone());
+                    let Some(m) = cha_parser::parse_file(&file) else {
+                        continue;
+                    };
+                    c.put_model(ch2, &m);
+                    c.update_file_entry(
+                        rel.clone(),
+                        &path,
+                        ch2,
+                        m.imports.iter().map(|i| i.source.clone()).collect(),
+                    );
+                    (Some(content), ch2, m)
+                }
+            } else {
+                let content = match std::fs::read_to_string(&path) {
+                    Ok(s) => s,
+                    Err(_) => continue,
+                };
+                let ch = cha_core::hash_content(&content);
+                if let Some(m) = c.get_model(ch) {
+                    c.update_file_entry(
+                        rel.clone(),
+                        &path,
+                        ch,
+                        m.imports.iter().map(|i| i.source.clone()).collect(),
+                    );
+                    (Some(content), ch, m)
+                } else {
+                    let file = SourceFile::new(path.clone(), content.clone());
+                    let Some(m) = cha_parser::parse_file(&file) else {
+                        continue;
+                    };
+                    c.put_model(ch, &m);
+                    c.update_file_entry(
+                        rel.clone(),
+                        &path,
+                        ch,
+                        m.imports.iter().map(|i| i.source.clone()).collect(),
+                    );
+                    (Some(content), ch, m)
+                }
+            };
+
+        // Get findings from cache or run plugins
+        let findings = if let Some(cached) = c.get_findings(chash) {
+            cached
+        } else {
+            let content =
+                content.unwrap_or_else(|| std::fs::read_to_string(&path).unwrap_or_default());
             let file = SourceFile::new(path.clone(), content);
-            let diagnostics = collect_diagnostics(registry, &file, disabled);
-            if diagnostics.is_empty() {
-                return None;
-            }
-            let uri = Url::from_file_path(&path).ok()?;
-            Some(WorkspaceDocumentDiagnosticReport::Full(
-                WorkspaceFullDocumentDiagnosticReport {
-                    uri,
-                    version: None,
-                    full_document_diagnostic_report: FullDocumentDiagnosticReport {
-                        result_id: None,
-                        items: diagnostics,
-                    },
-                },
-            ))
-        })
-        .collect()
+            let ctx = AnalysisContext {
+                file: &file,
+                model: &model,
+            };
+            let findings: Vec<Finding> = registry
+                .plugins()
+                .iter()
+                .flat_map(|p| p.analyze(&ctx))
+                .collect();
+            c.put_findings(chash, &findings);
+            findings
+        };
+
+        let uri = Url::from_file_path(&path)
+            .unwrap_or_else(|_| Url::parse(&format!("file://{}", path.display())).unwrap());
+        let filtered: Vec<Finding> = findings
+            .into_iter()
+            .filter(|f| !disabled.iter().any(|d| d == &f.smell_name))
+            .collect();
+        all_findings.insert(uri.clone(), filtered);
+        all_models.insert(uri, model);
+    }
+    c.flush();
+    (all_findings, all_models)
 }
 
+/// Build semantic tokens for functions/classes with warnings (modifier bit 0 = "warning").
 fn build_semantic_tokens(
     model: &SourceModel,
     warn_lines: &std::collections::HashSet<usize>,
@@ -122,39 +177,6 @@ fn build_semantic_tokens(
         prev_line = line;
     }
     tokens
-}
-
-fn build_document_symbols(
-    file: &SourceFile,
-    registry: &PluginRegistry,
-) -> Option<DocumentSymbolResponse> {
-    let model = cha_parser::parse_file(file)?;
-    let ctx = AnalysisContext {
-        file,
-        model: &model,
-    };
-    let findings: Vec<Finding> = registry
-        .plugins()
-        .iter()
-        .flat_map(|p| p.analyze(&ctx))
-        .collect();
-    let warn_lines: std::collections::HashSet<usize> = findings
-        .iter()
-        .filter(|f| matches!(f.severity, Severity::Warning | Severity::Error))
-        .flat_map(|f| f.location.start_line..=f.location.end_line)
-        .collect();
-    let mut symbols: Vec<DocumentSymbol> = model
-        .functions
-        .iter()
-        .map(|f| make_fn_symbol(f, &warn_lines))
-        .collect();
-    symbols.extend(
-        model
-            .classes
-            .iter()
-            .map(|c| make_class_symbol(c, &warn_lines)),
-    );
-    Some(DocumentSymbolResponse::Nested(symbols))
 }
 
 #[allow(deprecated)]
@@ -302,6 +324,10 @@ impl LanguageServer for ChaLsp {
         self.client
             .log_message(MessageType::INFO, "cha-lsp initialized")
             .await;
+        let disabled = self.disabled_plugins.read().await.clone();
+        let (f, m) = run_full_analyze(&self.cwd, &self.registry, &self.cache, &disabled);
+        *self.findings.write().await = f;
+        *self.models.write().await = m;
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
@@ -317,6 +343,10 @@ impl LanguageServer for ChaLsp {
                 .await
                 .insert(params.text_document.uri.clone(), text);
         }
+        let disabled = self.disabled_plugins.read().await.clone();
+        let (f, m) = run_full_analyze(&self.cwd, &self.registry, &self.cache, &disabled);
+        *self.findings.write().await = f;
+        *self.models.write().await = m;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
@@ -346,32 +376,37 @@ impl LanguageServer for ChaLsp {
 
     async fn code_lens(&self, params: CodeLensParams) -> Result<Option<Vec<CodeLens>>> {
         let uri = &params.text_document.uri;
-        let docs = self.docs.read().await;
-        let Some(text) = docs.get(uri) else {
+        let models = self.models.read().await;
+        let Some(model) = models.get(uri) else {
             return Ok(None);
         };
-        let Some(model) = parse_doc(uri, text) else {
-            return Ok(None);
-        };
+        let findings_map = self.findings.read().await;
+        let findings = findings_map.get(uri);
         let mut lenses = Vec::new();
         for f in &model.functions {
             let line = f.start_line.saturating_sub(1) as u32;
-            let mut parts = Vec::new();
-            parts.push(format!("complexity: {}", f.complexity));
-            if f.cognitive_complexity > 0 {
-                parts.push(format!("cognitive: {}", f.cognitive_complexity));
-            }
-            parts.push(format!("{} lines", f.line_count));
-            if f.parameter_count > 0 {
-                parts.push(format!("{} params", f.parameter_count));
-            }
+            let count = findings
+                .map(|fs| {
+                    fs.iter()
+                        .filter(|fd| {
+                            fd.location.start_line <= f.end_line
+                                && fd.location.end_line >= f.start_line
+                        })
+                        .count()
+                })
+                .unwrap_or(0);
+            let title = if count > 0 {
+                format!("⚠ {} issue(s) | {} lines", count, f.line_count)
+            } else {
+                format!("✓ {} lines", f.line_count)
+            };
             lenses.push(CodeLens {
                 range: Range {
                     start: Position::new(line, 0),
                     end: Position::new(line, 0),
                 },
                 command: Some(Command {
-                    title: parts.join(" | "),
+                    title,
                     command: String::new(),
                     arguments: None,
                 }),
@@ -380,16 +415,31 @@ impl LanguageServer for ChaLsp {
         }
         for c in &model.classes {
             let line = c.start_line.saturating_sub(1) as u32;
+            let count = findings
+                .map(|fs| {
+                    fs.iter()
+                        .filter(|fd| {
+                            fd.location.start_line <= c.end_line
+                                && fd.location.end_line >= c.start_line
+                        })
+                        .count()
+                })
+                .unwrap_or(0);
+            let title = if count > 0 {
+                format!("⚠ {} issue(s) | {} lines", count, c.line_count)
+            } else {
+                format!(
+                    "✓ {} methods | {} fields | {} lines",
+                    c.method_count, c.field_count, c.line_count
+                )
+            };
             lenses.push(CodeLens {
                 range: Range {
                     start: Position::new(line, 0),
                     end: Position::new(line, 0),
                 },
                 command: Some(Command {
-                    title: format!(
-                        "{} methods | {} fields | {} lines",
-                        c.method_count, c.field_count, c.line_count
-                    ),
+                    title,
                     command: String::new(),
                     arguments: None,
                 }),
@@ -403,39 +453,25 @@ impl LanguageServer for ChaLsp {
         let uri = &params.text_document_position_params.text_document.uri;
         let pos = params.text_document_position_params.position;
         let line = pos.line as usize + 1;
-        let docs = self.docs.read().await;
-        let Some(text) = docs.get(uri) else {
+        let models = self.models.read().await;
+        let Some(model) = models.get(uri) else {
             return Ok(None);
         };
-        let path = uri
-            .to_file_path()
-            .unwrap_or_else(|_| PathBuf::from(uri.path()));
-        let file = SourceFile::new(path, text.to_string());
-        let Some(model) = cha_parser::parse_file(&file) else {
-            return Ok(None);
-        };
-        let disabled = self.disabled_plugins.read().await;
-        let ctx = AnalysisContext {
-            file: &file,
-            model: &model,
-        };
-        let findings: Vec<Finding> = self
-            .registry
-            .plugins()
-            .iter()
-            .flat_map(|p| p.analyze(&ctx))
-            .filter(|f| !disabled.iter().any(|d| d == &f.smell_name))
-            .collect();
+        let findings_map = self.findings.read().await;
+        let findings = findings_map.get(uri);
 
-        // Find function at cursor line
         for f in &model.functions {
             if line >= f.start_line && line <= f.end_line {
                 let fn_findings: Vec<&Finding> = findings
-                    .iter()
-                    .filter(|fd| {
-                        fd.location.start_line <= f.end_line && fd.location.end_line >= f.start_line
+                    .map(|fs| {
+                        fs.iter()
+                            .filter(|fd| {
+                                fd.location.start_line <= f.end_line
+                                    && fd.location.end_line >= f.start_line
+                            })
+                            .collect()
                     })
-                    .collect();
+                    .unwrap_or_default();
                 let mut card = format!(
                     "### 📊 `{}`\n\n\
                      | Metric | Value |\n|---|---|\n\
@@ -476,14 +512,17 @@ impl LanguageServer for ChaLsp {
 
     async fn inlay_hint(&self, params: InlayHintParams) -> Result<Option<Vec<InlayHint>>> {
         let uri = &params.text_document.uri;
+        let models = self.models.read().await;
+        let Some(model) = models.get(uri) else {
+            return Ok(None);
+        };
+        let findings_map = self.findings.read().await;
+        let findings = findings_map.get(uri);
         let docs = self.docs.read().await;
-        let Some(text) = docs.get(uri) else {
-            return Ok(None);
-        };
-        let Some(model) = parse_doc(uri, text) else {
-            return Ok(None);
-        };
-        let lines: Vec<&str> = text.lines().collect();
+        let lines: Vec<&str> = docs
+            .get(uri)
+            .map(|t| t.lines().collect())
+            .unwrap_or_default();
         let mut hints = Vec::new();
         for f in &model.functions {
             let line = f.start_line.saturating_sub(1);
@@ -491,14 +530,24 @@ impl LanguageServer for ChaLsp {
                 continue;
             }
             let col = lines[line].len() as u32;
-            let mut parts = vec![format!("cx:{}", f.complexity)];
-            if f.cognitive_complexity > 0 && f.cognitive_complexity != f.complexity {
-                parts.push(format!("cog:{}", f.cognitive_complexity));
-            }
-            parts.push(format!("{}L", f.line_count));
+            let count = findings
+                .map(|fs| {
+                    fs.iter()
+                        .filter(|fd| {
+                            fd.location.start_line <= f.end_line
+                                && fd.location.end_line >= f.start_line
+                        })
+                        .count()
+                })
+                .unwrap_or(0);
+            let label = if count > 0 {
+                format!("  ⚠{count}")
+            } else {
+                "  ✓".to_string()
+            };
             hints.push(InlayHint {
                 position: Position::new(line as u32, col),
-                label: InlayHintLabel::String(format!("  {}", parts.join(" "))),
+                label: InlayHintLabel::String(label),
                 kind: Some(InlayHintKind::PARAMETER),
                 text_edits: None,
                 tooltip: None,
@@ -515,15 +564,32 @@ impl LanguageServer for ChaLsp {
         params: DocumentSymbolParams,
     ) -> Result<Option<DocumentSymbolResponse>> {
         let uri = &params.text_document.uri;
-        let docs = self.docs.read().await;
-        let Some(text) = docs.get(uri) else {
+        let models = self.models.read().await;
+        let Some(model) = models.get(uri) else {
             return Ok(None);
         };
-        let path = uri
-            .to_file_path()
-            .unwrap_or_else(|_| PathBuf::from(uri.path()));
-        let file = SourceFile::new(path, text.to_string());
-        Ok(build_document_symbols(&file, &self.registry))
+        let findings_map = self.findings.read().await;
+        let warn_lines: std::collections::HashSet<usize> = findings_map
+            .get(uri)
+            .map(|fs| {
+                fs.iter()
+                    .filter(|f| matches!(f.severity, Severity::Warning | Severity::Error))
+                    .flat_map(|f| f.location.start_line..=f.location.end_line)
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut symbols: Vec<DocumentSymbol> = model
+            .functions
+            .iter()
+            .map(|f| make_fn_symbol(f, &warn_lines))
+            .collect();
+        symbols.extend(
+            model
+                .classes
+                .iter()
+                .map(|c| make_class_symbol(c, &warn_lines)),
+        );
+        Ok(Some(DocumentSymbolResponse::Nested(symbols)))
     }
 
     async fn semantic_tokens_full(
@@ -531,34 +597,21 @@ impl LanguageServer for ChaLsp {
         params: SemanticTokensParams,
     ) -> Result<Option<SemanticTokensResult>> {
         let uri = &params.text_document.uri;
-        let docs = self.docs.read().await;
-        let Some(text) = docs.get(uri) else {
+        let models = self.models.read().await;
+        let Some(model) = models.get(uri) else {
             return Ok(None);
         };
-        let path = uri
-            .to_file_path()
-            .unwrap_or_else(|_| PathBuf::from(uri.path()));
-        let file = SourceFile::new(path, text.to_string());
-        let Some(model) = cha_parser::parse_file(&file) else {
-            return Ok(None);
-        };
-        let ctx = AnalysisContext {
-            file: &file,
-            model: &model,
-        };
-        let findings: Vec<Finding> = self
-            .registry
-            .plugins()
-            .iter()
-            .flat_map(|p| p.analyze(&ctx))
-            .collect();
-        let warn_lines: std::collections::HashSet<usize> = findings
-            .iter()
-            .filter(|f| matches!(f.severity, Severity::Warning | Severity::Error))
-            .flat_map(|f| f.location.start_line..=f.location.end_line)
-            .collect();
-
-        let tokens = build_semantic_tokens(&model, &warn_lines);
+        let findings_map = self.findings.read().await;
+        let warn_lines: std::collections::HashSet<usize> = findings_map
+            .get(uri)
+            .map(|fs| {
+                fs.iter()
+                    .filter(|f| matches!(f.severity, Severity::Warning | Severity::Error))
+                    .flat_map(|f| f.location.start_line..=f.location.end_line)
+                    .collect()
+            })
+            .unwrap_or_default();
+        let tokens = build_semantic_tokens(model, &warn_lines);
         Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
             result_id: None,
             data: tokens,
@@ -570,17 +623,11 @@ impl LanguageServer for ChaLsp {
         params: DocumentDiagnosticParams,
     ) -> Result<DocumentDiagnosticReportResult> {
         let uri = &params.text_document.uri;
-        let docs = self.docs.read().await;
-        let diagnostics = if let Some(text) = docs.get(uri) {
-            let path = uri
-                .to_file_path()
-                .unwrap_or_else(|_| PathBuf::from(uri.path()));
-            let file = SourceFile::new(path, text.to_string());
-            let disabled = self.disabled_plugins.read().await;
-            collect_diagnostics(&self.registry, &file, &disabled)
-        } else {
-            vec![]
-        };
+        let findings = self.findings.read().await;
+        let diagnostics: Vec<Diagnostic> = findings
+            .get(uri)
+            .map(|fs| fs.iter().map(finding_to_diagnostic).collect())
+            .unwrap_or_default();
         Ok(DocumentDiagnosticReportResult::Report(
             DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
                 related_documents: None,
@@ -596,39 +643,25 @@ impl LanguageServer for ChaLsp {
         &self,
         _params: WorkspaceDiagnosticParams,
     ) -> Result<WorkspaceDiagnosticReportResult> {
-        let cwd = std::env::current_dir().unwrap_or_default();
-
-        // Create progress token
-        let token = NumberOrString::String("cha/workspace-diagnostic".into());
-        let _ = self
-            .client
-            .send_request::<request::WorkDoneProgressCreate>(WorkDoneProgressCreateParams {
-                token: token.clone(),
-            })
-            .await;
-        self.client
-            .send_notification::<notification::Progress>(ProgressParams {
-                token: token.clone(),
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(
-                    WorkDoneProgressBegin {
-                        title: "Cha: analyzing workspace".into(),
-                        ..Default::default()
+        let findings_map = self.findings.read().await;
+        let items: Vec<WorkspaceDocumentDiagnosticReport> = findings_map
+            .iter()
+            .filter_map(|(uri, fs)| {
+                if fs.is_empty() {
+                    return None;
+                }
+                Some(WorkspaceDocumentDiagnosticReport::Full(
+                    WorkspaceFullDocumentDiagnosticReport {
+                        uri: uri.clone(),
+                        version: None,
+                        full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                            result_id: None,
+                            items: fs.iter().map(finding_to_diagnostic).collect(),
+                        },
                     },
-                )),
+                ))
             })
-            .await;
-
-        let disabled = self.disabled_plugins.read().await;
-        let items = scan_workspace(&cwd, &self.registry, &disabled);
-
-        self.client
-            .send_notification::<notification::Progress>(ProgressParams {
-                token,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(WorkDoneProgressEnd {
-                    message: Some(format!("{} files analyzed", items.len())),
-                })),
-            })
-            .await;
+            .collect();
 
         Ok(WorkspaceDiagnosticReportResult::Report(
             WorkspaceDiagnosticReport { items },
@@ -770,6 +803,12 @@ pub async fn run_lsp() {
     let cwd = std::env::current_dir().unwrap_or_default();
     let config = Config::load(&cwd);
     let registry = Arc::new(PluginRegistry::from_config(&config, &cwd));
+    let plugin_dirs = vec![
+        cwd.join(".cha/plugins"),
+        dirs::home_dir().unwrap_or_default().join(".cha/plugins"),
+    ];
+    let eh = cha_core::env_hash(&cwd, &plugin_dirs);
+    let cache = Arc::new(Mutex::new(ProjectCache::open(&cwd, eh)));
 
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
@@ -777,8 +816,12 @@ pub async fn run_lsp() {
     let (service, socket) = LspService::new(|client| ChaLsp {
         client,
         registry: registry.clone(),
+        cwd: cwd.clone(),
         docs: Arc::new(RwLock::new(HashMap::new())),
         disabled_plugins: Arc::new(RwLock::new(Vec::new())),
+        cache: cache.clone(),
+        findings: Arc::new(RwLock::new(HashMap::new())),
+        models: Arc::new(RwLock::new(HashMap::new())),
     });
 
     Server::new(stdin, stdout, socket).serve(service).await;

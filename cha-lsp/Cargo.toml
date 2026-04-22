@@ -20,3 +20,4 @@ serde_json.workspace = true
 tokio = { version = "1", features = ["full"] }
 tower-lsp = "0.20"
 ignore = "0.4"
+dirs = "6"
