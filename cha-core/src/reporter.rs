@@ -57,12 +57,17 @@ fn render_aggregated(out: &mut String, name: &str, group: &[&Finding]) {
     let icon = severity_icon(&sorted[0].severity);
     out.push_str(&format!("{icon} [{name}] {} occurrences\n", group.len()));
     for f in sorted.iter().take(3) {
-        out.push_str(&format!(
-            "  → {}:{} {}\n",
-            f.location.path.display(),
-            f.location.start_line,
-            f.message,
-        ));
+        let loc = if f.location.start_col > 0 {
+            format!(
+                "{}:{}:{}",
+                f.location.path.display(),
+                f.location.start_line,
+                f.location.start_col
+            )
+        } else {
+            format!("{}:{}", f.location.path.display(), f.location.start_line)
+        };
+        out.push_str(&format!("  → {loc} {}\n", f.message));
     }
     if group.len() > 3 {
         out.push_str(&format!(
@@ -100,13 +105,27 @@ fn severity_icon(s: &crate::Severity) -> &'static str {
 }
 
 fn render_terminal_finding(out: &mut String, f: &Finding) {
+    let loc = if f.location.start_col > 0 {
+        format!(
+            "{}:{}:{}-{}:{}",
+            f.location.path.display(),
+            f.location.start_line,
+            f.location.start_col,
+            f.location.end_line,
+            f.location.end_col,
+        )
+    } else {
+        format!(
+            "{}:{}-{}",
+            f.location.path.display(),
+            f.location.start_line,
+            f.location.end_line,
+        )
+    };
     out.push_str(&format!(
-        "{} [{}] {}:{}-{} {}\n",
+        "{} [{}] {loc} {}\n",
         severity_icon(&f.severity),
         f.smell_name,
-        f.location.path.display(),
-        f.location.start_line,
-        f.location.end_line,
         f.message,
     ));
     if !f.suggested_refactorings.is_empty() {
@@ -169,12 +188,24 @@ fn render_llm_issue(out: &mut String, index: usize, f: &Finding) {
     out.push_str(&format!("- **Smell**: {}\n", f.smell_name));
     out.push_str(&format!("- **Category**: {:?}\n", f.category));
     out.push_str(&format!("- **Severity**: {:?}\n", f.severity));
-    out.push_str(&format!(
-        "- **Location**: {}:{}-{}",
-        f.location.path.display(),
-        f.location.start_line,
-        f.location.end_line,
-    ));
+    let loc = if f.location.start_col > 0 {
+        format!(
+            "{}:{}:{}-{}:{}",
+            f.location.path.display(),
+            f.location.start_line,
+            f.location.start_col,
+            f.location.end_line,
+            f.location.end_col,
+        )
+    } else {
+        format!(
+            "{}:{}-{}",
+            f.location.path.display(),
+            f.location.start_line,
+            f.location.end_line,
+        )
+    };
+    out.push_str(&format!("- **Location**: {loc}"));
     if let Some(name) = &f.location.name {
         out.push_str(&format!(" (`{}`)", name));
     }
@@ -272,7 +303,9 @@ fn build_sarif_results(findings: &[Finding]) -> Vec<serde_json::Value> {
                         },
                         "region": {
                             "startLine": f.location.start_line,
+                            "startColumn": f.location.start_col + 1,
                             "endLine": f.location.end_line,
+                            "endColumn": f.location.end_col + 1,
                         }
                     }
                 }]

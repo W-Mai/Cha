@@ -323,8 +323,8 @@ fn finding_to_diagnostic(f: &Finding) -> Diagnostic {
 
     Diagnostic {
         range: Range {
-            start: Position::new(start as u32, 0),
-            end: Position::new(end as u32, 0),
+            start: Position::new(start as u32, f.location.start_col as u32),
+            end: Position::new(end as u32, f.location.end_col as u32),
         },
         severity: Some(severity),
         source: Some("cha".into()),
