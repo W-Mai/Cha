@@ -103,6 +103,7 @@ fn detect_empty_catch(lines: &[&str], ctx: &AnalysisContext, findings: &mut Vec<
         if let Some(next) = lines.iter().skip(i + 1).find(|l| !l.trim().is_empty()) {
             let next_trimmed = next.trim();
             if next_trimmed == "}" || next_trimmed == "pass" || next_trimmed.is_empty() {
+                let col = line.find(trimmed).unwrap_or(0);
                 findings.push(Finding {
                     smell_name: "empty_catch".into(),
                     category: SmellCategory::Security,
@@ -110,6 +111,7 @@ fn detect_empty_catch(lines: &[&str], ctx: &AnalysisContext, findings: &mut Vec<
                     location: Location {
                         path: ctx.file.path.clone(),
                         start_line: i + 1,
+                        start_col: col,
                         end_line: i + 2,
                         name: None,
                         ..Default::default()

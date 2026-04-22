@@ -31,6 +31,7 @@ impl Plugin for UnsafeApiAnalyzer {
             }
             for &(pat, msg) in &patterns {
                 if line.contains(pat) && !is_in_string(line, pat) {
+                    let col = line.find(pat).unwrap_or(0);
                     findings.push(Finding {
                         smell_name: "unsafe_api".into(),
                         category: SmellCategory::Security,
@@ -38,9 +39,10 @@ impl Plugin for UnsafeApiAnalyzer {
                         location: Location {
                             path: ctx.file.path.clone(),
                             start_line: i + 1,
+                            start_col: col,
                             end_line: i + 1,
+                            end_col: col + pat.len(),
                             name: None,
-                            ..Default::default()
                         },
                         message: format!("Potentially dangerous: `{pat}` — {msg}"),
                         suggested_refactorings: vec!["Use a safe alternative".into()],

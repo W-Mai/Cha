@@ -43,6 +43,8 @@ impl Plugin for HardcodedSecretAnalyzer {
             }
             for (label, re) in PATTERNS.iter() {
                 if re.is_match(line) {
+                    let col = re.find(line).map(|m| m.start()).unwrap_or(0);
+                    let end_col = re.find(line).map(|m| m.end()).unwrap_or(0);
                     findings.push(Finding {
                         smell_name: "hardcoded_secret".into(),
                         category: SmellCategory::Security,
@@ -50,9 +52,10 @@ impl Plugin for HardcodedSecretAnalyzer {
                         location: Location {
                             path: ctx.file.path.clone(),
                             start_line: ln,
+                            start_col: col,
                             end_line: ln,
+                            end_col,
                             name: Some(label.to_string()),
-                            ..Default::default()
                         },
                         message: format!("Possible hardcoded {label} detected"),
                         suggested_refactorings: vec![

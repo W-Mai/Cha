@@ -37,6 +37,7 @@ fn check_comment(c: &crate::CommentInfo, ctx: &AnalysisContext) -> Option<Findin
     } else {
         return None;
     };
+    let col = upper.find(tag).unwrap_or(0);
     Some(Finding {
         smell_name: "todo_comment".into(),
         category: SmellCategory::Dispensables,
@@ -44,9 +45,10 @@ fn check_comment(c: &crate::CommentInfo, ctx: &AnalysisContext) -> Option<Findin
         location: Location {
             path: ctx.file.path.clone(),
             start_line: c.line,
+            start_col: col,
             end_line: c.line,
+            end_col: col + tag.len(),
             name: None,
-            ..Default::default()
         },
         message: format!(
             "{tag}: {}",
