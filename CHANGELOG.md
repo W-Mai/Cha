@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-04-22
+
+### Added
+- VS Code: auto-detect outdated cha binary — prompt update when version mismatches extension
+- VS Code: debug logs in ensureBinary for diagnostics
+- VS Code e2e: real VS Code test on 3 platforms (ubuntu/macos/windows) with sinon stub for user Download click
+
+### Fixed
+- SDK macros: include build.rs in package
+- VS Code: Windows download (.zip + PowerShell + .exe)
+- VS Code: exclude test files from .vsix via .vscodeignore
+- CI: vscode e2e set continue-on-error for network flakiness
+
 ## [1.4.1] - 2026-04-21
 
 ### Added
