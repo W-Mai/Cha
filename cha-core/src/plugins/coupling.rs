@@ -32,6 +32,9 @@ impl Plugin for CouplingAnalyzer {
             .filter(|i| !i.is_module_decl)
             .count();
 
+        let first = ctx.model.imports.first().map(|i| i.line).unwrap_or(1);
+        let last = ctx.model.imports.last().map(|i| i.line).unwrap_or(1);
+
         if import_count > self.max_imports {
             findings.push(Finding {
                 smell_name: "high_coupling".into(),
@@ -43,8 +46,8 @@ impl Plugin for CouplingAnalyzer {
                 },
                 location: Location {
                     path: ctx.file.path.clone(),
-                    start_line: 1,
-                    end_line: 1,
+                    start_line: first,
+                    end_line: last,
                     name: None,
                 },
                 message: format!(

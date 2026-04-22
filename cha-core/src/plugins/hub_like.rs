@@ -44,14 +44,16 @@ impl Plugin for HubLikeDependencyAnalyzer {
         if count <= self.max_imports {
             return vec![];
         }
+        let first = ctx.model.imports.first().map(|i| i.line).unwrap_or(1);
+        let last = ctx.model.imports.last().map(|i| i.line).unwrap_or(1);
         vec![Finding {
             smell_name: "hub_like_dependency".into(),
             category: SmellCategory::Couplers,
             severity: Severity::Warning,
             location: Location {
                 path: ctx.file.path.clone(),
-                start_line: 1,
-                end_line: 1,
+                start_line: first,
+                end_line: last,
                 name: None,
             },
             message: format!(
