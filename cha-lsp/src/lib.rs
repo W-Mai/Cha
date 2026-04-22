@@ -413,9 +413,22 @@ impl LanguageServer for ChaLsp {
         // Find function at cursor line
         for f in &model.functions {
             if line >= f.start_line && line <= f.end_line {
+                let line_ratio = f.line_count as f64 / 50.0;
+                let cx_factor = (f.complexity as f64 / 10.0).max(1.0);
+                let risk = line_ratio * cx_factor;
+                let risk_label = if risk >= 4.0 {
+                    "🔴"
+                } else if risk >= 2.0 {
+                    "🟡"
+                } else if risk >= 1.0 {
+                    "🟢"
+                } else {
+                    "⚪"
+                };
                 let card = format!(
                     "### 📊 `{}`\n\n\
                      | Metric | Value |\n|---|---|\n\
+                     | Risk | {risk_label} {risk:.1} |\n\
                      | Lines | {} |\n\
                      | Cyclomatic complexity | {} |\n\
                      | Cognitive complexity | {} |\n\
