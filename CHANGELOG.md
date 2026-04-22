@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-04-22
+
+### Added
+- VS Code `cha.disabledPlugins` setting — suppress specific findings via `initializationOptions`
+- Hover report card shows actual plugin findings with severity icons
+- Coupling/hub_like findings mark import line range precisely
+
+### Changed
+- **LSP architecture**: all handlers read from ProjectCache — no per-handler plugin execution
+- LSP uses pull-only diagnostics (`textDocument/diagnostic`), removed push duplicates
+- CodeLens shows findings count + severity instead of raw parse metrics
+- Inlay Hints show findings summary (⚠N or ✓)
+- File-level findings (large_file, shotgun_surgery, etc.) mark only line 1
+
+### Fixed
+- Duplicate diagnostics (push + pull) in VS Code
+- `disabledPlugins` now filters by finding name, not plugin name
+- LSP shares `.cha/cache/` with CLI via ProjectCache
+
 ## [1.4.2] - 2026-04-22
 
 ### Added
