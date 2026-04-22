@@ -61,6 +61,12 @@
       "description": "Source location of a finding.",
       "type": "object",
       "properties": {
+        "end_col": {
+          "description": "0-based column of the end position.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
         "end_line": {
           "type": "integer",
           "format": "uint",
@@ -74,6 +80,12 @@
         },
         "path": {
           "type": "string"
+        },
+        "start_col": {
+          "description": "0-based column of the start position.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
         },
         "start_line": {
           "type": "integer",
