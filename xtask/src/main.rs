@@ -683,11 +683,36 @@ fn gh(args: &[&str]) -> Result<String> {
     }
 }
 
-/// Poll until the latest run of a workflow reaches a terminal state.
-/// Returns "success" or errors on failure/timeout.
-fn wait_for_workflow(workflow: &str, timeout: Duration) -> Result<()> {
+/// Filter a `gh run list` query to the run that matches the commit we just
+/// pushed, so we don't mistake an older run for the one we're waiting on.
+enum RunFilter<'a> {
+    /// Match by `headSha` — use for ci.yml on main.
+    Sha(&'a str),
+    /// Match by `headBranch` — use for release.yml which runs on tags.
+    Branch(&'a str),
+}
+
+impl RunFilter<'_> {
+    fn jq_select(&self) -> String {
+        match self {
+            RunFilter::Sha(s) => format!("select(.headSha == \"{s}\")"),
+            RunFilter::Branch(b) => format!("select(.headBranch == \"{b}\")"),
+        }
+    }
+    fn label(&self) -> String {
+        match self {
+            RunFilter::Sha(s) => format!("sha {}", &s[..7.min(s.len())]),
+            RunFilter::Branch(b) => format!("branch {b}"),
+        }
+    }
+}
+
+/// Poll until the run matching `filter` reaches a terminal state.
+/// Tolerates the run not appearing yet (GitHub takes a few seconds after push).
+fn wait_for_workflow(workflow: &str, filter: RunFilter, timeout: Duration) -> Result<()> {
     let start = Instant::now();
-    println!("  → waiting for {workflow} ...");
+    println!("  → waiting for {workflow} ({}) ...", filter.label());
+    let mut last_print = String::new();
     loop {
         std::thread::sleep(Duration::from_secs(15));
         let out = gh(&[
@@ -696,21 +721,36 @@ fn wait_for_workflow(workflow: &str, timeout: Duration) -> Result<()> {
             "--workflow",
             workflow,
             "--limit",
-            "1",
+            "10",
             "--json",
-            "status,conclusion",
+            "status,conclusion,headSha,headBranch,databaseId",
             "-q",
-            ".[0] | [.status, .conclusion] | @tsv",
+            &format!(
+                ".[] | {} | [.status, .conclusion] | @tsv",
+                filter.jq_select()
+            ),
         ])?;
-        let parts: Vec<&str> = out.split('\t').collect();
-        let status = parts.first().copied().unwrap_or("");
-        let conclusion = parts.get(1).copied().unwrap_or("");
-        println!("    {workflow}: {status} / {conclusion}");
-        if status == "completed" {
-            if conclusion == "success" {
-                return Ok(());
+        let first_line = out.lines().next().unwrap_or("");
+        if first_line.is_empty() {
+            if last_print != "pending" {
+                println!("    {workflow}: (not yet queued)");
+                last_print = "pending".into();
             }
-            return Err(format!("{workflow} completed with: {conclusion}").into());
+        } else {
+            let parts: Vec<&str> = first_line.split('\t').collect();
+            let status = parts.first().copied().unwrap_or("");
+            let conclusion = parts.get(1).copied().unwrap_or("");
+            let msg = format!("{status}/{conclusion}");
+            if msg != last_print {
+                println!("    {workflow}: {status} / {conclusion}");
+                last_print = msg;
+            }
+            if status == "completed" {
+                if conclusion == "success" {
+                    return Ok(());
+                }
+                return Err(format!("{workflow} completed with: {conclusion}").into());
+            }
         }
         if start.elapsed() > timeout {
             return Err(format!("timeout waiting for {workflow}").into());
@@ -768,29 +808,35 @@ fn wait_for_release_workflow(tag: &str) -> Result {
         "--workflow",
         "release.yml",
         "--limit",
-        "1",
+        "10",
         "--json",
         "status,conclusion,headBranch",
         "-q",
-        &format!(".[0] | select(.headBranch == \"{tag}\") | .conclusion"),
+        &format!(".[] | select(.headBranch == \"{tag}\") | .conclusion"),
     ])
     .unwrap_or_default();
-    if done == "success" {
+    let first_conclusion = done.lines().next().unwrap_or("");
+    if first_conclusion == "success" {
         println!("  → release workflow already succeeded, skipping");
         return Ok(());
     }
     let prev_id = gh(&[
         "run", "list", "--workflow", "release.yml",
-        "--limit", "1",
+        "--limit", "10",
         "--json", "databaseId,conclusion,headBranch",
-        "-q", &format!(".[0] | select(.headBranch == \"{tag}\") | select(.conclusion == \"failure\") | .databaseId"),
+        "-q", &format!(".[] | select(.headBranch == \"{tag}\") | select(.conclusion == \"failure\") | .databaseId"),
     ])
     .unwrap_or_default();
-    if !prev_id.is_empty() {
+    let prev_id_first = prev_id.lines().next().unwrap_or("");
+    if !prev_id_first.is_empty() {
         println!("  → previous release run failed, re-running...");
-        gh(&["run", "rerun", &prev_id])?;
+        gh(&["run", "rerun", prev_id_first])?;
     }
-    wait_for_workflow("release.yml", Duration::from_secs(30 * 60))?;
+    wait_for_workflow(
+        "release.yml",
+        RunFilter::Branch(tag),
+        Duration::from_secs(30 * 60),
+    )?;
     println!("  ✅ GitHub Release created");
     Ok(())
 }
@@ -803,11 +849,28 @@ fn cmd_release() -> Result {
     let tag = format!("v{version}");
     println!("  → releasing {tag}");
 
+    let head_sha = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(&root)
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default();
+    if head_sha.is_empty() {
+        return Err("could not read HEAD sha".into());
+    }
+
     println!("\n  → git push origin main");
     run_cmd("git", &["push", "origin", "main"])?;
 
-    println!("\n  → waiting for CI to pass (timeout 20min)...");
-    wait_for_workflow("ci.yml", Duration::from_secs(20 * 60))?;
+    println!(
+        "\n  → waiting for CI to pass on {} (timeout 20min)...",
+        &head_sha[..7]
+    );
+    wait_for_workflow(
+        "ci.yml",
+        RunFilter::Sha(&head_sha),
+        Duration::from_secs(20 * 60),
+    )?;
     println!("  ✅ CI passed");
 
     println!("\n  → tagging {tag}");
