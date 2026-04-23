@@ -21,6 +21,7 @@ pub(crate) struct AnalyzeOpts<'a> {
     pub output_path: Option<&'a str>,
     pub strictness: Option<&'a str>,
     pub show_all: bool,
+    pub top: Option<usize>,
 }
 
 pub(crate) fn cmd_analyze(opts: &AnalyzeOpts) -> i32 {
@@ -62,6 +63,7 @@ pub(crate) fn cmd_analyze(opts: &AnalyzeOpts) -> i32 {
             &files,
             &root_config.debt_weights,
             opts.show_all,
+            opts.top,
         );
     }
     exit_code(&all_findings, opts.fail_on)
@@ -473,6 +475,7 @@ fn print_report(
     files: &[PathBuf],
     weights: &cha_core::DebtWeights,
     show_all: bool,
+    top: Option<usize>,
 ) {
     match format {
         Format::Json | Format::Sarif => {
@@ -485,7 +488,7 @@ fn print_report(
             println!("{output}");
         }
         Format::Terminal => {
-            println!("{}", TerminalReporter { show_all }.render(findings));
+            println!("{}", TerminalReporter { show_all, top }.render(findings));
             if !findings.is_empty() {
                 print_health_scores(findings, files, weights);
             }

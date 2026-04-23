@@ -9,6 +9,8 @@ pub trait Reporter {
 pub struct TerminalReporter {
     /// If true, show all findings without aggregation.
     pub show_all: bool,
+    /// If Some(n), show only the top n most severe findings.
+    pub top: Option<usize>,
 }
 
 impl Reporter for TerminalReporter {
@@ -16,15 +18,25 @@ impl Reporter for TerminalReporter {
         if findings.is_empty() {
             return "No issues found.".into();
         }
+        let total = findings.len();
+        let shown = match self.top {
+            Some(n) => &findings[..n.min(total)],
+            None => findings,
+        };
         let mut out = String::new();
-        if self.show_all {
-            for f in findings {
+        if self.show_all || self.top.is_some() {
+            for f in shown {
                 render_terminal_finding(&mut out, f);
             }
         } else {
-            render_grouped(&mut out, findings);
+            render_grouped(&mut out, shown);
         }
         render_summary(&mut out, findings);
+        if let Some(n) = self.top
+            && n < total
+        {
+            out.push_str(&format!(" (showing top {n})"));
+        }
         out
     }
 }

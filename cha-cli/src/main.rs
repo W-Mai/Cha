@@ -114,6 +114,9 @@ enum Cli {
         /// Show all findings without aggregation (terminal format)
         #[arg(long)]
         all: bool,
+        /// Show only the top N most severe findings (terminal format)
+        #[arg(long)]
+        top: Option<usize>,
     },
     /// Generate a baseline file from current findings (suppresses known issues)
     Baseline {
@@ -357,6 +360,7 @@ fn dispatch(cli: Cli) -> i32 {
             output,
             strictness,
             all,
+            top,
         } => {
             let mode = DiffMode::from_flags(diff, stdin_diff);
             if no_cache {
@@ -373,6 +377,7 @@ fn dispatch(cli: Cli) -> i32 {
                 output_path: output.as_deref(),
                 strictness: strictness.as_deref(),
                 show_all: all,
+                top,
             })
         }
         other => {

@@ -195,8 +195,21 @@ proptest! {
 
     #[test]
     fn terminal_reporter_never_panics(findings in prop::collection::vec(arb_finding(), 0..20)) {
-        let reporter = TerminalReporter { show_all: true };
+        let reporter = TerminalReporter { show_all: true, top: None };
         let _ = reporter.render(&findings);
+    }
+
+    #[test]
+    fn terminal_reporter_top_n_limits_output(findings in prop::collection::vec(arb_finding(), 5..20)) {
+        let n = 3;
+        let reporter = TerminalReporter { show_all: false, top: Some(n) };
+        let out = reporter.render(&findings);
+        let total_msg = format!("{} issue(s)", findings.len());
+        let top_msg = format!("(showing top {n})");
+        // summary shows total not n
+        prop_assert!(out.contains(&total_msg));
+        // "(showing top N)" suffix present when n < total
+        prop_assert!(out.contains(&top_msg));
     }
 
     #[test]
