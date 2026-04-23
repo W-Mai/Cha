@@ -17,6 +17,10 @@ impl Plugin for InappropriateIntimacyAnalyzer {
         "inappropriate_intimacy"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["inappropriate_intimacy"]
+    }
+
     fn description(&self) -> &str {
         "Bidirectional imports between files"
     }

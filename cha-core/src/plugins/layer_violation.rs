@@ -20,6 +20,10 @@ impl Plugin for LayerViolationAnalyzer {
         "layer_violation"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["layer_violation"]
+    }
+
     fn description(&self) -> &str {
         "Cross-layer dependency violation"
     }

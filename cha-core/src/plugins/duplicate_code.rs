@@ -10,6 +10,10 @@ impl Plugin for DuplicateCodeAnalyzer {
         "duplicate_code"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["duplicate_code"]
+    }
+
     fn description(&self) -> &str {
         "Duplicate code blocks (AST hash)"
     }

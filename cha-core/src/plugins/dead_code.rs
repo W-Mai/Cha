@@ -9,6 +9,10 @@ impl Plugin for DeadCodeAnalyzer {
         "dead_code"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["dead_code"]
+    }
+
     fn description(&self) -> &str {
         "Unexported and unreferenced code"
     }

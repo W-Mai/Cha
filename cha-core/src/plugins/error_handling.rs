@@ -32,6 +32,10 @@ impl Plugin for ErrorHandlingAnalyzer {
         "error_handling"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["empty_catch", "unwrap_abuse"]
+    }
+
     fn description(&self) -> &str {
         "Empty catch blocks, unwrap/expect abuse"
     }

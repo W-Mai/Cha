@@ -20,6 +20,10 @@ impl Plugin for RefusedBequestAnalyzer {
         "refused_bequest"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["refused_bequest"]
+    }
+
     fn description(&self) -> &str {
         "Subclass overrides most parent methods"
     }

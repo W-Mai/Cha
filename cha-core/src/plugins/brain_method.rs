@@ -40,6 +40,10 @@ impl Plugin for BrainMethodAnalyzer {
         "brain_method"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["brain_method"]
+    }
+
     fn description(&self) -> &str {
         "Brain Method: too long, complex, and coupled"
     }

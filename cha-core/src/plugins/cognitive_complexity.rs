@@ -26,6 +26,10 @@ impl Plugin for CognitiveComplexityAnalyzer {
         "cognitive_complexity"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["cognitive_complexity"]
+    }
+
     fn description(&self) -> &str {
         "Cognitive complexity exceeds threshold"
     }

@@ -30,6 +30,10 @@ impl Plugin for HubLikeDependencyAnalyzer {
         "hub_like_dependency"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["hub_like_dependency"]
+    }
+
     fn description(&self) -> &str {
         "Hub-like module with too many imports"
     }

@@ -20,6 +20,10 @@ impl Plugin for ApiSurfaceAnalyzer {
         "api_surface"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["large_api_surface"]
+    }
+
     fn description(&self) -> &str {
         "Exported ratio too high, narrow the public API"
     }

@@ -30,6 +30,10 @@ impl Plugin for HardcodedSecretAnalyzer {
         "hardcoded_secret"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["hardcoded_secret"]
+    }
+
     fn description(&self) -> &str {
         "Hardcoded API keys, tokens, passwords"
     }

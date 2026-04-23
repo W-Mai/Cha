@@ -20,6 +20,10 @@ impl Plugin for ComplexityAnalyzer {
         "complexity"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["high_complexity"]
+    }
+
     fn description(&self) -> &str {
         "Cyclomatic complexity exceeds threshold"
     }

@@ -16,6 +16,10 @@ impl Plugin for SwitchStatementAnalyzer {
         "switch_statement"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["switch_statement"]
+    }
+
     fn description(&self) -> &str {
         "Excessive switch/match arms"
     }

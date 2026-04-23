@@ -14,6 +14,10 @@ impl Plugin for SpeculativeGeneralityAnalyzer {
         "speculative_generality"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["speculative_generality"]
+    }
+
     fn description(&self) -> &str {
         "Interface with too few implementations"
     }

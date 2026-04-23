@@ -14,6 +14,17 @@ impl Plugin for DesignPatternAdvisor {
         "design_pattern"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec![
+            "strategy_pattern",
+            "state_pattern",
+            "builder_pattern",
+            "null_object_pattern",
+            "template_method_pattern",
+            "observer_pattern",
+        ]
+    }
+
     fn description(&self) -> &str {
         "Suggest design patterns based on code structure"
     }

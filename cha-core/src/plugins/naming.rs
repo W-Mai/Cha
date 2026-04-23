@@ -20,6 +20,10 @@ impl Plugin for NamingAnalyzer {
         "naming"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["naming_convention", "naming_too_short", "naming_too_long"]
+    }
+
     fn description(&self) -> &str {
         "Naming convention violations"
     }

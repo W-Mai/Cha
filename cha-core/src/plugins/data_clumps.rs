@@ -22,6 +22,10 @@ impl Plugin for DataClumpsAnalyzer {
         "data_clumps"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["data_clumps"]
+    }
+
     fn description(&self) -> &str {
         "Repeated parameter type signatures"
     }

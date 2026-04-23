@@ -16,6 +16,10 @@ impl Plugin for MessageChainAnalyzer {
         "message_chain"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["message_chain"]
+    }
+
     fn description(&self) -> &str {
         "Deep field access chains (a.b.c.d)"
     }

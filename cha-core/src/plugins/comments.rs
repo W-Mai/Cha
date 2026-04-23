@@ -20,6 +20,10 @@ impl Plugin for CommentsAnalyzer {
         "comments"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["excessive_comments"]
+    }
+
     fn description(&self) -> &str {
         "Excessive comment-to-code ratio"
     }

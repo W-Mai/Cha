@@ -36,6 +36,10 @@ impl Plugin for GodClassAnalyzer {
         "god_class"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["god_class"]
+    }
+
     fn description(&self) -> &str {
         "God Class: high coupling, low cohesion"
     }

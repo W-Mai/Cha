@@ -13,6 +13,10 @@ impl Plugin for UnsafeApiAnalyzer {
         "unsafe_api"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["unsafe_api"]
+    }
+
     fn description(&self) -> &str {
         "Dangerous function calls (eval/exec/system)"
     }

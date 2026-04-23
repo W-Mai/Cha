@@ -71,6 +71,10 @@ impl Plugin for DivergentChangeAnalyzer {
         "divergent_change"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["divergent_change"]
+    }
+
     fn description(&self) -> &str {
         "File changed for many different reasons"
     }

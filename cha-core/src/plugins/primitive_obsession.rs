@@ -25,6 +25,10 @@ impl Plugin for PrimitiveObsessionAnalyzer {
         "primitive_obsession"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["primitive_obsession"]
+    }
+
     fn description(&self) -> &str {
         "Too many primitive parameter types"
     }

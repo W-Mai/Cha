@@ -11,6 +11,10 @@ impl Plugin for TodoTrackerAnalyzer {
         "todo_tracker"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["todo_comment"]
+    }
+
     fn description(&self) -> &str {
         "Leftover TODO/FIXME/HACK/XXX comments"
     }

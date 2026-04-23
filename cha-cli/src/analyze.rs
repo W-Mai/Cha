@@ -420,6 +420,11 @@ fn analyze_file_with_content(
         .flat_map(|p| p.analyze(&ctx))
         .collect();
     let findings = cha_core::filter_ignored(findings, content);
+    let disabled = config.disabled_smells_for_language(&model.language);
+    let findings: Vec<Finding> = findings
+        .into_iter()
+        .filter(|f| !disabled.iter().any(|s| s == &f.smell_name))
+        .collect();
     (findings, imports)
 }
 

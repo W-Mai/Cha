@@ -86,6 +86,10 @@ impl Plugin for ShotgunSurgeryAnalyzer {
         "shotgun_surgery"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["shotgun_surgery"]
+    }
+
     fn description(&self) -> &str {
         "Files that always change together"
     }

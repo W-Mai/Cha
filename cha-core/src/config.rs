@@ -53,6 +53,9 @@ impl Strictness {
 pub struct LanguageConfig {
     #[serde(default)]
     pub plugins: HashMap<String, PluginConfig>,
+    /// Smell names disabled for this language (appended to global disabled_smells).
+    #[serde(default)]
+    pub disabled_smells: Vec<String>,
 }
 
 /// Top-level config from `.cha.toml`.
@@ -73,6 +76,10 @@ pub struct Config {
     /// Per-language plugin overrides.
     #[serde(default)]
     pub languages: HashMap<String, LanguageConfig>,
+    /// Smell names disabled globally (any language/plugin).
+    /// Use when a plugin produces multiple smells and you want to suppress only some.
+    #[serde(default)]
+    pub disabled_smells: Vec<String>,
     /// Manual layer/module configuration for `cha layers`.
     #[serde(default)]
     pub layers: LayersConfig,
@@ -199,6 +206,7 @@ impl Config {
         // Since we can't distinguish "not set" from "set to default" with serde,
         // we always take the other's value during merge.
         self.strictness = other.strictness;
+        self.disabled_smells.extend(other.disabled_smells);
         for (lang, other_lc) in other.languages {
             let entry = self.languages.entry(lang).or_default();
             for (name, other_pc) in other_lc.plugins {
@@ -208,6 +216,7 @@ impl Config {
                     pe.options.insert(k, v);
                 }
             }
+            entry.disabled_smells.extend(other_lc.disabled_smells);
         }
     }
 
@@ -260,6 +269,28 @@ impl Config {
     /// Check if a plugin is enabled (default: true if not mentioned).
     pub fn is_enabled(&self, name: &str) -> bool {
         self.plugins.get(name).is_none_or(|c| c.enabled)
+    }
+
+    /// All disabled smells effective for a given file language:
+    /// global + language-level + builtin language profile's smell disables.
+    /// Duplicates are kept; callers use Vec::contains() so it's fine.
+    pub fn disabled_smells_for_language(&self, language: &str) -> Vec<String> {
+        let lang_key = language.to_lowercase();
+        let mut out = self.disabled_smells.clone();
+        if let Some(lc) = self.languages.get(&lang_key) {
+            out.extend(lc.disabled_smells.clone());
+        }
+        if let Some(builtin) = builtin_language_smell_disables(&lang_key) {
+            out.extend(builtin.iter().map(|s| s.to_string()));
+        }
+        out
+    }
+
+    /// Check if a smell is disabled for the given file language.
+    pub fn is_smell_disabled(&self, smell_name: &str, language: &str) -> bool {
+        self.disabled_smells_for_language(language)
+            .iter()
+            .any(|s| s == smell_name)
     }
 
     /// Get a usize option for a plugin, scaled by strictness factor.
@@ -341,15 +372,13 @@ pub type PluginProfile = (&'static str, bool, &'static [(&'static str, i64)]);
 
 /// Builtin language profiles: default plugin settings for specific languages.
 /// Returns (plugin_name, enabled, options) tuples. Users can override via `[languages.xx.plugins.yy]`.
+/// Only real plugin names allowed — smell-level disables go in `builtin_language_smell_disables`.
 pub fn builtin_language_profile(language: &str) -> Option<Vec<PluginProfile>> {
     match language {
         "c" | "cpp" => Some(vec![
             ("naming", false, &[] as &[(&str, i64)]),
             ("lazy_class", false, &[]),
             ("data_class", false, &[]),
-            ("builder_pattern", false, &[]),
-            ("null_object_pattern", false, &[]),
-            ("strategy_pattern", false, &[]),
             (
                 "length",
                 true,
@@ -369,5 +398,76 @@ pub fn builtin_language_profile(language: &str) -> Option<Vec<PluginProfile>> {
             ("long_parameter_list", true, &[("max_params", 7)]),
         ]),
         _ => None,
+    }
+}
+
+/// Builtin smell-level disables for specific languages.
+/// Use when a plugin emits multiple smells but only some should be suppressed.
+pub fn builtin_language_smell_disables(language: &str) -> Option<&'static [&'static str]> {
+    match language {
+        "c" | "cpp" => Some(&[
+            // design_pattern smells — C/C++ idioms don't match these pattern shapes
+            "builder_pattern",
+            "null_object_pattern",
+            "strategy_pattern",
+            // data_clumps — C functions with many params grouped is common and intentional
+            "data_clumps",
+        ]),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn disabled_smells_builtin_for_c() {
+        let cfg = Config::default();
+        assert!(cfg.is_smell_disabled("builder_pattern", "c"));
+        assert!(cfg.is_smell_disabled("data_clumps", "cpp"));
+        assert!(!cfg.is_smell_disabled("builder_pattern", "rust"));
+    }
+
+    #[test]
+    fn disabled_smells_global_applies_to_any_language() {
+        let mut cfg = Config::default();
+        cfg.disabled_smells.push("long_method".into());
+        assert!(cfg.is_smell_disabled("long_method", "rust"));
+        assert!(cfg.is_smell_disabled("long_method", "typescript"));
+    }
+
+    #[test]
+    fn disabled_smells_language_level_overlay() {
+        let mut cfg = Config::default();
+        let mut lc = LanguageConfig::default();
+        lc.disabled_smells.push("observer_pattern".into());
+        cfg.languages.insert("go".into(), lc);
+        assert!(cfg.is_smell_disabled("observer_pattern", "go"));
+        assert!(!cfg.is_smell_disabled("observer_pattern", "rust"));
+    }
+
+    #[test]
+    fn disabled_smells_combines_global_language_and_builtin() {
+        let mut cfg = Config::default();
+        cfg.disabled_smells.push("global_smell".into());
+        let mut lc = LanguageConfig::default();
+        lc.disabled_smells.push("lang_smell".into());
+        cfg.languages.insert("c".into(), lc);
+        let all = cfg.disabled_smells_for_language("c");
+        assert!(all.iter().any(|s| s == "global_smell"));
+        assert!(all.iter().any(|s| s == "lang_smell"));
+        assert!(all.iter().any(|s| s == "builder_pattern")); // from builtin
+    }
+
+    #[test]
+    fn merge_appends_disabled_smells() {
+        let mut a = Config::default();
+        a.disabled_smells.push("a_smell".into());
+        let mut b = Config::default();
+        b.disabled_smells.push("b_smell".into());
+        a.merge(b);
+        assert!(a.disabled_smells.contains(&"a_smell".into()));
+        assert!(a.disabled_smells.contains(&"b_smell".into()));
     }
 }

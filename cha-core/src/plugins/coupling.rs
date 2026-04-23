@@ -16,6 +16,10 @@ impl Plugin for CouplingAnalyzer {
         "coupling"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["high_coupling"]
+    }
+
     fn description(&self) -> &str {
         "Too many imports (high coupling)"
     }

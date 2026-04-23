@@ -16,6 +16,10 @@ impl Plugin for LongParameterListAnalyzer {
         "long_parameter_list"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["long_parameter_list"]
+    }
+
     fn description(&self) -> &str {
         "Function has too many parameters"
     }

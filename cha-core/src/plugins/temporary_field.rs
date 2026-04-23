@@ -20,6 +20,10 @@ impl Plugin for TemporaryFieldAnalyzer {
         "temporary_field"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["temporary_field"]
+    }
+
     fn description(&self) -> &str {
         "Fields used in too few methods"
     }

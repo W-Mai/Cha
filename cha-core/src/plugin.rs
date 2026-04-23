@@ -87,6 +87,13 @@ pub trait Plugin: Send + Sync {
         vec![env!("CARGO_PKG_AUTHORS").to_string()]
     }
 
+    /// Smell names this plugin can produce.
+    /// Used by the host for smell-level filtering, docs, and `cha plugin list`.
+    /// Default is empty — plugins should override to declare their smells.
+    fn smells(&self) -> Vec<&'static str> {
+        Vec::new()
+    }
+
     /// Run analysis on a single file and return findings.
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding>;
 }

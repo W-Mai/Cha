@@ -20,6 +20,10 @@ impl Plugin for LazyClassAnalyzer {
         "lazy_class"
     }
 
+    fn smells(&self) -> Vec<&'static str> {
+        vec!["lazy_class"]
+    }
+
     fn description(&self) -> &str {
         "Class too small to justify its existence"
     }
