@@ -42,11 +42,35 @@ struct MyPlugin;
 
 impl PluginImpl for MyPlugin {
     fn name() -> String { "my-plugin".into() }
+    fn smells() -> Vec<String> { vec!["my_smell".into()] }
     fn analyze(input: AnalysisInput) -> Vec<Finding> { vec![] }
 }
 ```
 
 `plugin!` expands to `wit_bindgen::generate!` with the embedded WIT interface, plus `export!`. No local `.wit` file needed.
+
+### Declaring smells
+
+Every `Finding` carries a `smell_name`. Declaring the full set in `smells()` lets the host:
+- List your plugin's smells in `cha plugin list`
+- Let users disable specific smells via `disabled_smells = ["your_smell"]` in `.cha.toml`
+- Pass the disabled-smells list back to your plugin so you can skip work early
+
+Skip disabled smells efficiently:
+
+```rust
+use cha_plugin_sdk::is_smell_disabled;
+
+fn analyze(input: AnalysisInput) -> Vec<Finding> {
+    let mut out = Vec::new();
+    if !is_smell_disabled!(&input.options, "my_smell") {
+        // only compute my_smell if it isn't disabled
+    }
+    out
+}
+```
+
+The host also post-filters findings whose `smell_name` is disabled, so forgetting to call `is_smell_disabled!` won't surface false positives — it just wastes work.
 
 `version()`, `description()`, and `authors()` are automatically filled from the plugin's `Cargo.toml` — no need to implement them manually.
 

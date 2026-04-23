@@ -120,14 +120,19 @@ pub fn cmd_list() {
             println!("{label}:");
             for p in plugins {
                 print!("  {}", p.file_name().unwrap_or_default().to_string_lossy());
+                let mut smells = Vec::new();
                 if let Ok(wp) = cha_core::wasm::WasmPlugin::load(&p) {
                     print!("  v{}  {}", wp.version(), wp.description());
                     let authors = wp.authors();
                     if !authors.is_empty() {
                         print!("  ({})", authors.join(", "));
                     }
+                    smells = wp.smells();
                 }
                 println!();
+                if !smells.is_empty() {
+                    println!("    smells: {}", smells.join(", "));
+                }
             }
             found = true;
         }

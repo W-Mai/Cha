@@ -7,6 +7,10 @@ impl PluginImpl for HardcodedStringsPlugin {
         "hardcoded-strings".into()
     }
 
+    fn smells() -> Vec<String> {
+        vec!["hardcoded_string".into()]
+    }
+
     fn analyze(input: AnalysisInput) -> Vec<Finding> {
         let pairs: Vec<(&str, &str)> = cha_plugin_sdk::str_options!(&input.options).collect();
         if pairs.is_empty() {

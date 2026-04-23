@@ -17,8 +17,8 @@ impl Plugin for InappropriateIntimacyAnalyzer {
         "inappropriate_intimacy"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["inappropriate_intimacy"]
+    fn smells(&self) -> Vec<String> {
+        vec!["inappropriate_intimacy".into()]
     }
 
     fn description(&self) -> &str {

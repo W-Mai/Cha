@@ -546,7 +546,16 @@ fn cmd_preset_show(language: &str) {
         }
     }
 
+    let disabled_smells = resolved.disabled_smells_for_language(&lang);
+    if !disabled_smells.is_empty() {
+        println!("\nDisabled smells:");
+        for s in &disabled_smells {
+            println!("  · {s}");
+        }
+    }
+
     println!("\nOverride in .cha.toml:  [languages.{lang}.plugins.<name>]  enabled = true/false");
+    println!("Disable a smell:       [languages.{lang}]  disabled_smells = [\"smell_name\"]");
 }
 
 fn cmd_init_or_schema(cli: Cli) {

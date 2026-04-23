@@ -24,8 +24,12 @@ impl Plugin for LengthAnalyzer {
         "length"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["long_method", "large_class", "large_file"]
+    fn smells(&self) -> Vec<String> {
+        vec![
+            "long_method".into(),
+            "large_class".into(),
+            "large_file".into(),
+        ]
     }
 
     fn description(&self) -> &str {

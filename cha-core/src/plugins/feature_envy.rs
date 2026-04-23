@@ -20,8 +20,8 @@ impl Plugin for FeatureEnvyAnalyzer {
         "feature_envy"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["feature_envy"]
+    fn smells(&self) -> Vec<String> {
+        vec!["feature_envy".into()]
     }
 
     fn description(&self) -> &str {

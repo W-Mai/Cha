@@ -10,8 +10,8 @@ impl Plugin for DuplicateCodeAnalyzer {
         "duplicate_code"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["duplicate_code"]
+    fn smells(&self) -> Vec<String> {
+        vec!["duplicate_code".into()]
     }
 
     fn description(&self) -> &str {

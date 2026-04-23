@@ -20,8 +20,12 @@ impl Plugin for NamingAnalyzer {
         "naming"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["naming_convention", "naming_too_short", "naming_too_long"]
+    fn smells(&self) -> Vec<String> {
+        vec![
+            "naming_convention".into(),
+            "naming_too_short".into(),
+            "naming_too_long".into(),
+        ]
     }
 
     fn description(&self) -> &str {

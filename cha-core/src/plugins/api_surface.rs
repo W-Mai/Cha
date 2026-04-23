@@ -20,8 +20,8 @@ impl Plugin for ApiSurfaceAnalyzer {
         "api_surface"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["large_api_surface"]
+    fn smells(&self) -> Vec<String> {
+        vec!["large_api_surface".into()]
     }
 
     fn description(&self) -> &str {

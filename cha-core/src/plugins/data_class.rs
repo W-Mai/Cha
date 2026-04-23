@@ -16,8 +16,8 @@ impl Plugin for DataClassAnalyzer {
         "data_class"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["data_class"]
+    fn smells(&self) -> Vec<String> {
+        vec!["data_class".into()]
     }
 
     fn description(&self) -> &str {

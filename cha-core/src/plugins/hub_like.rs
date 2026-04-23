@@ -30,8 +30,8 @@ impl Plugin for HubLikeDependencyAnalyzer {
         "hub_like_dependency"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["hub_like_dependency"]
+    fn smells(&self) -> Vec<String> {
+        vec!["hub_like_dependency".into()]
     }
 
     fn description(&self) -> &str {

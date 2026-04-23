@@ -23,8 +23,17 @@ pub struct PluginRegistry {
 }
 
 impl PluginRegistry {
-    /// Build registry from config, applying thresholds.
+    /// Build registry from config, applying thresholds. Language-agnostic —
+    /// disabled_smells filtering happens downstream but WASM plugins don't
+    /// get the list. Prefer `from_config_for_language` inside `analyze`.
     pub fn from_config(config: &Config, project_dir: &Path) -> Self {
+        Self::from_config_for_language(config, project_dir, "")
+    }
+
+    /// Build registry for a specific file language. WASM plugins receive the
+    /// effective disabled_smells list via the reserved `__disabled_smells__`
+    /// option so they can skip work proactively.
+    pub fn from_config_for_language(config: &Config, project_dir: &Path, language: &str) -> Self {
         let mut plugins: Vec<Box<dyn Plugin>> = Vec::new();
 
         register_length(&mut plugins, config);
@@ -32,18 +41,23 @@ impl PluginRegistry {
         register_simple_plugins(&mut plugins, config);
         register_layer_violation(&mut plugins, config);
 
+        let disabled_smells = config.disabled_smells_for_language(language);
+
         for mut wp in wasm::load_wasm_plugins(project_dir) {
             if config.is_enabled(wp.name()) {
+                let mut opts: Vec<(String, wasm::wit::OptionValue)> = Vec::new();
                 if let Some(pc) = config.plugins.get(wp.name()) {
-                    let opts = pc
-                        .options
-                        .iter()
-                        .filter_map(|(k, v)| {
-                            wasm::toml_to_option_value(v).map(|ov| (k.clone(), ov))
-                        })
-                        .collect();
-                    wp.set_options(opts);
+                    opts.extend(pc.options.iter().filter_map(|(k, v)| {
+                        wasm::toml_to_option_value(v).map(|ov| (k.clone(), ov))
+                    }));
                 }
+                if !disabled_smells.is_empty() {
+                    opts.push((
+                        "__disabled_smells__".into(),
+                        wasm::wit::OptionValue::ListStr(disabled_smells.clone()),
+                    ));
+                }
+                wp.set_options(opts);
                 plugins.push(Box::new(wp));
             }
         }

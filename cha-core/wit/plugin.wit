@@ -135,6 +135,10 @@ world analyzer {
     /// Return the list of authors.
     export authors: func() -> list<string>;
 
+    /// Return the smell names this plugin can produce. Used by the host for
+    /// smell-level filtering, `cha plugin list`, and docs. May be empty.
+    export smells: func() -> list<string>;
+
     /// Run analysis and return findings.
     export analyze: func(input: analysis-input) -> list<finding>;
 }

@@ -408,7 +408,7 @@ fn analyze_file_with_content(
     if let Some((lines, cx, cog)) = crate::calibrate::load_calibration(project_root) {
         config.set_calibration_defaults(lines, cx, cog);
     }
-    let registry = PluginRegistry::from_config(&config, project_root);
+    let registry = PluginRegistry::from_config_for_language(&config, project_root, &model.language);
     let ctx = AnalysisContext {
         file: &file,
         model: &model,

@@ -22,8 +22,8 @@ impl Plugin for DataClumpsAnalyzer {
         "data_clumps"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["data_clumps"]
+    fn smells(&self) -> Vec<String> {
+        vec!["data_clumps".into()]
     }
 
     fn description(&self) -> &str {

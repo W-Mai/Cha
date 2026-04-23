@@ -14,14 +14,14 @@ impl Plugin for DesignPatternAdvisor {
         "design_pattern"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
+    fn smells(&self) -> Vec<String> {
         vec![
-            "strategy_pattern",
-            "state_pattern",
-            "builder_pattern",
-            "null_object_pattern",
-            "template_method_pattern",
-            "observer_pattern",
+            "strategy_pattern".into(),
+            "state_pattern".into(),
+            "builder_pattern".into(),
+            "null_object_pattern".into(),
+            "template_method_pattern".into(),
+            "observer_pattern".into(),
         ]
     }
 

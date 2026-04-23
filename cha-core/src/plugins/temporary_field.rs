@@ -20,8 +20,8 @@ impl Plugin for TemporaryFieldAnalyzer {
         "temporary_field"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["temporary_field"]
+    fn smells(&self) -> Vec<String> {
+        vec!["temporary_field".into()]
     }
 
     fn description(&self) -> &str {

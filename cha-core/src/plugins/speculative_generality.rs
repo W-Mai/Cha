@@ -14,8 +14,8 @@ impl Plugin for SpeculativeGeneralityAnalyzer {
         "speculative_generality"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["speculative_generality"]
+    fn smells(&self) -> Vec<String> {
+        vec!["speculative_generality".into()]
     }
 
     fn description(&self) -> &str {

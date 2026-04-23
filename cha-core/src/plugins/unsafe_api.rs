@@ -13,8 +13,8 @@ impl Plugin for UnsafeApiAnalyzer {
         "unsafe_api"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["unsafe_api"]
+    fn smells(&self) -> Vec<String> {
+        vec!["unsafe_api".into()]
     }
 
     fn description(&self) -> &str {

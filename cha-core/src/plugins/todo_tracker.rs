@@ -11,8 +11,8 @@ impl Plugin for TodoTrackerAnalyzer {
         "todo_tracker"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["todo_comment"]
+    fn smells(&self) -> Vec<String> {
+        vec!["todo_comment".into()]
     }
 
     fn description(&self) -> &str {

@@ -20,8 +20,8 @@ impl Plugin for ComplexityAnalyzer {
         "complexity"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["high_complexity"]
+    fn smells(&self) -> Vec<String> {
+        vec!["high_complexity".into()]
     }
 
     fn description(&self) -> &str {

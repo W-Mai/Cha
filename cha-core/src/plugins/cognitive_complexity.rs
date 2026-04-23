@@ -26,8 +26,8 @@ impl Plugin for CognitiveComplexityAnalyzer {
         "cognitive_complexity"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["cognitive_complexity"]
+    fn smells(&self) -> Vec<String> {
+        vec!["cognitive_complexity".into()]
     }
 
     fn description(&self) -> &str {

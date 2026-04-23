@@ -16,8 +16,8 @@ impl Plugin for CouplingAnalyzer {
         "coupling"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["high_coupling"]
+    fn smells(&self) -> Vec<String> {
+        vec!["high_coupling".into()]
     }
 
     fn description(&self) -> &str {

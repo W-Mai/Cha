@@ -7,6 +7,10 @@ impl PluginImpl for ExamplePlugin {
         "example-wasm".into()
     }
 
+    fn smells() -> Vec<String> {
+        vec!["suspicious_name".into()]
+    }
+
     fn analyze(input: AnalysisInput) -> Vec<Finding> {
         input
             .functions

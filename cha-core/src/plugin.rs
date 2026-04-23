@@ -90,7 +90,7 @@ pub trait Plugin: Send + Sync {
     /// Smell names this plugin can produce.
     /// Used by the host for smell-level filtering, docs, and `cha plugin list`.
     /// Default is empty — plugins should override to declare their smells.
-    fn smells(&self) -> Vec<&'static str> {
+    fn smells(&self) -> Vec<String> {
         Vec::new()
     }
 

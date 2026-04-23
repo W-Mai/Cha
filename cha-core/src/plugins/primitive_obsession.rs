@@ -25,8 +25,8 @@ impl Plugin for PrimitiveObsessionAnalyzer {
         "primitive_obsession"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["primitive_obsession"]
+    fn smells(&self) -> Vec<String> {
+        vec!["primitive_obsession".into()]
     }
 
     fn description(&self) -> &str {

@@ -20,8 +20,8 @@ impl Plugin for CommentsAnalyzer {
         "comments"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["excessive_comments"]
+    fn smells(&self) -> Vec<String> {
+        vec!["excessive_comments".into()]
     }
 
     fn description(&self) -> &str {

@@ -36,10 +36,14 @@ pub fn plugin(input: TokenStream) -> TokenStream {
         };
 
         /// Implement this trait in your plugin struct.
-        /// `version`, `description`, and `authors` are filled automatically from Cargo.toml.
+        /// `version`, `description`, `authors`, `smells` all have default impls.
         pub trait PluginImpl {
             fn name() -> String;
             fn analyze(input: AnalysisInput) -> Vec<Finding>;
+            /// Smell names this plugin can produce. Default: empty.
+            /// Declaring them lets the host filter by smell_name and show
+            /// accurate docs in `cha plugin list`.
+            fn smells() -> Vec<String> { vec![] }
         }
 
         struct __ChaPluginWrapper(std::marker::PhantomData<#ty>);
@@ -55,6 +59,7 @@ pub fn plugin(input: TokenStream) -> TokenStream {
                 let a = env!("CARGO_PKG_AUTHORS");
                 if a.is_empty() { vec![] } else { a.split(':').map(str::to_string).collect() }
             }
+            fn smells() -> Vec<String> { <#ty as PluginImpl>::smells() }
             fn analyze(input: AnalysisInput) -> Vec<Finding> { <#ty as PluginImpl>::analyze(input) }
         }
 

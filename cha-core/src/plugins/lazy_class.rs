@@ -20,8 +20,8 @@ impl Plugin for LazyClassAnalyzer {
         "lazy_class"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["lazy_class"]
+    fn smells(&self) -> Vec<String> {
+        vec!["lazy_class".into()]
     }
 
     fn description(&self) -> &str {

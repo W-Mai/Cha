@@ -20,8 +20,8 @@ impl Plugin for MiddleManAnalyzer {
         "middle_man"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["middle_man"]
+    fn smells(&self) -> Vec<String> {
+        vec!["middle_man".into()]
     }
 
     fn description(&self) -> &str {

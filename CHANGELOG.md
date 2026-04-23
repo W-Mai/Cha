@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `cha analyze --top N` flag — show only the N most severe findings (terminal format), complements `--all`
+- **Smell-level disable**: `disabled_smells = ["smell_name"]` in `.cha.toml` (global) or under `[languages.<lang>]` (language-scoped). Finer-grained than disabling a whole plugin when it produces multiple smells
+- `Plugin::smells()` — plugins declare which `smell_name` values they can produce. Exposed as a WIT export for WASM plugins
+- `cha plugin list` now shows each plugin's declared smells
+- `cha preset show <lang>` now shows effective disabled smells
+- SDK helper `cha_plugin_sdk::is_smell_disabled!(&input.options, "smell_name")` — WASM plugins can skip disabled work proactively
+
+### Changed
+- C/C++ builtin profile: `builder_pattern`, `null_object_pattern`, `strategy_pattern`, `data_clumps` are now properly disabled via smell-level config (previously tried — and failed — to disable them by plugin name)
+- WIT `analyzer` world gains `smells: func() -> list<string>` export — **breaking change for WASM plugins** (recompile to pick up default impl)
+
+### Fixed
+- lvgl-scale improvement: analyze now emits ~1200 fewer false positives because smell-level disables actually take effect
 
 ## [1.6.0] - 2026-04-23
 

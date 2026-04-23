@@ -9,8 +9,8 @@ impl Plugin for DeadCodeAnalyzer {
         "dead_code"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["dead_code"]
+    fn smells(&self) -> Vec<String> {
+        vec!["dead_code".into()]
     }
 
     fn description(&self) -> &str {

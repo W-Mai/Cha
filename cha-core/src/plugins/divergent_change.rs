@@ -71,8 +71,8 @@ impl Plugin for DivergentChangeAnalyzer {
         "divergent_change"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["divergent_change"]
+    fn smells(&self) -> Vec<String> {
+        vec!["divergent_change".into()]
     }
 
     fn description(&self) -> &str {

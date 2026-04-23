@@ -20,8 +20,8 @@ impl Plugin for RefusedBequestAnalyzer {
         "refused_bequest"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["refused_bequest"]
+    fn smells(&self) -> Vec<String> {
+        vec!["refused_bequest".into()]
     }
 
     fn description(&self) -> &str {

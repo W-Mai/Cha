@@ -40,8 +40,8 @@ impl Plugin for BrainMethodAnalyzer {
         "brain_method"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["brain_method"]
+    fn smells(&self) -> Vec<String> {
+        vec!["brain_method".into()]
     }
 
     fn description(&self) -> &str {

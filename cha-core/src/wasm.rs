@@ -16,7 +16,7 @@ mod bindings {
 }
 
 use bindings::Analyzer;
-use bindings::cha::plugin::types as wit;
+pub use bindings::cha::plugin::types as wit;
 
 struct HostState {
     wasi: WasiCtx,
@@ -48,6 +48,7 @@ pub struct WasmPlugin {
     plugin_version: String,
     plugin_description: String,
     plugin_authors: Vec<String>,
+    plugin_smells: Vec<String>,
     options: Vec<(String, wit::OptionValue)>,
 }
 
@@ -66,6 +67,7 @@ impl WasmPlugin {
         let version = instance.call_version(&mut store)?;
         let description = instance.call_description(&mut store)?;
         let authors = instance.call_authors(&mut store)?;
+        let smells = instance.call_smells(&mut store)?;
 
         Ok(Self {
             engine,
@@ -74,6 +76,7 @@ impl WasmPlugin {
             plugin_version: version,
             plugin_description: description,
             plugin_authors: authors,
+            plugin_smells: smells,
             options: vec![],
         })
     }
@@ -99,6 +102,10 @@ impl Plugin for WasmPlugin {
 
     fn authors(&self) -> Vec<String> {
         self.plugin_authors.clone()
+    }
+
+    fn smells(&self) -> Vec<String> {
+        self.plugin_smells.clone()
     }
 
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {

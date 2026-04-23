@@ -16,8 +16,8 @@ impl Plugin for LongParameterListAnalyzer {
         "long_parameter_list"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["long_parameter_list"]
+    fn smells(&self) -> Vec<String> {
+        vec!["long_parameter_list".into()]
     }
 
     fn description(&self) -> &str {

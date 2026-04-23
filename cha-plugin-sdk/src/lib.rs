@@ -95,3 +95,26 @@ macro_rules! str_options {
         })
     };
 }
+
+/// Key used by the host to pass the list of smell names the plugin should skip
+/// emitting for this analysis call. Check via `is_smell_disabled!`.
+pub const DISABLED_SMELLS_KEY: &str = "__disabled_smells__";
+
+/// Returns true if `smell_name` appears in the host-provided disabled-smells list
+/// (option key `__disabled_smells__`, a list-str). Use at the top of each smell
+/// check in `analyze()` to short-circuit disabled work.
+///
+/// ```rust,ignore
+/// if cha_plugin_sdk::is_smell_disabled!(&input.options, "my_smell") {
+///     return findings;
+/// }
+/// ```
+#[macro_export]
+macro_rules! is_smell_disabled {
+    ($options:expr, $smell:expr) => {
+        $options.iter().any(|(k, v)| {
+            k == $crate::DISABLED_SMELLS_KEY
+                && matches!(v, OptionValue::ListStr(l) if l.iter().any(|s| s == $smell))
+        })
+    };
+}

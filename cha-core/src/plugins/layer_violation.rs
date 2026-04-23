@@ -20,8 +20,8 @@ impl Plugin for LayerViolationAnalyzer {
         "layer_violation"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["layer_violation"]
+    fn smells(&self) -> Vec<String> {
+        vec!["layer_violation".into()]
     }
 
     fn description(&self) -> &str {

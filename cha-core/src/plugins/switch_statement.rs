@@ -16,8 +16,8 @@ impl Plugin for SwitchStatementAnalyzer {
         "switch_statement"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["switch_statement"]
+    fn smells(&self) -> Vec<String> {
+        vec!["switch_statement".into()]
     }
 
     fn description(&self) -> &str {

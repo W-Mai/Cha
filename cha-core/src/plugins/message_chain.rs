@@ -16,8 +16,8 @@ impl Plugin for MessageChainAnalyzer {
         "message_chain"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["message_chain"]
+    fn smells(&self) -> Vec<String> {
+        vec!["message_chain".into()]
     }
 
     fn description(&self) -> &str {

@@ -86,8 +86,8 @@ impl Plugin for ShotgunSurgeryAnalyzer {
         "shotgun_surgery"
     }
 
-    fn smells(&self) -> Vec<&'static str> {
-        vec!["shotgun_surgery"]
+    fn smells(&self) -> Vec<String> {
+        vec!["shotgun_surgery".into()]
     }
 
     fn description(&self) -> &str {
