@@ -67,10 +67,9 @@ impl TemporaryFieldAnalyzer {
                     location: Location {
                         path: ctx.file.path.clone(),
                         start_line: class.start_line,
-                        start_col: class.name_col,
-                        end_line: class.start_line,
-                        end_col: class.name_end_col,
+                        end_line: class.end_line,
                         name: Some(format!("{}.{}", class.name, field)),
+                        ..Default::default()
                     },
                     message: format!(
                         "Field `{}` in `{}` is only used in {}/{} methods, consider Extract Class",
