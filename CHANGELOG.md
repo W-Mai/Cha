@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `cha analyze --top N` flag — show only the N most severe findings (terminal format), complements `--all`
+
 ## [1.6.0] - 2026-04-23
 
 ### Added
