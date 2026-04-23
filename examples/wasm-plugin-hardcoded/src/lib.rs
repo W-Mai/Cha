@@ -19,9 +19,12 @@ impl PluginImpl for HardcodedStringsPlugin {
                 continue;
             }
             for (const_name, literal) in &pairs {
-                if literal.is_empty() || !line.contains(literal) {
+                if literal.is_empty() {
                     continue;
                 }
+                let Some(col) = line.find(*literal) else {
+                    continue;
+                };
                 let line_num = (i + 1) as u32;
                 findings.push(Finding {
                     smell_name: "hardcoded_string".into(),
@@ -30,7 +33,9 @@ impl PluginImpl for HardcodedStringsPlugin {
                     location: Location {
                         path: input.path.clone(),
                         start_line: line_num,
+                        start_col: col as u32,
                         end_line: line_num,
+                        end_col: (col + literal.len()) as u32,
                         name: None,
                     },
                     message: format!(

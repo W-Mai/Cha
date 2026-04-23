@@ -146,6 +146,8 @@ fn convert_functions(funcs: &[crate::model::FunctionInfo]) -> Vec<wit::FunctionI
         name: f.name.clone(),
         start_line: f.start_line as u32,
         end_line: f.end_line as u32,
+        name_col: f.name_col as u32,
+        name_end_col: f.name_end_col as u32,
         line_count: f.line_count as u32,
         complexity: f.complexity as u32,
         parameter_count: f.parameter_count as u32,
@@ -171,6 +173,8 @@ fn convert_classes(classes: &[crate::model::ClassInfo]) -> Vec<wit::ClassInfo> {
         name: c.name.clone(),
         start_line: c.start_line as u32,
         end_line: c.end_line as u32,
+        name_col: c.name_col as u32,
+        name_end_col: c.name_end_col as u32,
         method_count: c.method_count as u32,
         line_count: c.line_count as u32,
         delegating_method_count: c.delegating_method_count as u32,
@@ -192,6 +196,7 @@ fn convert_imports(imports: &[crate::model::ImportInfo]) -> Vec<wit::ImportInfo>
     convert_slice(imports, |i| wit::ImportInfo {
         source: i.source.clone(),
         line: i.line as u32,
+        col: i.col as u32,
     })
 }
 

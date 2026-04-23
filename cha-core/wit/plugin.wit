@@ -46,6 +46,8 @@ interface types {
         name: string,
         start-line: u32,
         end-line: u32,
+        name-col: u32,
+        name-end-col: u32,
         line-count: u32,
         complexity: u32,
         parameter-count: u32,
@@ -70,6 +72,8 @@ interface types {
         name: string,
         start-line: u32,
         end-line: u32,
+        name-col: u32,
+        name-end-col: u32,
         method-count: u32,
         line-count: u32,
         delegating-method-count: u32,
@@ -90,6 +94,7 @@ interface types {
     record import-info {
         source: string,
         line: u32,
+        col: u32,
     }
 
     /// Typed option value for plugin configuration.

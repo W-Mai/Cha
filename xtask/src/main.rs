@@ -235,7 +235,7 @@ fn e2e_scaffold_and_build(cha: &str, tmp: &str) -> Result<String> {
             message: "e2e test".into(),
             severity: Severity::Hint,
             category: SmellCategory::Dispensables,
-            location: Location { path: input.path.clone(), start_line: 1, end_line: 1, name: None },
+            location: Location { path: input.path.clone(), start_line: 1, start_col: 0, end_line: 1, end_col: 0, name: None },
             suggested_refactorings: vec![],
             actual_value: None,
             threshold: None,

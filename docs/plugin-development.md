@@ -61,7 +61,7 @@ After `plugin!(MyPlugin)`, these types are in scope and `PluginImpl` is the trai
 | `FunctionInfo` | Per-function data (name, lines, complexity, …) |
 | `ClassInfo` | Per-class data (name, methods, fields, …) |
 | `ImportInfo` | Import source + line |
-| `Location` | File path + line range |
+| `Location` | File path + line/column range |
 | `Severity` | `Hint` / `Warning` / `Error` |
 | `SmellCategory` | `Bloaters` / `Couplers` / `Dispensables` / … |
 | `OptionValue` | `Str` / `Int` / `Float` / `Boolean` / `ListStr` |
@@ -91,6 +91,8 @@ pub struct FunctionInfo {
     pub name: String,
     pub start_line: u32,
     pub end_line: u32,
+    pub name_col: u32,      // 0-based column of the name identifier
+    pub name_end_col: u32,  // 0-based end column of the name identifier
     pub line_count: u32,
     pub complexity: u32,
     pub param_count: u32,
@@ -112,6 +114,8 @@ pub struct ClassInfo {
     pub name: String,
     pub start_line: u32,
     pub end_line: u32,
+    pub name_col: u32,      // 0-based column of the name identifier
+    pub name_end_col: u32,  // 0-based end column of the name identifier
     pub line_count: u32,
     pub method_count: u32,
     pub field_count: u32,
