@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-04-23
+
 ### Added
 - `cha analyze --top N` flag — show only the N most severe findings (terminal format), complements `--all`
 - **Smell-level disable**: `disabled_smells = ["smell_name"]` in `.cha.toml` (global) or under `[languages.<lang>]` (language-scoped). Finer-grained than disabling a whole plugin when it produces multiple smells
