@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-04-24
+
+### Fixed
+- `cargo xtask release` — `wait_for_workflow` now filters runs by the commit SHA (for ci.yml) and the tag branch (for release.yml), instead of taking the latest run unconditionally. Previously a stale success on an unrelated commit would cause the release flow to skip waiting and publish to crates.io while the new CI was still queued; a stale failure would abort a release that would otherwise pass.
+
 ## [1.7.0] - 2026-04-23
 
 ### Added
