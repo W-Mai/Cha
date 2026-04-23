@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-04-23
+
 ### Added
 - `Location` now has `start_col`/`end_col` fields — all findings precise to column level
 - `FunctionInfo`/`ClassInfo` have `name_col`/`name_end_col` — parser records identifier position
@@ -18,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - All 37 builtin plugins now point findings at the function/class name, not the entire body
 - Line-scanning plugins (unsafe_api, hardcoded_secret, todo_tracker, error_handling) report exact column
-- WIT `location` record has `start-col`/`end-col` — **breaking change for WASM plugins**
+- WIT records gain column fields — `location.start-col`/`end-col`, `function-info.name-col`/`name-end-col`, `class-info.name-col`/`name-end-col`, `import-info.col` — **breaking change for WASM plugins**
 
 ## [1.5.0] - 2026-04-22
 
