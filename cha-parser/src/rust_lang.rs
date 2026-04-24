@@ -22,7 +22,10 @@ impl LanguageParser for RustParser {
         let root = tree.root_node();
         let src = file.content.as_bytes();
 
-        let mut ctx = ParseContext::new(src);
+        // Pre-scan every `use` declaration so types in function signatures
+        // can be resolved to project-local / external / primitive / unknown.
+        let imports_map = crate::rust_imports::build(root, src);
+        let mut ctx = ParseContext::new(src, imports_map);
         ctx.collect_nodes(root, false);
 
         Some(SourceModel {
@@ -52,15 +55,18 @@ struct ParseContext<'a> {
     last_has_notify: bool,
     /// Callback collection field names per class name.
     callback_fields: std::collections::HashMap<String, Vec<String>>,
+    /// Short type name -> resolved origin (built in a pre-scan pass).
+    imports_map: crate::type_ref::ImportsMap,
 }
 
 impl<'a> ParseContext<'a> {
-    fn new(src: &'a [u8]) -> Self {
+    fn new(src: &'a [u8], imports_map: crate::type_ref::ImportsMap) -> Self {
         Self {
             src,
             last_self_call_count: 0,
             last_has_notify: false,
             callback_fields: std::collections::HashMap::new(),
+            imports_map,
             col: Collector {
                 functions: Vec::new(),
                 classes: Vec::new(),
@@ -88,7 +94,7 @@ impl<'a> ParseContext<'a> {
     }
 
     fn push_function(&mut self, node: Node, exported: bool) {
-        if let Some(mut f) = extract_function(node, self.src) {
+        if let Some(mut f) = extract_function(node, self.src, &self.imports_map) {
             f.is_exported = exported || has_pub(node);
             self.col.functions.push(f);
         }
@@ -169,7 +175,7 @@ impl<'a> ParseContext<'a> {
         let mut cursor = body.walk();
         for child in body.children(&mut cursor) {
             if child.kind() == "function_item"
-                && let Some(mut f) = extract_function(child, self.src)
+                && let Some(mut f) = extract_function(child, self.src, &self.imports_map)
             {
                 f.is_exported = has_pub(child);
                 methods += 1;
@@ -249,7 +255,11 @@ fn walk_complexity(node: Node, count: &mut usize) {
     }
 }
 
-fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
+fn extract_function(
+    node: Node,
+    src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
+) -> Option<FunctionInfo> {
     let name_node = node.child_by_field_name("name")?;
     let name = node_text(name_node, src).to_string();
     let name_col = name_node.start_position().column;
@@ -259,7 +269,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
     let body = node.child_by_field_name("body");
     let body_hash = body.map(hash_ast_structure);
     let parameter_count = count_parameters(node);
-    let parameter_types = extract_param_types(node, src);
+    let parameter_types = extract_param_types(node, src, imports_map);
     let chain_depth = body.map(max_chain_depth).unwrap_or(0);
     let switch_arms = body.map(count_switch_arms).unwrap_or(0);
     let external_refs = body
@@ -340,7 +350,11 @@ fn count_parameters(node: Node) -> usize {
         .count()
 }
 
-fn extract_param_types(node: Node, src: &[u8]) -> Vec<cha_core::TypeRef> {
+fn extract_param_types(
+    node: Node,
+    src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
+) -> Vec<cha_core::TypeRef> {
     let params = match node.child_by_field_name("parameters") {
         Some(p) => p,
         None => return vec![],
@@ -351,7 +365,7 @@ fn extract_param_types(node: Node, src: &[u8]) -> Vec<cha_core::TypeRef> {
         if child.kind() == "parameter"
             && let Some(ty) = child.child_by_field_name("type")
         {
-            types.push(crate::type_ref::unknown(node_text(ty, src)));
+            types.push(crate::type_ref::resolve(node_text(ty, src), imports_map));
         }
     }
     types
@@ -476,9 +490,8 @@ fn check_delegating(body: Node, src: &[u8]) -> bool {
 }
 
 fn extract_use(node: Node, src: &[u8]) -> Option<ImportInfo> {
-    let text = node_text(node, src);
     // Extract the path from "use foo::bar::baz;"
-    let source = text
+    let source = node_text(node, src)
         .strip_prefix("use ")?
         .trim_end_matches(';')
         .trim()

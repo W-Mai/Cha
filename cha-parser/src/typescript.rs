@@ -22,7 +22,8 @@ impl LanguageParser for TypeScriptParser {
         let root = tree.root_node();
         let src = file.content.as_bytes();
 
-        let mut ctx = ParseContext::new(src);
+        let imports_map = crate::typescript_imports::build(root, src);
+        let mut ctx = ParseContext::new(src, imports_map);
         ctx.collect_nodes(root, false);
 
         Some(SourceModel {
@@ -48,12 +49,14 @@ struct Collector {
 struct ParseContext<'a> {
     src: &'a [u8],
     col: Collector,
+    imports_map: crate::type_ref::ImportsMap,
 }
 
 impl<'a> ParseContext<'a> {
-    fn new(src: &'a [u8]) -> Self {
+    fn new(src: &'a [u8], imports_map: crate::type_ref::ImportsMap) -> Self {
         Self {
             src,
+            imports_map,
             col: Collector {
                 functions: Vec::new(),
                 classes: Vec::new(),
@@ -74,7 +77,13 @@ impl<'a> ParseContext<'a> {
             "export_statement" => self.collect_nodes(child, true),
             "function_declaration" | "method_definition" => self.push_function(child, exported),
             "lexical_declaration" | "variable_declaration" => {
-                extract_arrow_functions(child, self.src, exported, &mut self.col.functions);
+                extract_arrow_functions(
+                    child,
+                    self.src,
+                    exported,
+                    &self.imports_map,
+                    &mut self.col.functions,
+                );
                 self.collect_nodes(child, exported);
             }
             "class_declaration" => self.push_class(child, exported),
@@ -84,7 +93,7 @@ impl<'a> ParseContext<'a> {
     }
 
     fn push_function(&mut self, node: Node, exported: bool) {
-        if let Some(mut f) = extract_function(node, self.src) {
+        if let Some(mut f) = extract_function(node, self.src, &self.imports_map) {
             f.is_exported = exported;
             self.col.functions.push(f);
         }
@@ -123,7 +132,11 @@ fn walk_hash(node: Node, hasher: &mut DefaultHasher) {
     }
 }
 
-fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
+fn extract_function(
+    node: Node,
+    src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
+) -> Option<FunctionInfo> {
     let name_node = node.child_by_field_name("name")?;
     let name = node_text(name_node, src).to_string();
     let name_col = name_node.start_position().column;
@@ -133,7 +146,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
     let body = node.child_by_field_name("body");
     let body_hash = body.map(hash_ast_structure);
     let parameter_count = count_parameters(node);
-    let parameter_types = extract_param_types(node, src);
+    let parameter_types = extract_param_types(node, src, imports_map);
     let chain_depth = body.map(max_chain_depth).unwrap_or(0);
     let switch_arms = body.map(count_switch_arms).unwrap_or(0);
     let external_refs = body
@@ -170,12 +183,13 @@ fn extract_arrow_functions(
     node: Node,
     src: &[u8],
     exported: bool,
+    imports_map: &crate::type_ref::ImportsMap,
     functions: &mut Vec<FunctionInfo>,
 ) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() == "variable_declarator"
-            && let Some(f) = try_extract_arrow(child, node, src, exported)
+            && let Some(f) = try_extract_arrow(child, node, src, exported, imports_map)
         {
             functions.push(f);
         }
@@ -183,7 +197,13 @@ fn extract_arrow_functions(
 }
 
 // Try to extract an arrow function from a variable declarator.
-fn try_extract_arrow(child: Node, decl: Node, src: &[u8], exported: bool) -> Option<FunctionInfo> {
+fn try_extract_arrow(
+    child: Node,
+    decl: Node,
+    src: &[u8],
+    exported: bool,
+    imports_map: &crate::type_ref::ImportsMap,
+) -> Option<FunctionInfo> {
     let name_node = child.child_by_field_name("name")?;
     let name = node_text(name_node, src).to_string();
     let value = child.child_by_field_name("value")?;
@@ -207,7 +227,7 @@ fn try_extract_arrow(child: Node, decl: Node, src: &[u8], exported: bool) -> Opt
         body_hash,
         is_exported: exported,
         parameter_count: count_parameters(value),
-        parameter_types: extract_param_types(value, src),
+        parameter_types: extract_param_types(value, src, imports_map),
         chain_depth: body.map(max_chain_depth).unwrap_or(0),
         switch_arms: body.map(count_switch_arms).unwrap_or(0),
         external_refs: body
@@ -322,7 +342,11 @@ fn count_parameters(node: Node) -> usize {
         .count()
 }
 
-fn extract_param_types(node: Node, src: &[u8]) -> Vec<cha_core::TypeRef> {
+fn extract_param_types(
+    node: Node,
+    src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
+) -> Vec<cha_core::TypeRef> {
     let params = match node.child_by_field_name("parameters") {
         Some(p) => p,
         None => return vec![],
@@ -336,7 +360,7 @@ fn extract_param_types(node: Node, src: &[u8]) -> Vec<cha_core::TypeRef> {
                 .trim_start_matches(':')
                 .trim()
                 .to_string();
-            types.push(crate::type_ref::unknown(raw));
+            types.push(crate::type_ref::resolve(raw, imports_map));
         }
     }
     types

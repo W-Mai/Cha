@@ -43,9 +43,11 @@ fn parse_c_like(
     let mut imports = Vec::new();
     let mut type_aliases = Vec::new();
 
+    let imports_map = crate::c_imports::build(root, src);
     collect_top_level(
         root,
         src,
+        &imports_map,
         &mut functions,
         &mut classes,
         &mut imports,
@@ -104,6 +106,7 @@ fn associate_methods(functions: &[FunctionInfo], classes: &mut [ClassInfo]) {
 fn collect_top_level(
     root: Node,
     src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
     functions: &mut Vec<FunctionInfo>,
     classes: &mut Vec<ClassInfo>,
     imports: &mut Vec<ImportInfo>,
@@ -118,7 +121,7 @@ fn collect_top_level(
                 // Detect this and extract as a class instead.
                 if let Some(c) = try_extract_macro_class(child, src) {
                     classes.push(c);
-                } else if let Some(f) = extract_function(child, src) {
+                } else if let Some(f) = extract_function(child, src, imports_map) {
                     functions.push(f);
                 }
             }
@@ -137,7 +140,15 @@ fn collect_top_level(
             }
             _ => {
                 if child.child_count() > 0 {
-                    collect_top_level(child, src, functions, classes, imports, type_aliases);
+                    collect_top_level(
+                        child,
+                        src,
+                        imports_map,
+                        functions,
+                        classes,
+                        imports,
+                        type_aliases,
+                    );
                 }
             }
         }
@@ -232,7 +243,11 @@ fn try_extract_macro_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
     })
 }
 
-fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
+fn extract_function(
+    node: Node,
+    src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
+) -> Option<FunctionInfo> {
     let declarator = node.child_by_field_name("declarator")?;
     let name_node = find_func_name_node(declarator)?;
     let name = node_text(name_node, src).to_string();
@@ -241,7 +256,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body");
-    let (param_count, param_types) = extract_params(declarator, src);
+    let (param_count, param_types) = extract_params(declarator, src, imports_map);
     let is_static = has_storage_class(node, src, "static");
 
     Some(FunctionInfo {
@@ -298,7 +313,11 @@ fn find_func_name_node(declarator: Node) -> Option<Node> {
         .and_then(find_func_name_node)
 }
 
-fn extract_params(declarator: Node, src: &[u8]) -> (usize, Vec<cha_core::TypeRef>) {
+fn extract_params(
+    declarator: Node,
+    src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
+) -> (usize, Vec<cha_core::TypeRef>) {
     let params = match declarator.child_by_field_name("parameters") {
         Some(p) => p,
         None => return (0, vec![]),
@@ -317,7 +336,7 @@ fn extract_params(declarator: Node, src: &[u8]) -> (usize, Vec<cha_core::TypeRef
                 .child_by_field_name("declarator")
                 .is_some_and(|d| d.kind() == "pointer_declarator");
             let raw = if is_ptr { format!("{base} *") } else { base };
-            types.push(crate::type_ref::unknown(raw));
+            types.push(crate::type_ref::resolve(raw, imports_map));
         }
     }
     (count, types)

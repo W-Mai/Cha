@@ -1,9 +1,14 @@
+mod c_imports;
 mod c_lang;
 mod golang;
+mod golang_imports;
 mod python;
+mod python_imports;
+mod rust_imports;
 mod rust_lang;
 mod type_ref;
 mod typescript;
+mod typescript_imports;
 
 pub use c_lang::{CParser, CppParser};
 pub use cha_core::{ClassInfo, CommentInfo, FunctionInfo, ImportInfo, SourceModel};

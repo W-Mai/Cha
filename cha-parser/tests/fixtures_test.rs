@@ -311,3 +311,208 @@ fn go_cognitive_complexity() {
 }
 
 // -- Cognitive complexity --
+
+// -- TypeRef origin resolution --
+
+fn parse_rust(content: &str) -> cha_core::SourceModel {
+    use std::path::PathBuf;
+    let file = cha_core::SourceFile::new(PathBuf::from("test.rs"), content.into());
+    parse_file(&file).unwrap()
+}
+
+#[test]
+fn rust_param_origin_external() {
+    let src = "use tree_sitter::Node;\nfn handle(n: &Node) {}\n";
+    let m = parse_rust(src);
+    let tr = &m.functions[0].parameter_types[0];
+    assert_eq!(tr.name, "Node");
+    assert_eq!(
+        tr.origin,
+        cha_core::TypeOrigin::External("tree_sitter".into())
+    );
+}
+
+#[test]
+fn rust_param_origin_local_via_crate() {
+    let src = "use crate::model::Finding;\nfn handle(f: &Finding) {}\n";
+    let m = parse_rust(src);
+    let tr = &m.functions[0].parameter_types[0];
+    assert_eq!(tr.origin, cha_core::TypeOrigin::Local);
+}
+
+#[test]
+fn rust_param_origin_primitive_std() {
+    let src = "use std::collections::HashMap;\nfn handle(m: HashMap) {}\n";
+    let m = parse_rust(src);
+    let tr = &m.functions[0].parameter_types[0];
+    assert_eq!(tr.origin, cha_core::TypeOrigin::Primitive);
+}
+
+#[test]
+fn rust_param_origin_rename_alias() {
+    let src = "use tree_sitter::Node as TsNode;\nfn handle(n: &TsNode) {}\n";
+    let m = parse_rust(src);
+    let tr = &m.functions[0].parameter_types[0];
+    assert_eq!(
+        tr.origin,
+        cha_core::TypeOrigin::External("tree_sitter".into())
+    );
+}
+
+#[test]
+fn rust_param_origin_unknown_no_import() {
+    let src = "fn handle(n: SomeType) {}\n";
+    let m = parse_rust(src);
+    let tr = &m.functions[0].parameter_types[0];
+    assert_eq!(tr.origin, cha_core::TypeOrigin::Unknown);
+}
+
+#[test]
+fn rust_param_origin_group_use() {
+    let src = "use tree_sitter::{Node, Parser};\nfn handle(n: &Node, p: &Parser) {}\n";
+    let m = parse_rust(src);
+    assert_eq!(
+        m.functions[0].parameter_types[0].origin,
+        cha_core::TypeOrigin::External("tree_sitter".into())
+    );
+    assert_eq!(
+        m.functions[0].parameter_types[1].origin,
+        cha_core::TypeOrigin::External("tree_sitter".into())
+    );
+}
+
+fn parse_ts(content: &str) -> cha_core::SourceModel {
+    use std::path::PathBuf;
+    let file = cha_core::SourceFile::new(PathBuf::from("test.ts"), content.into());
+    parse_file(&file).unwrap()
+}
+
+#[test]
+fn ts_param_origin_external() {
+    let src = "import { Foo } from 'pkg';\nfunction handle(x: Foo): void {}\n";
+    let m = parse_ts(src);
+    let tr = &m.functions[0].parameter_types[0];
+    assert_eq!(tr.name, "Foo");
+    assert_eq!(tr.origin, cha_core::TypeOrigin::External("pkg".into()));
+}
+
+#[test]
+fn ts_param_origin_local_relative() {
+    let src = "import { Helper } from './helper';\nfunction handle(h: Helper): void {}\n";
+    let m = parse_ts(src);
+    assert_eq!(
+        m.functions[0].parameter_types[0].origin,
+        cha_core::TypeOrigin::Local
+    );
+}
+
+fn parse_py(content: &str) -> cha_core::SourceModel {
+    use std::path::PathBuf;
+    let file = cha_core::SourceFile::new(PathBuf::from("test.py"), content.into());
+    parse_file(&file).unwrap()
+}
+
+#[test]
+fn py_param_origin_external() {
+    let src = "from pydantic import BaseModel\n\ndef handle(m: BaseModel) -> None:\n    pass\n";
+    let m = parse_py(src);
+    let tr = &m.functions[0].parameter_types[0];
+    assert_eq!(tr.origin, cha_core::TypeOrigin::External("pydantic".into()));
+}
+
+#[test]
+fn py_param_origin_stdlib_primitive() {
+    let src = "from typing import List\n\ndef handle(xs: List) -> None:\n    pass\n";
+    let m = parse_py(src);
+    assert_eq!(
+        m.functions[0].parameter_types[0].origin,
+        cha_core::TypeOrigin::Primitive
+    );
+}
+
+#[test]
+fn py_param_origin_relative_local() {
+    let src = "from .models import User\n\ndef handle(u: User) -> None:\n    pass\n";
+    let m = parse_py(src);
+    assert_eq!(
+        m.functions[0].parameter_types[0].origin,
+        cha_core::TypeOrigin::Local
+    );
+}
+
+fn parse_go(content: &str) -> cha_core::SourceModel {
+    use std::path::PathBuf;
+    let file = cha_core::SourceFile::new(PathBuf::from("test.go"), content.into());
+    parse_file(&file).unwrap()
+}
+
+#[test]
+fn go_param_origin_builtin() {
+    let src = "package p\n\nfunc handle(x int) {}\n";
+    let m = parse_go(src);
+    assert_eq!(
+        m.functions[0].parameter_types[0].origin,
+        cha_core::TypeOrigin::Primitive
+    );
+}
+
+#[test]
+fn go_param_origin_stdlib() {
+    let src = "package p\n\nimport \"context\"\n\nfunc handle(ctx context.Context) {}\n";
+    let m = parse_go(src);
+    let tr = &m.functions[0].parameter_types[0];
+    assert_eq!(tr.origin, cha_core::TypeOrigin::Primitive);
+    assert_eq!(tr.name, "Context");
+}
+
+#[test]
+fn go_param_origin_third_party() {
+    let src = "package p\n\nimport \"github.com/foo/bar\"\n\nfunc handle(x bar.Thing) {}\n";
+    let m = parse_go(src);
+    let tr = &m.functions[0].parameter_types[0];
+    assert_eq!(
+        tr.origin,
+        cha_core::TypeOrigin::External("github.com/foo/bar".into())
+    );
+    assert_eq!(tr.name, "Thing");
+}
+
+#[test]
+fn go_param_origin_pointer() {
+    let src = "package p\n\nimport \"github.com/foo/bar\"\n\nfunc handle(x *bar.Thing) {}\n";
+    let m = parse_go(src);
+    assert_eq!(
+        m.functions[0].parameter_types[0].origin,
+        cha_core::TypeOrigin::External("github.com/foo/bar".into())
+    );
+}
+
+fn parse_c(content: &str) -> cha_core::SourceModel {
+    use std::path::PathBuf;
+    let file = cha_core::SourceFile::new(PathBuf::from("test.c"), content.into());
+    parse_file(&file).unwrap()
+}
+
+#[test]
+fn c_param_origin_primitive() {
+    let src = "void handle(int x, size_t y) { }\n";
+    let m = parse_c(src);
+    assert_eq!(
+        m.functions[0].parameter_types[0].origin,
+        cha_core::TypeOrigin::Primitive
+    );
+    assert_eq!(
+        m.functions[0].parameter_types[1].origin,
+        cha_core::TypeOrigin::Primitive
+    );
+}
+
+#[test]
+fn c_param_origin_unknown_struct() {
+    let src = "void handle(cmark_node_t *n) { }\n";
+    let m = parse_c(src);
+    let tr = &m.functions[0].parameter_types[0];
+    // Without project-wide header parsing, struct types stay Unknown —
+    // boundary_leak treats them as potentially external (conservative).
+    assert_eq!(tr.origin, cha_core::TypeOrigin::Unknown);
+}

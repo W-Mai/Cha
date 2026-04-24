@@ -24,7 +24,15 @@ impl LanguageParser for GolangParser {
         let mut classes = Vec::new();
         let mut imports = Vec::new();
 
-        collect_top_level(root, src, &mut functions, &mut classes, &mut imports);
+        let imports_map = crate::golang_imports::build(root, src, &file.path);
+        collect_top_level(
+            root,
+            src,
+            &imports_map,
+            &mut functions,
+            &mut classes,
+            &mut imports,
+        );
 
         Some(SourceModel {
             language: "go".into(),
@@ -41,6 +49,7 @@ impl LanguageParser for GolangParser {
 fn collect_top_level(
     root: Node,
     src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
     functions: &mut Vec<FunctionInfo>,
     classes: &mut Vec<ClassInfo>,
     imports: &mut Vec<ImportInfo>,
@@ -49,7 +58,7 @@ fn collect_top_level(
     for child in root.children(&mut cursor) {
         match child.kind() {
             "function_declaration" | "method_declaration" => {
-                if let Some(f) = extract_function(child, src) {
+                if let Some(f) = extract_function(child, src, imports_map) {
                     functions.push(f);
                 }
             }
@@ -60,7 +69,11 @@ fn collect_top_level(
     }
 }
 
-fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
+fn extract_function(
+    node: Node,
+    src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
+) -> Option<FunctionInfo> {
     let name_node = node.child_by_field_name("name")?;
     let name = node_text(name_node, src).to_string();
     let name_col = name_node.start_position().column;
@@ -70,7 +83,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
     let body = node.child_by_field_name("body");
     let params = node.child_by_field_name("parameters");
     let (param_count, param_types) = params
-        .map(|p| extract_params(p, src))
+        .map(|p| extract_params(p, src, imports_map))
         .unwrap_or((0, vec![]));
     let is_exported = name.starts_with(|c: char| c.is_uppercase());
 
@@ -184,7 +197,11 @@ fn collect_imports(node: Node, src: &[u8], imports: &mut Vec<ImportInfo>) {
     });
 }
 
-fn extract_params(params: Node, src: &[u8]) -> (usize, Vec<cha_core::TypeRef>) {
+fn extract_params(
+    params: Node,
+    src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
+) -> (usize, Vec<cha_core::TypeRef>) {
     let mut count = 0;
     let mut types = Vec::new();
     let mut cursor = params.walk();
@@ -203,11 +220,71 @@ fn extract_params(params: Node, src: &[u8]) -> (usize, Vec<cha_core::TypeRef>) {
                 .max(1);
             for _ in 0..names {
                 count += 1;
-                types.push(crate::type_ref::unknown(raw.clone()));
+                types.push(resolve_go_type(&raw, imports_map));
             }
         }
     }
     (count, types)
+}
+
+/// Go types are `pkg.TypeName` or `*pkg.TypeName`; the importable name in
+/// ImportsMap is the package alias. Split on `.`, look up the first segment.
+fn resolve_go_type(raw: &str, imports_map: &crate::type_ref::ImportsMap) -> cha_core::TypeRef {
+    // Strip decorations to get the inner `pkg.Type` or `Type`.
+    let inner = raw.trim_start_matches('*').trim_start_matches('[').trim();
+    let inner = inner.trim_start_matches(']').trim();
+    let mut parts = inner.splitn(2, '.');
+    let first = parts.next().unwrap_or(inner);
+    let second = parts.next();
+    let (short_name, origin) = if let Some(type_part) = second {
+        let origin = imports_map
+            .get(first)
+            .cloned()
+            .unwrap_or(cha_core::TypeOrigin::Unknown);
+        (type_part.to_string(), origin)
+    } else {
+        // No `.` → builtin type (string, int, bool, etc.) or locally-declared
+        // type. Treat builtin primitives accordingly; everything else → Local.
+        let origin = if is_go_builtin(inner) {
+            cha_core::TypeOrigin::Primitive
+        } else {
+            cha_core::TypeOrigin::Local
+        };
+        (inner.to_string(), origin)
+    };
+    cha_core::TypeRef {
+        name: short_name,
+        raw: raw.to_string(),
+        origin,
+    }
+}
+
+fn is_go_builtin(name: &str) -> bool {
+    matches!(
+        name,
+        "bool"
+            | "byte"
+            | "complex64"
+            | "complex128"
+            | "error"
+            | "float32"
+            | "float64"
+            | "int"
+            | "int8"
+            | "int16"
+            | "int32"
+            | "int64"
+            | "rune"
+            | "string"
+            | "uint"
+            | "uint8"
+            | "uint16"
+            | "uint32"
+            | "uint64"
+            | "uintptr"
+            | "any"
+            | "interface{}"
+    )
 }
 
 fn count_complexity(node: Node) -> usize {

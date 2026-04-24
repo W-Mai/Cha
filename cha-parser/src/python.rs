@@ -26,7 +26,15 @@ impl LanguageParser for PythonParser {
         let mut classes = Vec::new();
         let mut imports = Vec::new();
 
-        collect_top_level(root, src, &mut functions, &mut classes, &mut imports);
+        let imports_map = crate::python_imports::build(root, src);
+        collect_top_level(
+            root,
+            src,
+            &imports_map,
+            &mut functions,
+            &mut classes,
+            &mut imports,
+        );
 
         Some(SourceModel {
             language: "python".into(),
@@ -43,17 +51,18 @@ impl LanguageParser for PythonParser {
 fn push_definition(
     node: Node,
     src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
     functions: &mut Vec<FunctionInfo>,
     classes: &mut Vec<ClassInfo>,
 ) {
     match node.kind() {
         "function_definition" => {
-            if let Some(f) = extract_function(node, src) {
+            if let Some(f) = extract_function(node, src, imports_map) {
                 functions.push(f);
             }
         }
         "class_definition" => {
-            if let Some(c) = extract_class(node, src, functions) {
+            if let Some(c) = extract_class(node, src, imports_map, functions) {
                 classes.push(c);
             }
         }
@@ -64,6 +73,7 @@ fn push_definition(
 fn collect_top_level(
     node: Node,
     src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
     functions: &mut Vec<FunctionInfo>,
     classes: &mut Vec<ClassInfo>,
     imports: &mut Vec<ImportInfo>,
@@ -72,14 +82,14 @@ fn collect_top_level(
     for child in node.children(&mut cursor) {
         match child.kind() {
             "function_definition" | "class_definition" => {
-                push_definition(child, src, functions, classes);
+                push_definition(child, src, imports_map, functions, classes);
             }
             "import_statement" => collect_import(child, src, imports),
             "import_from_statement" => collect_import_from(child, src, imports),
             "decorated_definition" => {
                 let mut inner = child.walk();
                 for c in child.children(&mut inner) {
-                    push_definition(c, src, functions, classes);
+                    push_definition(c, src, imports_map, functions, classes);
                 }
             }
             _ => {}
@@ -87,7 +97,11 @@ fn collect_top_level(
     }
 }
 
-fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
+fn extract_function(
+    node: Node,
+    src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
+) -> Option<FunctionInfo> {
     let name_node = node.child_by_field_name("name")?;
     let name = node_text(name_node, src).to_string();
     let name_col = name_node.start_position().column;
@@ -97,7 +111,7 @@ fn extract_function(node: Node, src: &[u8]) -> Option<FunctionInfo> {
     let body = node.child_by_field_name("body");
     let params = node.child_by_field_name("parameters");
     let (param_count, param_types) = params
-        .map(|p| extract_params(p, src))
+        .map(|p| extract_params(p, src, imports_map))
         .unwrap_or((0, vec![]));
 
     Some(FunctionInfo {
@@ -198,7 +212,11 @@ struct ClassScan {
     has_notify_method: bool,
 }
 
-fn scan_class_methods(body: Node, src: &[u8]) -> ClassScan {
+fn scan_class_methods(
+    body: Node,
+    src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
+) -> ClassScan {
     let mut s = ClassScan {
         methods: Vec::new(),
         field_names: Vec::new(),
@@ -213,7 +231,7 @@ fn scan_class_methods(body: Node, src: &[u8]) -> ClassScan {
         let Some(func_node) = find_method_def(child) else {
             continue;
         };
-        let Some(mut f) = extract_function(func_node, src) else {
+        let Some(mut f) = extract_function(func_node, src, imports_map) else {
             continue;
         };
         if f.is_delegating {
@@ -236,6 +254,7 @@ fn scan_class_methods(body: Node, src: &[u8]) -> ClassScan {
 fn extract_class(
     node: Node,
     src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
     top_functions: &mut Vec<FunctionInfo>,
 ) -> Option<ClassInfo> {
     let name_node = node.child_by_field_name("name")?;
@@ -245,7 +264,7 @@ fn extract_class(
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body")?;
-    let s = scan_class_methods(body, src);
+    let s = scan_class_methods(body, src, imports_map);
     let method_count = s.methods.len();
     top_functions.extend(s.methods);
 
@@ -551,14 +570,18 @@ fn param_name_and_type(child: Node, src: &[u8]) -> Option<(String, String)> {
     }
 }
 
-fn extract_params(params_node: Node, src: &[u8]) -> (usize, Vec<cha_core::TypeRef>) {
+fn extract_params(
+    params_node: Node,
+    src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
+) -> (usize, Vec<cha_core::TypeRef>) {
     let mut count = 0usize;
     let mut types = Vec::new();
     let mut cursor = params_node.walk();
     for child in params_node.children(&mut cursor) {
         if let Some((_name, ty)) = param_name_and_type(child, src) {
             count += 1;
-            types.push(crate::type_ref::unknown(ty));
+            types.push(crate::type_ref::resolve(ty, imports_map));
         }
     }
     (count, types)
