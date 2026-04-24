@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 
 mod analyze;
+mod boundary_leak;
 mod calibrate;
 mod deps;
 mod diff;

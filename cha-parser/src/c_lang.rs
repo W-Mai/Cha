@@ -161,34 +161,86 @@ fn extract_typedef_struct(
     classes: &mut Vec<ClassInfo>,
     type_aliases: &mut Vec<(String, String)>,
 ) {
+    let found_struct = register_typedef_struct_children(node, src, classes, type_aliases);
+    if !found_struct {
+        register_simple_typedef(node, src, type_aliases);
+    }
+}
+
+fn register_typedef_struct_children(
+    node: Node,
+    src: &[u8],
+    classes: &mut Vec<ClassInfo>,
+    type_aliases: &mut Vec<(String, String)>,
+) -> bool {
+    let mut found_struct = false;
     let mut inner = node.walk();
     for sub in node.children(&mut inner) {
         if sub.kind() != "struct_specifier" && sub.kind() != "class_specifier" {
             continue;
         }
-        let Some(mut c) = extract_class(sub, src) else {
-            continue;
-        };
-        let original_name = c.name.clone();
-        if c.name.is_empty()
-            && let Some(decl) = node.child_by_field_name("declarator")
-        {
-            c.name = node_text(decl, src).to_string();
-        }
-        // Record typedef alias: e.g. typedef struct _X { ... } X;
-        // original_name = "_X", c.name might be updated to "X" if it was empty
-        if !original_name.is_empty()
-            && let Some(decl) = node.child_by_field_name("declarator")
-        {
-            let alias = node_text(decl, src).to_string();
-            if alias != original_name {
-                type_aliases.push((alias, original_name));
-            }
-        }
-        if !c.name.is_empty() {
-            classes.push(c);
+        found_struct = true;
+        register_single_typedef_struct(node, sub, src, classes, type_aliases);
+    }
+    found_struct
+}
+
+fn register_single_typedef_struct(
+    typedef: Node,
+    sub: Node,
+    src: &[u8],
+    classes: &mut Vec<ClassInfo>,
+    type_aliases: &mut Vec<(String, String)>,
+) {
+    let Some(mut c) = extract_class(sub, src) else {
+        return;
+    };
+    let original_name = c.name.clone();
+    if c.name.is_empty()
+        && let Some(decl) = typedef.child_by_field_name("declarator")
+    {
+        c.name = node_text(decl, src).to_string();
+    }
+    if !original_name.is_empty()
+        && let Some(decl) = typedef.child_by_field_name("declarator")
+    {
+        let alias = node_text(decl, src).to_string();
+        if alias != original_name {
+            type_aliases.push((alias, original_name));
         }
     }
+    if !c.name.is_empty() {
+        classes.push(c);
+    }
+}
+
+/// `typedef uint32_t lv_part_t;` — simple alias, no struct body.
+fn register_simple_typedef(node: Node, src: &[u8], type_aliases: &mut Vec<(String, String)>) {
+    let alias = extract_typedef_alias(node, src);
+    let original = node
+        .child_by_field_name("type")
+        .map(|t| node_text(t, src).trim().to_string())
+        .unwrap_or_default();
+    if !alias.is_empty() && alias != original {
+        type_aliases.push((alias, original));
+    }
+}
+
+/// Find the new type name in a `typedef <something> <name>;`. Tree-sitter-c
+/// sometimes puts the name behind the `declarator` field; other grammars
+/// (typedef of enum/union without body) emit a plain `type_identifier` as
+/// a top-level child. Try the field first, then the first type_identifier.
+fn extract_typedef_alias(node: Node, src: &[u8]) -> String {
+    if let Some(decl) = node.child_by_field_name("declarator") {
+        return node_text(decl, src).trim().to_string();
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == "type_identifier" {
+            return node_text(child, src).trim().to_string();
+        }
+    }
+    String::new()
 }
 
 /// Detect `class MACRO ClassName { ... };` misparse.

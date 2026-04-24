@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`abstraction_boundary_leak`** post-analysis finding — detects dispatcher functions that fan out to ≥ 3 sibling callbacks which all share the same non-local type in corresponding parameter positions. Flagged as a missing Anti-Corruption Layer. lvgl scan shows 11/13 true-positive rate identifying GLAD/SDL/STB/Win32 leaks.
+- `FunctionInfo.parameter_types` now carries `TypeRef { name, raw, origin }` where `origin` is `Local | External(module) | Primitive | Unknown`. Each parser resolves origins from file imports: Rust `use_declaration`, TS `import_statement`, Python `import` / `from`, Go `import_spec` with `go.mod` module root lookup, C/C++ primitive seeding.
+- Parser normalisation helpers in `cha-parser/src/type_ref.rs` unwrap `&'a mut Vec<Option<T>>`, `[]T`, `List[T]`, `pkg.Type` etc. down to the innermost identifier for import lookup.
+- Universal-primitive fallback in resolve (String, PathBuf, HashMap, int, boolean, etc.) so common prelude types without explicit imports don't trip the detector.
+
+### Changed
+- `FunctionInfo.parameter_types` type changed from `Vec<String>` to `Vec<TypeRef>` — **breaking change for WASM plugins and cached SourceModels**. WIT schema adds `type-ref` record and `type-origin` variant. Rebuilding against the new SDK picks up generated types automatically.
+- Parsers no longer sort `parameter_types` — declaration order is preserved, fixing latent `.first()`-based C OOP heuristics that silently depended on alphabetical ordering. `data_clumps` plugin now sorts its own key locally.
+
 ## [1.7.1] - 2026-04-24
 
 ### Fixed

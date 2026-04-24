@@ -81,6 +81,10 @@ pub(crate) const POST_ANALYSIS_PASSES: &[(&str, &str)] = &[
         "knowledge_distribution",
         "File has only one contributor (bus factor)",
     ),
+    (
+        "abstraction_boundary_leak",
+        "Callback group shares an external type — missing DTO layer",
+    ),
 ];
 
 fn run_post_analysis(
@@ -102,6 +106,9 @@ fn run_post_analysis(
     }
     if pass("knowledge_distribution") {
         findings.extend(detect_bus_factor(files, cwd));
+    }
+    if pass("abstraction_boundary_leak") {
+        findings.extend(crate::boundary_leak::detect(files, cwd, cache));
     }
     findings
 }

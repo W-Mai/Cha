@@ -204,7 +204,7 @@ fn aggregate_to_dirs(edges: Vec<Edge>) -> Vec<Edge> {
 
 // ── Class graph ──
 
-fn parse_all_models(
+pub(crate) fn parse_all_models(
     files: &[PathBuf],
     cwd: &std::path::Path,
     cache: &mut cha_core::ProjectCache,
