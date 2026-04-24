@@ -2,6 +2,7 @@ mod c_lang;
 mod golang;
 mod python;
 mod rust_lang;
+mod type_ref;
 mod typescript;
 
 pub use c_lang::{CParser, CppParser};

@@ -69,6 +69,33 @@ pub fn import(source: &str, line: usize) -> ImportInfo {
     }
 }
 
+/// Shorthand: TypeRef carrying `name`, raw same as name, origin Unknown.
+pub fn tref(name: &str) -> TypeRef {
+    TypeRef {
+        name: name.into(),
+        raw: name.into(),
+        origin: TypeOrigin::Unknown,
+    }
+}
+
+/// TypeRef for a known primitive.
+pub fn tref_prim(name: &str) -> TypeRef {
+    TypeRef {
+        name: name.into(),
+        raw: name.into(),
+        origin: TypeOrigin::Primitive,
+    }
+}
+
+/// TypeRef for an external module type.
+pub fn tref_ext(name: &str, module: &str) -> TypeRef {
+    TypeRef {
+        name: name.into(),
+        raw: format!("{module}::{name}"),
+        origin: TypeOrigin::External(module.into()),
+    }
+}
+
 pub fn analyze(plugin: &dyn Plugin, model: &SourceModel) -> Vec<Finding> {
     let file = make_file();
     let ctx = AnalysisContext { file: &file, model };

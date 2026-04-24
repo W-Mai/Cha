@@ -29,6 +29,28 @@ interface types {
         name: option<string>,
     }
 
+    /// Where a referenced type is declared.
+    variant type-origin {
+        /// Declared inside the project.
+        project-local,
+        /// Imported from external module / crate / package (name if known).
+        external(string),
+        /// Built-in primitive / standard library scalar.
+        primitive,
+        /// Could not be resolved.
+        unknown,
+    }
+
+    /// A function parameter or return type, with resolved origin.
+    record type-ref {
+        /// Innermost type identifier after stripping refs/generics/containers.
+        name: string,
+        /// Original source text as written.
+        raw: string,
+        /// Where the type is declared.
+        origin: type-origin,
+    }
+
     /// A single finding.
     record finding {
         smell-name: string,
@@ -51,7 +73,7 @@ interface types {
         line-count: u32,
         complexity: u32,
         parameter-count: u32,
-        parameter-types: list<string>,
+        parameter-types: list<type-ref>,
         chain-depth: u32,
         switch-arms: u32,
         external-refs: list<string>,

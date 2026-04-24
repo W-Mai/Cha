@@ -322,7 +322,7 @@ fn count_parameters(node: Node) -> usize {
         .count()
 }
 
-fn extract_param_types(node: Node, src: &[u8]) -> Vec<String> {
+fn extract_param_types(node: Node, src: &[u8]) -> Vec<cha_core::TypeRef> {
     let params = match node.child_by_field_name("parameters") {
         Some(p) => p,
         None => return vec![],
@@ -331,10 +331,14 @@ fn extract_param_types(node: Node, src: &[u8]) -> Vec<String> {
     let mut cursor = params.walk();
     for child in params.children(&mut cursor) {
         if let Some(ann) = child.child_by_field_name("type") {
-            types.push(node_text(ann, src).to_string());
+            // TS type_annotation nodes include the leading ':'; strip it.
+            let raw = node_text(ann, src)
+                .trim_start_matches(':')
+                .trim()
+                .to_string();
+            types.push(crate::type_ref::unknown(raw));
         }
     }
-    types.sort();
     types
 }
 

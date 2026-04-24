@@ -158,7 +158,20 @@ fn convert_functions(funcs: &[crate::model::FunctionInfo]) -> Vec<wit::FunctionI
         line_count: f.line_count as u32,
         complexity: f.complexity as u32,
         parameter_count: f.parameter_count as u32,
-        parameter_types: f.parameter_types.clone(),
+        parameter_types: f
+            .parameter_types
+            .iter()
+            .map(|t| wit::TypeRef {
+                name: t.name.clone(),
+                raw: t.raw.clone(),
+                origin: match &t.origin {
+                    crate::model::TypeOrigin::Local => wit::TypeOrigin::ProjectLocal,
+                    crate::model::TypeOrigin::External(m) => wit::TypeOrigin::External(m.clone()),
+                    crate::model::TypeOrigin::Primitive => wit::TypeOrigin::Primitive,
+                    crate::model::TypeOrigin::Unknown => wit::TypeOrigin::Unknown,
+                },
+            })
+            .collect(),
         chain_depth: f.chain_depth as u32,
         switch_arms: f.switch_arms as u32,
         external_refs: f.external_refs.clone(),

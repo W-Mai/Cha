@@ -195,8 +195,8 @@ fn collect_c_structs_with_methods(
 fn has_pointer_param_method(funcs: &[&cha_core::FunctionInfo], name: &str, alias: &str) -> bool {
     funcs.iter().any(|f| {
         f.parameter_types.first().is_some_and(|t| {
-            t.contains('*') && {
-                let base = t.split('*').next().unwrap_or("").trim();
+            t.raw.contains('*') && {
+                let base = t.raw.split('*').next().unwrap_or("").trim();
                 base == name || base == alias
             }
         })

@@ -6,7 +6,7 @@ use common::*;
 #[test]
 fn primitive_obsession_triggers() {
     let mut f = func("prim", 10, 1, false);
-    f.parameter_types = vec!["i32".into(), "String".into(), "bool".into()];
+    f.parameter_types = vec![tref("i32"), tref("String"), tref("bool")];
     let model = make_model(vec![f], vec![], vec![], 10);
     let findings = analyze(&PrimitiveObsessionAnalyzer::default(), &model);
     assert_eq!(findings.len(), 1);
@@ -16,7 +16,7 @@ fn primitive_obsession_triggers() {
 #[test]
 fn primitive_obsession_mixed_types() {
     let mut f = func("mixed", 10, 1, false);
-    f.parameter_types = vec!["i32".into(), "MyStruct".into(), "bool".into()];
+    f.parameter_types = vec![tref("i32"), tref("MyStruct"), tref("bool")];
     let model = make_model(vec![f], vec![], vec![], 10);
     let findings = analyze(&PrimitiveObsessionAnalyzer::default(), &model);
     assert!(findings.is_empty());
@@ -25,7 +25,7 @@ fn primitive_obsession_mixed_types() {
 #[test]
 fn primitive_obsession_too_few_params() {
     let mut f = func("few", 10, 1, false);
-    f.parameter_types = vec!["i32".into(), "bool".into()];
+    f.parameter_types = vec![tref("i32"), tref("bool")];
     let model = make_model(vec![f], vec![], vec![], 10);
     let findings = analyze(&PrimitiveObsessionAnalyzer::default(), &model);
     assert!(findings.is_empty());

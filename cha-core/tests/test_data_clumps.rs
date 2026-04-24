@@ -5,7 +5,7 @@ use common::*;
 
 #[test]
 fn data_clumps_triggers() {
-    let sig = vec!["String".into(), "i32".into(), "bool".into()];
+    let sig = vec![tref("String"), tref("i32"), tref("bool")];
     let mk = |name| {
         let mut f = func(name, 10, 1, false);
         f.parameter_types = sig.clone();
@@ -20,11 +20,11 @@ fn data_clumps_triggers() {
 #[test]
 fn data_clumps_different_sigs() {
     let mut f1 = func("a", 10, 1, false);
-    f1.parameter_types = vec!["i32".into(), "bool".into(), "String".into()];
+    f1.parameter_types = vec![tref("i32"), tref("bool"), tref("String")];
     let mut f2 = func("b", 10, 1, false);
-    f2.parameter_types = vec!["f64".into(), "Vec".into(), "Option".into()];
+    f2.parameter_types = vec![tref("f64"), tref("Vec"), tref("Option")];
     let mut f3 = func("c", 10, 1, false);
-    f3.parameter_types = vec!["u8".into(), "u16".into(), "u32".into()];
+    f3.parameter_types = vec![tref("u8"), tref("u16"), tref("u32")];
     let model = make_model(vec![f1, f2, f3], vec![], vec![], 30);
     let findings = analyze(&DataClumpsAnalyzer::default(), &model);
     assert!(findings.is_empty());
@@ -32,7 +32,7 @@ fn data_clumps_different_sigs() {
 
 #[test]
 fn data_clumps_below_min_occurrences() {
-    let sig = vec!["i32".into(), "bool".into(), "String".into()];
+    let sig = vec![tref("i32"), tref("bool"), tref("String")];
     let mk = |name| {
         let mut f = func(name, 10, 1, false);
         f.parameter_types = sig.clone();

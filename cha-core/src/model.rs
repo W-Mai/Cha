@@ -1,3 +1,39 @@
+/// Where a referenced type is defined, from the perspective of the file that
+/// uses it. Used by abstraction-boundary analyses to distinguish "own domain"
+/// types from "pulled in from a library" types.
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind", content = "module")]
+pub enum TypeOrigin {
+    /// Declared inside the project (resolved via project-wide type registry
+    /// or an import pointing at a project-local path).
+    Local,
+    /// Imported from an external module / crate / package. Carries the module
+    /// name if known (Rust crate path root, Go module path, npm package name,
+    /// C header filename without extension). May be empty if only structure
+    /// says "external" (e.g. `#include <...>` without the header name).
+    External(String),
+    /// Built-in primitive / standard library scalar (int, bool, &str, char…).
+    Primitive,
+    /// Could not be resolved. Detection treats this as potentially external
+    /// but with lower confidence.
+    #[default]
+    Unknown,
+}
+
+/// A function parameter's (or return value's) type, with resolved origin.
+/// Produced by parsers after combining AST type text with the file's imports.
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub struct TypeRef {
+    /// Innermost identifier after stripping references, generics, containers.
+    /// e.g. `&mut Vec<tree_sitter::Node>` → `"Node"`.
+    pub name: String,
+    /// Original source text as written, for messages and debugging.
+    /// e.g. `"&mut Vec<tree_sitter::Node>"`.
+    pub raw: String,
+    /// Where the type is declared.
+    pub origin: TypeOrigin,
+}
+
 /// Extracted function info from AST.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct FunctionInfo {
@@ -25,8 +61,9 @@ pub struct FunctionInfo {
     pub switch_arms: usize,
     /// Whether this function only delegates to another object's method (for Middle Man).
     pub is_delegating: bool,
-    /// Sorted parameter type names (for Data Clumps / Primitive Obsession).
-    pub parameter_types: Vec<String>,
+    /// Parameter types **in declaration order**, each resolved to a TypeRef.
+    /// Preserves position (first param = index 0) so positional analyses work.
+    pub parameter_types: Vec<TypeRef>,
     /// Number of comment lines in the function body.
     pub comment_lines: usize,
     /// Field names referenced in this function body (for Temporary Field).

@@ -184,13 +184,13 @@ fn collect_imports(node: Node, src: &[u8], imports: &mut Vec<ImportInfo>) {
     });
 }
 
-fn extract_params(params: Node, src: &[u8]) -> (usize, Vec<String>) {
+fn extract_params(params: Node, src: &[u8]) -> (usize, Vec<cha_core::TypeRef>) {
     let mut count = 0;
     let mut types = Vec::new();
     let mut cursor = params.walk();
     for child in params.children(&mut cursor) {
         if child.kind() == "parameter_declaration" {
-            let ty = child
+            let raw = child
                 .child_by_field_name("type")
                 .map(|t| node_text(t, src).to_string())
                 .unwrap_or_else(|| "any".into());
@@ -203,7 +203,7 @@ fn extract_params(params: Node, src: &[u8]) -> (usize, Vec<String>) {
                 .max(1);
             for _ in 0..names {
                 count += 1;
-                types.push(ty.clone());
+                types.push(crate::type_ref::unknown(raw.clone()));
             }
         }
     }

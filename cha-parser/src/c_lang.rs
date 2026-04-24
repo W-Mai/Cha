@@ -88,7 +88,8 @@ fn associate_methods(functions: &[FunctionInfo], classes: &mut [ClassInfo]) {
             .iter()
             .filter(|f| {
                 f.parameter_types.first().is_some_and(|t| {
-                    t.contains('*') && t.split('*').next().unwrap_or("").trim() == class.name
+                    t.raw.contains('*')
+                        && t.raw.split('*').next().unwrap_or("").trim() == class.name
                 })
             })
             .count();
@@ -297,7 +298,7 @@ fn find_func_name_node(declarator: Node) -> Option<Node> {
         .and_then(find_func_name_node)
 }
 
-fn extract_params(declarator: Node, src: &[u8]) -> (usize, Vec<String>) {
+fn extract_params(declarator: Node, src: &[u8]) -> (usize, Vec<cha_core::TypeRef>) {
     let params = match declarator.child_by_field_name("parameters") {
         Some(p) => p,
         None => return (0, vec![]),
@@ -315,7 +316,8 @@ fn extract_params(declarator: Node, src: &[u8]) -> (usize, Vec<String>) {
             let is_ptr = child
                 .child_by_field_name("declarator")
                 .is_some_and(|d| d.kind() == "pointer_declarator");
-            types.push(if is_ptr { format!("{base} *") } else { base });
+            let raw = if is_ptr { format!("{base} *") } else { base };
+            types.push(crate::type_ref::unknown(raw));
         }
     }
     (count, types)

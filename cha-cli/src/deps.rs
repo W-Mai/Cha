@@ -548,10 +548,10 @@ fn render_detail_classes(
                 .filter(|f| f.start_line >= c.start_line && f.end_line <= c.end_line)
                 .chain(funcs.iter().copied().filter(|f| {
                     f.parameter_types.first().is_some_and(|t| {
-                        if !t.contains('*') {
+                        if !t.raw.contains('*') {
                             return false;
                         }
-                        let base = t.split('*').next().unwrap_or("").trim();
+                        let base = t.raw.split('*').next().unwrap_or("").trim();
                         base == c.name || base == alias || ancestors.contains(base)
                     })
                 }))

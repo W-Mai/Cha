@@ -551,14 +551,14 @@ fn param_name_and_type(child: Node, src: &[u8]) -> Option<(String, String)> {
     }
 }
 
-fn extract_params(params_node: Node, src: &[u8]) -> (usize, Vec<String>) {
+fn extract_params(params_node: Node, src: &[u8]) -> (usize, Vec<cha_core::TypeRef>) {
     let mut count = 0usize;
     let mut types = Vec::new();
     let mut cursor = params_node.walk();
     for child in params_node.children(&mut cursor) {
         if let Some((_name, ty)) = param_name_and_type(child, src) {
             count += 1;
-            types.push(ty);
+            types.push(crate::type_ref::unknown(ty));
         }
     }
     (count, types)

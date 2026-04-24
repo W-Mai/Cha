@@ -31,13 +31,20 @@ impl Plugin for DataClumpsAnalyzer {
     }
 
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
-        // Build sorted param-type signatures per function
+        // Build a canonical param-type signature per function: the type names
+        // sorted alphabetically (we compare *sets*, not ordered tuples here,
+        // because data clumps is about recurring parameter *groups*).
         let sigs: Vec<_> = ctx
             .model
             .functions
             .iter()
             .filter(|f| f.parameter_types.len() >= self.min_clump_size)
-            .map(|f| (f, f.parameter_types.join(",")))
+            .map(|f| {
+                let mut names: Vec<&str> =
+                    f.parameter_types.iter().map(|t| t.name.as_str()).collect();
+                names.sort();
+                (f, names.join(","))
+            })
             .collect();
 
         // Count how many functions share the same type signature

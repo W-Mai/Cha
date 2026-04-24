@@ -42,7 +42,11 @@ impl Plugin for PrimitiveObsessionAnalyzer {
                 if total < self.min_params {
                     return None;
                 }
-                let prim_count = f.parameter_types.iter().filter(|t| is_primitive(t)).count();
+                let prim_count = f
+                    .parameter_types
+                    .iter()
+                    .filter(|t| is_primitive(&t.name))
+                    .count();
                 let ratio = prim_count as f64 / total as f64;
                 if ratio < self.primitive_ratio {
                     return None;
