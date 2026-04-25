@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-04-25
+
 ### Added
 - **`abstraction_boundary_leak`** post-analysis finding — detects dispatcher functions that fan out to ≥ 3 sibling callbacks which all share the same non-local type in corresponding parameter positions. Flagged as a missing Anti-Corruption Layer. lvgl scan shows 11/13 true-positive rate identifying GLAD/SDL/STB/Win32 leaks.
 - `FunctionInfo.parameter_types` now carries `TypeRef { name, raw, origin }` where `origin` is `Local | External(module) | Primitive | Unknown`. Each parser resolves origins from file imports: Rust `use_declaration`, TS `import_statement`, Python `import` / `from`, Go `import_spec` with `go.mod` module root lookup, C/C++ primitive seeding.
