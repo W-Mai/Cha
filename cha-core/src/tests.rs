@@ -234,3 +234,122 @@ proptest! {
         prop_assert!(parsed["version"].as_str() == Some("2.1.0"));
     }
 }
+
+// -- prioritize_findings: concrete ordering behaviour --
+
+#[cfg(test)]
+mod prioritize_tests {
+    use super::*;
+    use crate::{Location, Severity, SmellCategory, prioritize_findings};
+
+    fn finding_at(
+        path: &str,
+        smell: &str,
+        severity: Severity,
+        actual: Option<f64>,
+        threshold: Option<f64>,
+    ) -> Finding {
+        Finding {
+            smell_name: smell.into(),
+            category: SmellCategory::Bloaters,
+            severity,
+            location: Location {
+                path: PathBuf::from(path),
+                start_line: 1,
+                end_line: 1,
+                ..Default::default()
+            },
+            message: "test".into(),
+            actual_value: actual,
+            threshold,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn writes_risk_score_to_every_finding() {
+        let mut findings = vec![
+            finding_at("a.rs", "x", Severity::Hint, None, None),
+            finding_at("b.rs", "y", Severity::Warning, Some(20.0), Some(10.0)),
+        ];
+        prioritize_findings(&mut findings);
+        assert!(
+            findings.iter().all(|f| f.risk_score.is_some()),
+            "risk_score must be populated on every finding after prioritize"
+        );
+    }
+
+    #[test]
+    fn severity_outranks_overshoot_when_overshoot_is_tied() {
+        // Two findings at overshoot 1 × compound 1 — the error-severity one
+        // must come first.
+        let mut findings = vec![
+            finding_at("hint.rs", "a", Severity::Hint, None, None),
+            finding_at("error.rs", "b", Severity::Error, None, None),
+        ];
+        prioritize_findings(&mut findings);
+        assert_eq!(findings[0].severity, Severity::Error);
+        assert_eq!(findings[1].severity, Severity::Hint);
+    }
+
+    #[test]
+    fn big_overshoot_beats_bare_severity_bump() {
+        // Hint with actual/threshold = 5 → overshoot 5, score = 1×5 = 5.
+        // Warning with no measurement → overshoot 1, score = 2×1 = 2.
+        // The compound 5× problem should rank above the bare warning.
+        let mut findings = vec![
+            finding_at("warn.rs", "plain_warn", Severity::Warning, None, None),
+            finding_at(
+                "hint.rs",
+                "big_overshoot",
+                Severity::Hint,
+                Some(500.0),
+                Some(100.0),
+            ),
+        ];
+        prioritize_findings(&mut findings);
+        assert_eq!(
+            findings[0].smell_name, "big_overshoot",
+            "a 5× overshoot at hint severity should outrank a bare warning"
+        );
+    }
+
+    #[test]
+    fn hotspot_file_gets_compound_bonus() {
+        // Four findings on hot.rs (> 3 → compound 1.5×) vs one finding on
+        // cold.rs. With identical severity/overshoot the hot.rs findings
+        // should all sort ahead of cold.rs.
+        let mut findings = Vec::new();
+        for i in 0..4 {
+            findings.push(finding_at(
+                "hot.rs",
+                &format!("h{i}"),
+                Severity::Warning,
+                None,
+                None,
+            ));
+        }
+        findings.push(finding_at("cold.rs", "c0", Severity::Warning, None, None));
+        prioritize_findings(&mut findings);
+        assert_eq!(findings[4].location.path, PathBuf::from("cold.rs"));
+        assert!(
+            findings[0].risk_score.unwrap() > findings[4].risk_score.unwrap(),
+            "hotspot bonus should boost score"
+        );
+    }
+
+    #[test]
+    fn sort_is_idempotent() {
+        // Running prioritize twice must produce the same order.
+        let mut a = vec![
+            finding_at("a.rs", "x", Severity::Hint, Some(3.0), Some(1.0)),
+            finding_at("b.rs", "y", Severity::Warning, None, None),
+            finding_at("c.rs", "z", Severity::Error, None, None),
+        ];
+        prioritize_findings(&mut a);
+        let first_order: Vec<String> = a.iter().map(|f| f.smell_name.clone()).collect();
+        prioritize_findings(&mut a);
+        let second_order: Vec<String> = a.iter().map(|f| f.smell_name.clone()).collect();
+        assert_eq!(first_order, second_order);
+    }
+}
