@@ -89,6 +89,10 @@ pub(crate) const POST_ANALYSIS_PASSES: &[(&str, &str)] = &[
         "return_type_leak",
         "Callback group returns an external type — missing DTO layer",
     ),
+    (
+        "test_only_type_in_production",
+        "Production code references a type declared only in test files",
+    ),
 ];
 
 fn run_post_analysis(
@@ -111,9 +115,12 @@ fn run_post_analysis(
     if pass("knowledge_distribution") {
         findings.extend(detect_bus_factor(files, cwd));
     }
-    if pass("abstraction_boundary_leak") || pass("return_type_leak") {
-        // Single detection pass produces both smells; downstream smell-level
-        // filter discards whichever the user disabled.
+    if pass("abstraction_boundary_leak")
+        || pass("return_type_leak")
+        || pass("test_only_type_in_production")
+    {
+        // Single detection pass produces all three smells; downstream
+        // smell-level filter discards whichever the user disabled.
         findings.extend(crate::boundary_leak::detect(files, cwd, cache));
     }
     findings
