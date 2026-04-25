@@ -145,7 +145,8 @@ fn run_git_post_passes(
 }
 
 /// Passes that need parsed function signatures across the project (boundary
-/// leaks, anemic/intimacy/envy).
+/// leaks, anemic/intimacy/envy). The shared `ProjectIndex` parses every file
+/// once and exposes the derived maps all three cache-backed passes want.
 fn run_signature_post_passes(
     pass: &impl Fn(&str) -> bool,
     files: &[PathBuf],
@@ -157,18 +158,23 @@ fn run_signature_post_passes(
         || pass("return_type_leak")
         || pass("test_only_type_in_production")
     {
-        // Single detection pass produces all three smells; downstream
-        // smell-level filter discards whichever the user disabled.
+        // boundary_leak parses fresh (cache produced stale typedef aliases on
+        // lvgl; root cause TBD), so it still takes (files, cwd, cache).
         findings.extend(crate::boundary_leak::detect(files, cwd, cache));
     }
+    let needs_index = pass("anemic_domain_model") || pass("typed_intimacy") || pass("module_envy");
+    if !needs_index {
+        return findings;
+    }
+    let index = crate::project_index::ProjectIndex::parse(files, cwd, cache);
     if pass("anemic_domain_model") {
-        findings.extend(crate::anemic_domain::detect(files, cwd, cache));
+        findings.extend(crate::anemic_domain::detect(&index));
     }
     if pass("typed_intimacy") {
-        findings.extend(crate::typed_intimacy::detect(files, cwd, cache));
+        findings.extend(crate::typed_intimacy::detect(&index));
     }
     if pass("module_envy") {
-        findings.extend(crate::module_envy::detect(files, cwd, cache));
+        findings.extend(crate::module_envy::detect(&index));
     }
     findings
 }

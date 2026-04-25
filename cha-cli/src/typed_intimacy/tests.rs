@@ -58,7 +58,7 @@ fn flags_bidirectional_type_flow() {
         (PathBuf::from("src/order.rs"), order_file),
         (PathBuf::from("src/customer.rs"), customer_file),
     ];
-    let findings = detect_from_models(&models);
+    let findings = detect(&ProjectIndex::from_models(models));
     assert_eq!(
         findings.len(),
         2,
@@ -80,7 +80,7 @@ fn ignores_one_way_dependency() {
         (PathBuf::from("src/order.rs"), order_file),
         (PathBuf::from("src/customer.rs"), customer_file),
     ];
-    let findings = detect_from_models(&models);
+    let findings = detect(&ProjectIndex::from_models(models));
     assert!(findings.is_empty());
 }
 
@@ -93,7 +93,7 @@ fn ignores_same_file_self_use() {
         vec![class("Widget")],
     );
     let models = vec![(PathBuf::from("src/widget.rs"), only_file)];
-    let findings = detect_from_models(&models);
+    let findings = detect(&ProjectIndex::from_models(models));
     assert!(findings.is_empty());
 }
 
@@ -120,6 +120,6 @@ fn emits_per_pair_not_per_usage() {
         (PathBuf::from("src/a.rs"), a),
         (PathBuf::from("src/b.rs"), b),
     ];
-    let findings = detect_from_models(&models);
+    let findings = detect(&ProjectIndex::from_models(models));
     assert_eq!(findings.len(), 2);
 }

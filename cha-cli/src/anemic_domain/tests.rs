@@ -55,7 +55,7 @@ fn run_two_files(
         (PathBuf::from(class_path), model(vec![], vec![class])),
         (PathBuf::from(consumer_path), model(vec![consumer], vec![])),
     ];
-    detect_from_models(&models)
+    detect(&ProjectIndex::from_models(models))
 }
 
 #[test]
@@ -125,7 +125,7 @@ fn ignores_when_no_external_service_uses_class() {
     let klass = anemic_class("Config", 5);
     let class_model = model(vec![], vec![klass]);
     let models = vec![(PathBuf::from("src/config.rs"), class_model)];
-    let findings = detect_from_models(&models);
+    let findings = detect(&ProjectIndex::from_models(models));
     assert!(findings.is_empty());
 }
 
@@ -138,7 +138,7 @@ fn ignores_function_in_same_file_as_class() {
     let own_fn = func("process_user", vec![tref("User")]);
     let combined = model(vec![own_fn], vec![klass]);
     let models = vec![(PathBuf::from("src/user.rs"), combined)];
-    let findings = detect_from_models(&models);
+    let findings = detect(&ProjectIndex::from_models(models));
     assert!(findings.is_empty());
 }
 

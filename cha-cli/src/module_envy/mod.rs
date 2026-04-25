@@ -12,50 +12,23 @@ use std::path::{Path, PathBuf};
 
 use cha_core::{Finding, FunctionInfo, Location, Severity, SmellCategory};
 
+use crate::project_index::ProjectIndex;
+
 const SMELL: &str = "module_envy";
 const MIN_EXTERNAL_CALLS: usize = 3;
 const MIN_RATIO_OVER_LOCAL: f64 = 2.0;
 
-pub fn detect(
-    files: &[PathBuf],
-    cwd: &Path,
-    cache: &std::sync::Mutex<cha_core::ProjectCache>,
-) -> Vec<Finding> {
-    let models: Vec<(PathBuf, cha_core::SourceModel)> = files
-        .iter()
-        .filter_map(|p| {
-            let mut c = cache.lock().ok()?;
-            let (_, model) = crate::cached_parse(p, &mut c, cwd)?;
-            Some((p.clone(), model))
-        })
-        .collect();
-    detect_from_models(&models)
-}
-
-fn detect_from_models(models: &[(PathBuf, cha_core::SourceModel)]) -> Vec<Finding> {
-    let fn_home = build_function_home_index(models);
+pub fn detect(index: &ProjectIndex) -> Vec<Finding> {
+    let fn_home = index.function_home();
     let mut findings = Vec::new();
-    for (path, model) in models {
+    for (path, model) in index.models() {
         for f in &model.functions {
-            if let Some(finding) = check_envy(path, f, &fn_home) {
+            if let Some(finding) = check_envy(path, f, fn_home) {
                 findings.push(finding);
             }
         }
     }
     findings
-}
-
-/// Build function name → first declaring file index.
-fn build_function_home_index(
-    models: &[(PathBuf, cha_core::SourceModel)],
-) -> HashMap<String, PathBuf> {
-    let mut home: HashMap<String, PathBuf> = HashMap::new();
-    for (path, model) in models {
-        for f in &model.functions {
-            home.entry(f.name.clone()).or_insert_with(|| path.clone());
-        }
-    }
-    home
 }
 
 fn check_envy(

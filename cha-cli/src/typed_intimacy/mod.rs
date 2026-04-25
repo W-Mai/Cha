@@ -13,31 +13,17 @@ use std::path::{Path, PathBuf};
 
 use cha_core::{Finding, FunctionInfo, Location, Severity, SmellCategory};
 
+use crate::project_index::ProjectIndex;
+
 const SMELL: &str = "typed_intimacy";
 const MIN_TYPES_SHARED: usize = 1;
 
-/// Run the detector across all project models.
-pub fn detect(
-    files: &[PathBuf],
-    cwd: &Path,
-    cache: &std::sync::Mutex<cha_core::ProjectCache>,
-) -> Vec<Finding> {
-    let models: Vec<(PathBuf, cha_core::SourceModel)> = files
-        .iter()
-        .filter_map(|p| {
-            let mut c = cache.lock().ok()?;
-            let (_, model) = crate::cached_parse(p, &mut c, cwd)?;
-            Some((p.clone(), model))
-        })
-        .collect();
-    detect_from_models(&models)
-}
-
-fn detect_from_models(models: &[(PathBuf, cha_core::SourceModel)]) -> Vec<Finding> {
-    let class_home = build_class_home_index(models);
+pub fn detect(index: &ProjectIndex) -> Vec<Finding> {
+    let class_home = index.class_home();
+    let models = index.models();
     // For each file: set of other files whose classes it references in its
     // function signatures.
-    let uses_classes_of = build_usage_graph(models, &class_home);
+    let uses_classes_of = build_usage_graph(models, class_home);
 
     let mut pairs_reported: HashSet<(PathBuf, PathBuf)> = HashSet::new();
     let mut findings = Vec::new();
@@ -54,8 +40,8 @@ fn detect_from_models(models: &[(PathBuf, cha_core::SourceModel)]) -> Vec<Findin
                 continue;
             }
             let (shared_ab, shared_ba) = (
-                shared_type_names(models, path_a, path_b, &class_home),
-                shared_type_names(models, path_b, path_a, &class_home),
+                shared_type_names(models, path_a, path_b, class_home),
+                shared_type_names(models, path_b, path_a, class_home),
             );
             if shared_ab.len() < MIN_TYPES_SHARED || shared_ba.len() < MIN_TYPES_SHARED {
                 continue;
@@ -73,19 +59,6 @@ fn pair_key(a: &Path, b: &Path) -> (PathBuf, PathBuf) {
     } else {
         (b.to_path_buf(), a.to_path_buf())
     }
-}
-
-/// Map class/struct name → the file that declares it. First writer wins
-/// (namespacing collisions across files are rare enough to be tolerable).
-fn build_class_home_index(models: &[(PathBuf, cha_core::SourceModel)]) -> HashMap<String, PathBuf> {
-    let mut home: HashMap<String, PathBuf> = HashMap::new();
-    for (path, model) in models {
-        for class in &model.classes {
-            home.entry(class.name.clone())
-                .or_insert_with(|| path.clone());
-        }
-    }
-    home
 }
 
 /// For each file, compute the set of *other* files whose declared classes it

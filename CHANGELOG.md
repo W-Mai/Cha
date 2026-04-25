@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Internal: `cha-cli/src/project_index.rs` — shared `ProjectIndex` owns parsed models plus derived maps (function_home, class_home, project_type_names, function_by_name). `anemic_domain_model`, `typed_intimacy`, and `module_envy` build the index once per analyze call instead of each rebuilding their own copies. No behaviour change; behaviourally identical on self-analyze (371 findings before and after). Boundary_leak still parses fresh because of a stale-typedef cache bug not yet rooted out.
+
 ## [1.9.0] - 2026-04-25
 
 ### Added

@@ -11,30 +11,15 @@ use std::path::{Path, PathBuf};
 
 use cha_core::{ClassInfo, Finding, FunctionInfo, Location, Severity, SmellCategory};
 
+use crate::project_index::ProjectIndex;
+
 const SMELL: &str = "anemic_domain_model";
 const MIN_FIELDS: usize = 2;
 
-/// Run the detector across all project models.
-pub fn detect(
-    files: &[PathBuf],
-    cwd: &Path,
-    cache: &std::sync::Mutex<cha_core::ProjectCache>,
-) -> Vec<Finding> {
-    let models: Vec<(PathBuf, cha_core::SourceModel)> = files
-        .iter()
-        .filter_map(|p| {
-            let mut c = cache.lock().ok()?;
-            let (_, model) = crate::cached_parse(p, &mut c, cwd)?;
-            Some((p.clone(), model))
-        })
-        .collect();
-    detect_from_models(&models)
-}
-
-fn detect_from_models(models: &[(PathBuf, cha_core::SourceModel)]) -> Vec<Finding> {
-    let services_by_target = build_service_index(models);
+pub fn detect(index: &ProjectIndex) -> Vec<Finding> {
+    let services_by_target = build_service_index(index.models());
     let mut findings = Vec::new();
-    for (path, model) in models {
+    for (path, model) in index.models() {
         for class in &model.classes {
             if !is_anemic(class) {
                 continue;

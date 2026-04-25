@@ -12,6 +12,7 @@ mod hotspot;
 mod layers;
 mod module_envy;
 mod plugin;
+mod project_index;
 mod tangled;
 mod trend;
 mod typed_intimacy;

@@ -36,7 +36,7 @@ fn flags_function_that_calls_external_module_heavily() {
         (PathBuf::from("src/controller.rs"), orchestrator),
         (PathBuf::from("src/view.rs"), view),
     ];
-    let findings = detect_from_models(&models);
+    let findings = detect(&ProjectIndex::from_models(models));
     assert_eq!(findings.len(), 1);
     assert_eq!(findings[0].smell_name, "module_envy");
     assert!(findings[0].message.contains("run"));
@@ -65,7 +65,7 @@ fn ignores_when_calls_are_balanced() {
         (PathBuf::from("src/controller.rs"), controller),
         (PathBuf::from("src/view.rs"), view),
     ];
-    let findings = detect_from_models(&models);
+    let findings = detect(&ProjectIndex::from_models(models));
     assert!(findings.is_empty());
 }
 
@@ -78,7 +78,7 @@ fn ignores_below_threshold() {
         (PathBuf::from("src/controller.rs"), orchestrator),
         (PathBuf::from("src/view.rs"), view),
     ];
-    let findings = detect_from_models(&models);
+    let findings = detect(&ProjectIndex::from_models(models));
     assert!(findings.is_empty());
 }
 
@@ -91,7 +91,7 @@ fn unresolvable_callees_are_ignored() {
         vec!["println", "format", "clone", "to_string"],
     )]);
     let models = vec![(PathBuf::from("src/main.rs"), f)];
-    let findings = detect_from_models(&models);
+    let findings = detect(&ProjectIndex::from_models(models));
     assert!(findings.is_empty());
 }
 
@@ -115,7 +115,7 @@ fn ignores_known_helper_patterns() {
             (PathBuf::from(caller), caller_model),
             (PathBuf::from(callee_file), callee_model),
         ];
-        let findings = detect_from_models(&models);
+        let findings = detect(&ProjectIndex::from_models(models));
         assert!(
             findings.is_empty(),
             "case `{caller}` → `{callee_file}` should be suppressed"
@@ -140,7 +140,7 @@ fn flags_the_most_envied_module_when_multiple() {
         (PathBuf::from("src/view.rs"), view),
         (PathBuf::from("src/io.rs"), io),
     ];
-    let findings = detect_from_models(&models);
+    let findings = detect(&ProjectIndex::from_models(models));
     assert_eq!(findings.len(), 1);
     // view.rs has 3 calls, io.rs has 2 — view wins.
     assert!(findings[0].message.contains("view.rs"));
