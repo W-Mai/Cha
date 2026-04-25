@@ -12,6 +12,7 @@ mod layers;
 mod plugin;
 mod tangled;
 mod trend;
+mod typed_intimacy;
 
 use cha_core::{Config, Finding, PluginRegistry, SourceFile};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};

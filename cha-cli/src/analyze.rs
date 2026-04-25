@@ -97,6 +97,10 @@ pub(crate) const POST_ANALYSIS_PASSES: &[(&str, &str)] = &[
         "anemic_domain_model",
         "Data-only class paired with an external service that owns its behavior",
     ),
+    (
+        "typed_intimacy",
+        "Two files exchange each other's declared types in both directions",
+    ),
 ];
 
 fn run_post_analysis(
@@ -129,6 +133,9 @@ fn run_post_analysis(
     }
     if pass("anemic_domain_model") {
         findings.extend(crate::anemic_domain::detect(files, cwd, cache));
+    }
+    if pass("typed_intimacy") {
+        findings.extend(crate::typed_intimacy::detect(files, cwd, cache));
     }
     findings
 }
