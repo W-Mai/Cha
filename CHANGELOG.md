@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`module_envy`** — flags a function that makes ≥ 3 calls into another file in the project while making ≤ half as many calls within its own file. The function is a "resident" of the wrong module — its body does work that belongs in the envied module. Suppresses test → `common.rs` pairs and calls to conventional helper filenames (`utils`, `helpers`, `shared`, `prelude`, …) where cross-file dependency is idiomatic, not misplaced. Hint severity.
 - **`typed_intimacy`** — flags file pairs whose function signatures exchange each other's declared types in both directions. Stronger signal than import-level `inappropriate_intimacy`: the pair literally accepts/returns types defined in each other, indicating they're functionally fused at the type boundary. Emits one finding per side of the pair, listing the shared type names. Hint severity.
 - **`async_callback_leak`** — flags a function signature that exposes a raw concurrency primitive (`JoinHandle`, `Future`, `Task`, `Sender`, `Receiver`, `Promise`, `Awaitable`, `Coroutine`, `CancelFunc`, …) in its return type or parameters. Skips launcher-shaped names (`spawn_*`, `launch_*`, `start_*`) where exposing the handle is the function's whole purpose. Hint severity.
 - **`anemic_domain_model`** — flags a class that is pure data (≥ 2 fields, no behavior) paired with one or more external service-shaped functions (filename ends in `service`/`manager`/`handler`/`helper`/`util`, or function name starts with a service verb prefix like `process_`/`validate_`/`calculate_`) that take the class as a first parameter. Promotes a `data_class` hint into an architectural finding when there's evidence the paired service owns behavior that should live on the class itself. Hint severity.
@@ -18,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - WIT `function-info` record gains `return-type: option<type-ref>` — **breaking for WASM plugins**, rebuild against the new SDK.
+- `cha-cli/src/analyze.rs` — extracted C OOP false-positive filter to `c_oop_filter.rs` and split `run_post_analysis` into git-based and signature-based helpers to keep the orchestrator lean as more post-analysis passes land.
 
 ## [1.8.0] - 2026-04-25
 

@@ -41,7 +41,8 @@ pub(crate) fn cmd_analyze(opts: &AnalyzeOpts) -> i32 {
     let (mut all_findings, cache) = run_analysis(&files, &cwd, opts.plugin_filter);
     let cache = cache.unwrap_or_else(|| std::sync::Mutex::new(crate::open_project_cache(&cwd)));
     all_findings.extend(run_post_analysis(&files, &cwd, opts.plugin_filter, &cache));
-    all_findings = filter_c_oop_false_positives(all_findings, &files, &cache, &cwd);
+    all_findings =
+        crate::c_oop_filter::filter_c_oop_false_positives(all_findings, &files, &cache, &cwd);
     if let Ok(c) = cache.into_inner() {
         c.flush();
     }
@@ -101,6 +102,10 @@ pub(crate) const POST_ANALYSIS_PASSES: &[(&str, &str)] = &[
         "typed_intimacy",
         "Two files exchange each other's declared types in both directions",
     ),
+    (
+        "module_envy",
+        "Function calls out to another file more than its own — wrong residence",
+    ),
 ];
 
 fn run_post_analysis(
@@ -109,8 +114,21 @@ fn run_post_analysis(
     plugin_filter: &[String],
     cache: &std::sync::Mutex<cha_core::ProjectCache>,
 ) -> Vec<Finding> {
-    let mut findings = Vec::new();
     let pass = |name: &str| plugin_filter.is_empty() || plugin_filter.iter().any(|f| f == name);
+    let mut findings = run_git_post_passes(&pass, files, cwd, cache);
+    findings.extend(run_signature_post_passes(&pass, files, cwd, cache));
+    findings
+}
+
+/// Passes that lean on git history or file-level stats (unstable deps, test
+/// ratio, tangled commits, bus factor).
+fn run_git_post_passes(
+    pass: &impl Fn(&str) -> bool,
+    files: &[PathBuf],
+    cwd: &Path,
+    cache: &std::sync::Mutex<cha_core::ProjectCache>,
+) -> Vec<Finding> {
+    let mut findings = Vec::new();
     if pass("unstable_dependency") {
         findings.extend(detect_unstable_deps(files, cwd, cache));
     }
@@ -123,6 +141,18 @@ fn run_post_analysis(
     if pass("knowledge_distribution") {
         findings.extend(detect_bus_factor(files, cwd));
     }
+    findings
+}
+
+/// Passes that need parsed function signatures across the project (boundary
+/// leaks, anemic/intimacy/envy).
+fn run_signature_post_passes(
+    pass: &impl Fn(&str) -> bool,
+    files: &[PathBuf],
+    cwd: &Path,
+    cache: &std::sync::Mutex<cha_core::ProjectCache>,
+) -> Vec<Finding> {
+    let mut findings = Vec::new();
     if pass("abstraction_boundary_leak")
         || pass("return_type_leak")
         || pass("test_only_type_in_production")
@@ -137,104 +167,10 @@ fn run_post_analysis(
     if pass("typed_intimacy") {
         findings.extend(crate::typed_intimacy::detect(files, cwd, cache));
     }
-    findings
-}
-
-/// Remove lazy_class/data_class false positives for C structs that have
-/// cross-file methods (functions in the same directory whose first param
-/// is a pointer to the struct or its typedef alias).
-fn filter_c_oop_false_positives(
-    findings: Vec<Finding>,
-    files: &[PathBuf],
-    cache: &std::sync::Mutex<cha_core::ProjectCache>,
-    cwd: &Path,
-) -> Vec<Finding> {
-    // Skip expensive C OOP analysis if no lazy_class/data_class findings exist
-    if !findings
-        .iter()
-        .any(|f| matches!(f.smell_name.as_str(), "lazy_class" | "data_class"))
-    {
-        return findings;
-    }
-    let has_methods = collect_c_structs_with_methods(files, cache, cwd);
-    if has_methods.is_empty() {
-        return findings;
+    if pass("module_envy") {
+        findings.extend(crate::module_envy::detect(files, cwd, cache));
     }
     findings
-        .into_iter()
-        .filter(|f| {
-            if !matches!(f.smell_name.as_str(), "lazy_class" | "data_class") {
-                return true;
-            }
-            let name = f.location.name.as_deref().unwrap_or("");
-            !has_methods.contains(name)
-        })
-        .collect()
-}
-
-/// Parse C files and find structs that have cross-file methods.
-fn collect_c_structs_with_methods(
-    files: &[PathBuf],
-    cache: &std::sync::Mutex<cha_core::ProjectCache>,
-    cwd: &Path,
-) -> std::collections::HashSet<String> {
-    use std::collections::{HashMap, HashSet};
-
-    let models: Vec<(PathBuf, cha_core::SourceModel)> = files
-        .iter()
-        .filter(|f| matches!(f.extension().and_then(|e| e.to_str()), Some("c" | "h")))
-        .filter_map(|p| {
-            let mut c = cache.lock().ok()?;
-            let (_, model) = crate::cached_parse(p, &mut c, cwd)?;
-            Some((p.clone(), model))
-        })
-        .collect();
-    if models.is_empty() {
-        return HashSet::new();
-    }
-
-    let mut aliases: HashMap<String, String> = HashMap::new();
-    for (_, m) in &models {
-        for (a, o) in &m.type_aliases {
-            aliases.entry(a.clone()).or_insert(o.clone());
-        }
-    }
-    let reverse: HashMap<&str, &str> = aliases
-        .iter()
-        .map(|(a, o)| (o.as_str(), a.as_str()))
-        .collect();
-
-    let mut dir_funcs: HashMap<&Path, Vec<&cha_core::FunctionInfo>> = HashMap::new();
-    for (path, m) in &models {
-        let dir = path.parent().unwrap_or(path);
-        dir_funcs.entry(dir).or_default().extend(&m.functions);
-    }
-
-    let mut result = HashSet::new();
-    for (path, m) in &models {
-        let dir = path.parent().unwrap_or(path);
-        let funcs = dir_funcs.get(dir).cloned().unwrap_or_default();
-        for c in &m.classes {
-            let alias = reverse.get(c.name.as_str()).copied().unwrap_or(&c.name);
-            if has_pointer_param_method(&funcs, &c.name, alias) {
-                result.insert(c.name.clone());
-                result.insert(alias.to_string());
-            }
-        }
-    }
-    result
-}
-
-/// Check if any function's first parameter is a pointer to the given struct.
-fn has_pointer_param_method(funcs: &[&cha_core::FunctionInfo], name: &str, alias: &str) -> bool {
-    funcs.iter().any(|f| {
-        f.parameter_types.first().is_some_and(|t| {
-            t.raw.contains('*') && {
-                let base = t.raw.split('*').next().unwrap_or("").trim();
-                base == name || base == alias
-            }
-        })
-    })
 }
 
 fn apply_filters(
