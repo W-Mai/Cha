@@ -45,30 +45,17 @@ impl Plugin for ErrorHandlingAnalyzer {
         let lines: Vec<&str> = ctx.file.content.lines().collect();
 
         for f in &ctx.model.functions {
-            let unwrap_count = count_unwraps(&lines, f.start_line, f.end_line);
-            if unwrap_count > self.max_unwraps_per_function {
-                findings.push(Finding {
-                    smell_name: "unwrap_abuse".into(),
-                    category: SmellCategory::Security,
-                    severity: Severity::Warning,
-                    location: Location {
-                        path: ctx.file.path.clone(),
-                        start_line: f.start_line,
-                        start_col: f.name_col,
-                        end_line: f.start_line,
-                        end_col: f.name_end_col,
-                        name: Some(f.name.clone()),
-                    },
-                    message: format!(
-                        "Function `{}` has {} unwrap/expect calls (threshold: {})",
-                        f.name, unwrap_count, self.max_unwraps_per_function
-                    ),
-                    suggested_refactorings: vec![
-                        "Use ? operator".into(),
-                        "Handle errors explicitly".into(),
-                    ],
-                    ..Default::default()
-                });
+            let sites = collect_unwrap_sites(&lines, f.start_line, f.end_line);
+            if sites.len() > self.max_unwraps_per_function {
+                for site in &sites {
+                    findings.push(build_unwrap_finding(
+                        ctx,
+                        f,
+                        site,
+                        sites.len(),
+                        self.max_unwraps_per_function,
+                    ));
+                }
             }
         }
 
@@ -77,10 +64,23 @@ impl Plugin for ErrorHandlingAnalyzer {
     }
 }
 
-fn count_unwraps(lines: &[&str], start: usize, end: usize) -> usize {
-    let mut count = 0;
-    for line in lines
+/// A single `.unwrap()` / `.expect(` call site inside a function body.
+struct UnwrapSite {
+    /// 1-based line number in the source file.
+    line: usize,
+    /// 0-based column of the start of the matching substring (`.unwrap()` or `.expect(`).
+    start_col: usize,
+    /// 0-based column of the end of the matching substring.
+    end_col: usize,
+    /// Raw matched substring, used in the message for clarity.
+    matched: &'static str,
+}
+
+fn collect_unwrap_sites(lines: &[&str], start: usize, end: usize) -> Vec<UnwrapSite> {
+    let mut sites = Vec::new();
+    for (idx, line) in lines
         .iter()
+        .enumerate()
         .take(end.min(lines.len()))
         .skip(start.saturating_sub(1))
     {
@@ -88,10 +88,52 @@ fn count_unwraps(lines: &[&str], start: usize, end: usize) -> usize {
         if trimmed.starts_with("//") || trimmed.starts_with('#') {
             continue;
         }
-        count += line.matches(".unwrap()").count();
-        count += line.matches(".expect(").count();
+        push_matches(&mut sites, idx + 1, line, ".unwrap()");
+        push_matches(&mut sites, idx + 1, line, ".expect(");
     }
-    count
+    sites
+}
+
+fn push_matches(sites: &mut Vec<UnwrapSite>, line: usize, text: &str, needle: &'static str) {
+    let mut search_from = 0;
+    while let Some(pos) = text[search_from..].find(needle) {
+        let abs = search_from + pos;
+        sites.push(UnwrapSite {
+            line,
+            start_col: abs,
+            end_col: abs + needle.len(),
+            matched: needle,
+        });
+        search_from = abs + needle.len();
+    }
+}
+
+fn build_unwrap_finding(
+    ctx: &AnalysisContext,
+    f: &crate::FunctionInfo,
+    site: &UnwrapSite,
+    total: usize,
+    threshold: usize,
+) -> Finding {
+    Finding {
+        smell_name: "unwrap_abuse".into(),
+        category: SmellCategory::Security,
+        severity: Severity::Warning,
+        location: Location {
+            path: ctx.file.path.clone(),
+            start_line: site.line,
+            start_col: site.start_col,
+            end_line: site.line,
+            end_col: site.end_col,
+            name: Some(f.name.clone()),
+        },
+        message: format!(
+            "`{}` in `{}` (function has {total} unwrap/expect calls, threshold: {threshold})",
+            site.matched, f.name
+        ),
+        suggested_refactorings: vec!["Use ? operator".into(), "Handle errors explicitly".into()],
+        ..Default::default()
+    }
 }
 
 fn detect_empty_catch(lines: &[&str], ctx: &AnalysisContext, findings: &mut Vec<Finding>) {

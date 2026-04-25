@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `FunctionInfo.parameter_types` now carries `TypeRef { name, raw, origin }` where `origin` is `Local | External(module) | Primitive | Unknown`. Each parser resolves origins from file imports: Rust `use_declaration`, TS `import_statement`, Python `import` / `from`, Go `import_spec` with `go.mod` module root lookup, C/C++ primitive seeding.
 - Parser normalisation helpers in `cha-parser/src/type_ref.rs` unwrap `&'a mut Vec<Option<T>>`, `[]T`, `List[T]`, `pkg.Type` etc. down to the innermost identifier for import lookup.
 - Universal-primitive fallback in resolve (String, PathBuf, HashMap, int, boolean, etc.) so common prelude types without explicit imports don't trip the detector.
+- **`unwrap_abuse`** now emits one finding per `.unwrap()` / `.expect(` call site (was: single finding at function name). IDE underlines each call directly.
+- **`switch_statement`** now points at the `switch` / `match` keyword inside the function body (was: function name).
+- **`message_chain`** now points at the `a.b.c.d` chain expression itself (was: function name). Heuristic text scan, falls back to function name when the chain can't be textually located.
 
 ### Changed
 - `FunctionInfo.parameter_types` type changed from `Vec<String>` to `Vec<TypeRef>` — **breaking change for WASM plugins and cached SourceModels**. WIT schema adds `type-ref` record and `type-origin` variant. Rebuilding against the new SDK picks up generated types automatically.
