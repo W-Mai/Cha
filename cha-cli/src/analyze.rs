@@ -122,6 +122,10 @@ pub(crate) const POST_ANALYSIS_PASSES: &[(&str, &str)] = &[
         "cross_layer_import",
         "Import crosses an inferred layer boundary upward (no layer config required)",
     ),
+    (
+        "leaky_public_signature",
+        "Exported function signature leaks a third-party crate's type",
+    ),
 ];
 
 fn run_post_analysis(
@@ -177,6 +181,7 @@ const INDEX_PASSES: &[(&str, IndexPass)] = &[
     ),
     ("circular_abstraction", crate::circular_abstraction::detect),
     ("god_config", crate::god_config::detect),
+    ("leaky_public_signature", crate::leaky_public::detect),
 ];
 
 /// Passes that need parsed function signatures across the project. The

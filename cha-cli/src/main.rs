@@ -13,6 +13,7 @@ mod diff;
 mod god_config;
 mod hotspot;
 mod layers;
+mod leaky_public;
 mod module_envy;
 mod param_position;
 mod plugin;
