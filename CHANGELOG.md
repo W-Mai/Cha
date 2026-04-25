@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-04-25
+
 ### Added
 - **`module_envy`** — flags a function that makes ≥ 3 calls into another file in the project while making ≤ half as many calls within its own file. The function is a "resident" of the wrong module — its body does work that belongs in the envied module. Suppresses test → `common.rs` pairs and calls to conventional helper filenames (`utils`, `helpers`, `shared`, `prelude`, …) where cross-file dependency is idiomatic, not misplaced. Hint severity.
 - **`typed_intimacy`** — flags file pairs whose function signatures exchange each other's declared types in both directions. Stronger signal than import-level `inappropriate_intimacy`: the pair literally accepts/returns types defined in each other, indicating they're functionally fused at the type boundary. Emits one finding per side of the pair, listing the shared type names. Hint severity.
