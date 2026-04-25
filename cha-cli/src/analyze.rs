@@ -110,6 +110,10 @@ pub(crate) const POST_ANALYSIS_PASSES: &[(&str, &str)] = &[
         "parameter_position_inconsistency",
         "Same domain type appears at different parameter positions across functions",
     ),
+    (
+        "circular_abstraction",
+        "Two files call each other's functions in both directions",
+    ),
 ];
 
 fn run_post_analysis(
@@ -148,9 +152,26 @@ fn run_git_post_passes(
     findings
 }
 
-/// Passes that need parsed function signatures across the project (boundary
-/// leaks, anemic/intimacy/envy). The shared `ProjectIndex` parses every file
-/// once and exposes the derived maps all three cache-backed passes want.
+/// Index-backed signature passes: each entry is `(smell_name, detector)`.
+/// Kept as a table so `run_signature_post_passes` stays flat as new passes
+/// land.
+type IndexPass = fn(&crate::project_index::ProjectIndex) -> Vec<Finding>;
+const INDEX_PASSES: &[(&str, IndexPass)] = &[
+    ("anemic_domain_model", crate::anemic_domain::detect),
+    ("typed_intimacy", crate::typed_intimacy::detect),
+    ("module_envy", crate::module_envy::detect),
+    (
+        "parameter_position_inconsistency",
+        crate::param_position::detect,
+    ),
+    ("circular_abstraction", crate::circular_abstraction::detect),
+];
+
+/// Passes that need parsed function signatures across the project. The
+/// shared `ProjectIndex` parses every file once and exposes the derived
+/// maps every index-backed pass wants. boundary_leak parses fresh (cache
+/// produced stale typedef aliases on lvgl; root cause TBD), so it still
+/// takes `(files, cwd, cache)`.
 fn run_signature_post_passes(
     pass: &impl Fn(&str) -> bool,
     files: &[PathBuf],
@@ -162,29 +183,16 @@ fn run_signature_post_passes(
         || pass("return_type_leak")
         || pass("test_only_type_in_production")
     {
-        // boundary_leak parses fresh (cache produced stale typedef aliases on
-        // lvgl; root cause TBD), so it still takes (files, cwd, cache).
         findings.extend(crate::boundary_leak::detect(files, cwd, cache));
     }
-    let needs_index = pass("anemic_domain_model")
-        || pass("typed_intimacy")
-        || pass("module_envy")
-        || pass("parameter_position_inconsistency");
-    if !needs_index {
+    if !INDEX_PASSES.iter().any(|(name, _)| pass(name)) {
         return findings;
     }
     let index = crate::project_index::ProjectIndex::parse(files, cwd, cache);
-    if pass("anemic_domain_model") {
-        findings.extend(crate::anemic_domain::detect(&index));
-    }
-    if pass("typed_intimacy") {
-        findings.extend(crate::typed_intimacy::detect(&index));
-    }
-    if pass("module_envy") {
-        findings.extend(crate::module_envy::detect(&index));
-    }
-    if pass("parameter_position_inconsistency") {
-        findings.extend(crate::param_position::detect(&index));
+    for (name, detector) in INDEX_PASSES {
+        if pass(name) {
+            findings.extend(detector(&index));
+        }
     }
     findings
 }
