@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`cross_layer_import`** — post-analysis pass that automatically infers project layers from the import graph (Martin's instability) and flags imports crossing boundaries upward. No configuration required; defers to the existing `layer_violation` plugin when the user has written an explicit `[plugins.layer_violation]` config. Warning severity (architectural violation).
+
 ## [1.10.0] - 2026-04-25
 
 ### Added

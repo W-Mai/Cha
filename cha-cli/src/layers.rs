@@ -153,7 +153,7 @@ fn manual_violations(
     }
     violations
 }
-fn build_import_edges(
+pub(crate) fn build_import_edges(
     files: &[PathBuf],
     cwd: &std::path::Path,
     cache: &mut cha_core::ProjectCache,

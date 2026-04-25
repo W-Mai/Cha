@@ -118,6 +118,10 @@ pub(crate) const POST_ANALYSIS_PASSES: &[(&str, &str)] = &[
         "god_config",
         "Config/Settings/Options object threaded through many functions across many files",
     ),
+    (
+        "cross_layer_import",
+        "Import crosses an inferred layer boundary upward (no layer config required)",
+    ),
 ];
 
 fn run_post_analysis(
@@ -152,6 +156,9 @@ fn run_git_post_passes(
     }
     if pass("knowledge_distribution") {
         findings.extend(detect_bus_factor(files, cwd));
+    }
+    if pass("cross_layer_import") {
+        findings.extend(crate::cross_layer::detect(files, cwd, cache));
     }
     findings
 }
