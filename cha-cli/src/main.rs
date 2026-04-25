@@ -11,6 +11,7 @@ mod diff;
 mod hotspot;
 mod layers;
 mod module_envy;
+mod param_position;
 mod plugin;
 mod project_index;
 mod tangled;

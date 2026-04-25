@@ -106,6 +106,10 @@ pub(crate) const POST_ANALYSIS_PASSES: &[(&str, &str)] = &[
         "module_envy",
         "Function calls out to another file more than its own — wrong residence",
     ),
+    (
+        "parameter_position_inconsistency",
+        "Same domain type appears at different parameter positions across functions",
+    ),
 ];
 
 fn run_post_analysis(
@@ -162,7 +166,10 @@ fn run_signature_post_passes(
         // lvgl; root cause TBD), so it still takes (files, cwd, cache).
         findings.extend(crate::boundary_leak::detect(files, cwd, cache));
     }
-    let needs_index = pass("anemic_domain_model") || pass("typed_intimacy") || pass("module_envy");
+    let needs_index = pass("anemic_domain_model")
+        || pass("typed_intimacy")
+        || pass("module_envy")
+        || pass("parameter_position_inconsistency");
     if !needs_index {
         return findings;
     }
@@ -175,6 +182,9 @@ fn run_signature_post_passes(
     }
     if pass("module_envy") {
         findings.extend(crate::module_envy::detect(&index));
+    }
+    if pass("parameter_position_inconsistency") {
+        findings.extend(crate::param_position::detect(&index));
     }
     findings
 }

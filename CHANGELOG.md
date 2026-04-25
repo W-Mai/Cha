@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`parameter_position_inconsistency`** — flags functions where a domain type appears at a different parameter position than the project-wide majority. Requires ≥ 3 usages of the same type across functions and disagreement on position; primitives, unresolved-origin types, mutable-ref out-params (`&mut Vec<_>`), and `self` receivers are skipped. Hint severity.
+
 ### Changed
-- Internal: `cha-cli/src/project_index.rs` — shared `ProjectIndex` owns parsed models plus derived maps (function_home, class_home, project_type_names, function_by_name). `anemic_domain_model`, `typed_intimacy`, and `module_envy` build the index once per analyze call instead of each rebuilding their own copies. No behaviour change; behaviourally identical on self-analyze (371 findings before and after). Boundary_leak still parses fresh because of a stale-typedef cache bug not yet rooted out.
+- Internal: `cha-cli/src/project_index.rs` — shared `ProjectIndex` owns parsed models plus derived maps (function_home, class_home, project_type_names, function_by_name). `anemic_domain_model`, `typed_intimacy`, `module_envy`, and `parameter_position_inconsistency` build the index once per analyze call instead of each rebuilding their own copies. No behaviour change; behaviourally identical on self-analyze. Boundary_leak still parses fresh because of a stale-typedef cache bug not yet rooted out.
 
 ## [1.9.0] - 2026-04-25
 
