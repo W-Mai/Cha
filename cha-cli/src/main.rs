@@ -9,6 +9,7 @@ mod calibrate;
 mod circular_abstraction;
 mod deps;
 mod diff;
+mod god_config;
 mod hotspot;
 mod layers;
 mod module_envy;

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`god_config`** — flags a `Config`/`Settings`/`Options`/`Context`/`Env`/`AppState`/`Store`-shaped type (exact name or `*Config`/`*Settings`/`*Options` suffix) passed as a parameter to ≥ 10 distinct functions spanning ≥ 3 files. Signals ambient configuration leaking everywhere instead of each caller taking only the fields it actually needs. Hint severity.
 - **`circular_abstraction`** — flags two files whose functions call each other's functions in both directions (≥ 2 calls each way). Catches behaviour-level mutual dependency that import-graph cycle detection misses when the callees are re-exported or wrapped. Complements `typed_intimacy` (type flow) with call flow. Hint severity.
 - **`parameter_position_inconsistency`** — flags functions where a domain type appears at a different parameter position than the project-wide majority. Requires ≥ 3 usages of the same type across functions and disagreement on position; primitives, unresolved-origin types, mutable-ref out-params (`&mut Vec<_>`), and `self` receivers are skipped. Hint severity.
 

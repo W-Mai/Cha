@@ -114,6 +114,10 @@ pub(crate) const POST_ANALYSIS_PASSES: &[(&str, &str)] = &[
         "circular_abstraction",
         "Two files call each other's functions in both directions",
     ),
+    (
+        "god_config",
+        "Config/Settings/Options object threaded through many functions across many files",
+    ),
 ];
 
 fn run_post_analysis(
@@ -165,6 +169,7 @@ const INDEX_PASSES: &[(&str, IndexPass)] = &[
         crate::param_position::detect,
     ),
     ("circular_abstraction", crate::circular_abstraction::detect),
+    ("god_config", crate::god_config::detect),
 ];
 
 /// Passes that need parsed function signatures across the project. The
