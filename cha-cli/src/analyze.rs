@@ -93,6 +93,10 @@ pub(crate) const POST_ANALYSIS_PASSES: &[(&str, &str)] = &[
         "test_only_type_in_production",
         "Production code references a type declared only in test files",
     ),
+    (
+        "anemic_domain_model",
+        "Data-only class paired with an external service that owns its behavior",
+    ),
 ];
 
 fn run_post_analysis(
@@ -122,6 +126,9 @@ fn run_post_analysis(
         // Single detection pass produces all three smells; downstream
         // smell-level filter discards whichever the user disabled.
         findings.extend(crate::boundary_leak::detect(files, cwd, cache));
+    }
+    if pass("anemic_domain_model") {
+        findings.extend(crate::anemic_domain::detect(files, cwd, cache));
     }
     findings
 }
