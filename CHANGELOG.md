@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`async_callback_leak`** — flags a function signature that exposes a raw concurrency primitive (`JoinHandle`, `Future`, `Task`, `Sender`, `Receiver`, `Promise`, `Awaitable`, `Coroutine`, `CancelFunc`, …) in its return type or parameters. Skips launcher-shaped names (`spawn_*`, `launch_*`, `start_*`) where exposing the handle is the function's whole purpose. Hint severity.
 - **`anemic_domain_model`** — flags a class that is pure data (≥ 2 fields, no behavior) paired with one or more external service-shaped functions (filename ends in `service`/`manager`/`handler`/`helper`/`util`, or function name starts with a service verb prefix like `process_`/`validate_`/`calculate_`) that take the class as a first parameter. Promotes a `data_class` hint into an architectural finding when there's evidence the paired service owns behavior that should live on the class itself. Hint severity.
 - **`test_only_type_in_production`** — warns when production code references a class/struct declared only in test files (mocks, stubs, fixtures). Surfaces test scaffolding bleeding into shipping code. Warning severity.
 - **`return_type_leak`** post-analysis finding — dual of `abstraction_boundary_leak`. Detects when a dispatcher fans out to ≥ 3 sibling handlers whose return types are all the same non-local type, surfacing missing Anti-Corruption Layer on the way *out*. lvgl scan identifies thorvg's `TVG_API` leaking through dispatcher boundaries.

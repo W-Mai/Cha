@@ -4,15 +4,16 @@ use crate::{
     Plugin,
     config::Config,
     plugins::{
-        ApiSurfaceAnalyzer, BrainMethodAnalyzer, CognitiveComplexityAnalyzer, CommentsAnalyzer,
-        ComplexityAnalyzer, CouplingAnalyzer, DataClassAnalyzer, DataClumpsAnalyzer,
-        DeadCodeAnalyzer, DesignPatternAdvisor, DivergentChangeAnalyzer, DuplicateCodeAnalyzer,
-        ErrorHandlingAnalyzer, FeatureEnvyAnalyzer, GodClassAnalyzer, HardcodedSecretAnalyzer,
-        HubLikeDependencyAnalyzer, InappropriateIntimacyAnalyzer, LayerViolationAnalyzer,
-        LazyClassAnalyzer, LengthAnalyzer, LongParameterListAnalyzer, MessageChainAnalyzer,
-        MiddleManAnalyzer, NamingAnalyzer, PrimitiveObsessionAnalyzer, RefusedBequestAnalyzer,
-        ShotgunSurgeryAnalyzer, SpeculativeGeneralityAnalyzer, SwitchStatementAnalyzer,
-        TemporaryFieldAnalyzer, TodoTrackerAnalyzer, UnsafeApiAnalyzer,
+        ApiSurfaceAnalyzer, AsyncCallbackLeakAnalyzer, BrainMethodAnalyzer,
+        CognitiveComplexityAnalyzer, CommentsAnalyzer, ComplexityAnalyzer, CouplingAnalyzer,
+        DataClassAnalyzer, DataClumpsAnalyzer, DeadCodeAnalyzer, DesignPatternAdvisor,
+        DivergentChangeAnalyzer, DuplicateCodeAnalyzer, ErrorHandlingAnalyzer, FeatureEnvyAnalyzer,
+        GodClassAnalyzer, HardcodedSecretAnalyzer, HubLikeDependencyAnalyzer,
+        InappropriateIntimacyAnalyzer, LayerViolationAnalyzer, LazyClassAnalyzer, LengthAnalyzer,
+        LongParameterListAnalyzer, MessageChainAnalyzer, MiddleManAnalyzer, NamingAnalyzer,
+        PrimitiveObsessionAnalyzer, RefusedBequestAnalyzer, ShotgunSurgeryAnalyzer,
+        SpeculativeGeneralityAnalyzer, SwitchStatementAnalyzer, TemporaryFieldAnalyzer,
+        TodoTrackerAnalyzer, UnsafeApiAnalyzer,
     },
     wasm,
 };
@@ -175,6 +176,9 @@ fn register_extended_smell_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &
     });
     register_if_enabled(plugins, config, "data_class", || {
         Box::new(DataClassAnalyzer::default())
+    });
+    register_if_enabled(plugins, config, "async_callback_leak", || {
+        Box::new(AsyncCallbackLeakAnalyzer)
     });
     register_if_enabled(plugins, config, "design_pattern", || {
         Box::new(DesignPatternAdvisor)

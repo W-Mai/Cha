@@ -1,4 +1,5 @@
 mod api_surface;
+mod async_callback_leak;
 mod brain_method;
 mod cognitive_complexity;
 mod comments;
@@ -33,6 +34,7 @@ mod todo_tracker;
 mod unsafe_api;
 
 pub use api_surface::ApiSurfaceAnalyzer;
+pub use async_callback_leak::AsyncCallbackLeakAnalyzer;
 pub use brain_method::BrainMethodAnalyzer;
 pub use cognitive_complexity::CognitiveComplexityAnalyzer;
 pub use comments::CommentsAnalyzer;
