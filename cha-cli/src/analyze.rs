@@ -22,6 +22,7 @@ pub(crate) struct AnalyzeOpts<'a> {
     pub strictness: Option<&'a str>,
     pub show_all: bool,
     pub top: Option<usize>,
+    pub focus: &'a [String],
 }
 
 pub(crate) fn cmd_analyze(opts: &AnalyzeOpts) -> i32 {
@@ -47,6 +48,7 @@ pub(crate) fn cmd_analyze(opts: &AnalyzeOpts) -> i32 {
         c.flush();
     }
     let all_findings = apply_filters(all_findings, &diff_map, opts.baseline_path, &cwd);
+    let all_findings = apply_focus(all_findings, opts.focus);
     let mut all_findings = all_findings;
     cha_core::prioritize_findings(&mut all_findings);
 
@@ -212,6 +214,54 @@ fn run_signature_post_passes(
         }
     }
     findings
+}
+
+/// Keep only findings whose `category` matches one of the user's `--focus`
+/// values. Match is against the serde snake_case rendering so users type
+/// what they see in JSON/SARIF output: `couplers`, `oo_abusers`, etc.
+/// Empty filter = no filtering. Unknown categories warn once and are
+/// otherwise ignored, so a typo doesn't silently hide every finding.
+fn apply_focus(findings: Vec<Finding>, focus: &[String]) -> Vec<Finding> {
+    if focus.is_empty() {
+        return findings;
+    }
+    let wanted: std::collections::HashSet<String> = focus
+        .iter()
+        .map(|s| s.trim().to_ascii_lowercase())
+        .collect();
+    warn_unknown_categories(&wanted);
+    findings
+        .into_iter()
+        .filter(|f| wanted.contains(&category_key(&f.category)))
+        .collect()
+}
+
+fn category_key(c: &cha_core::SmellCategory) -> String {
+    // Serde renders the enum in snake_case already — delegate to that so the
+    // CLI contract stays in sync with JSON/SARIF output.
+    serde_json::to_string(c)
+        .unwrap_or_default()
+        .trim_matches('"')
+        .to_string()
+}
+
+fn warn_unknown_categories(wanted: &std::collections::HashSet<String>) {
+    const KNOWN: &[&str] = &[
+        "bloaters",
+        "oo_abusers",
+        "change_preventers",
+        "dispensables",
+        "couplers",
+        "security",
+    ];
+    for w in wanted {
+        if !KNOWN.contains(&w.as_str()) {
+            eprintln!(
+                "warning: --focus category `{w}` is unknown (valid: {})",
+                KNOWN.join(", ")
+            );
+        }
+    }
 }
 
 fn apply_filters(

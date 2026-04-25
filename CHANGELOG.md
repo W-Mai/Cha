@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `cha analyze --focus <category>` — comma-separated filter keeping only findings whose `SmellCategory` matches one of the listed values (`bloaters`, `oo_abusers`, `change_preventers`, `dispensables`, `couplers`, `security`). Unknown categories warn on stderr instead of crashing. Lets users narrow a noisy analyze run to a single architectural concern.
 - `Finding.risk_score: Option<f64>` — composite priority (severity × overshoot × hotspot factor) populated by `prioritize_findings` after analysis. Surfaces *why* a finding ranks where it does in reporter output and JSON/SARIF. Schema regenerated.
 - **`leaky_public_signature`** — flags an exported function whose parameters or return type mention a third-party crate's type. Workspace-internal crates (derived from project file paths) and Rust's built-in modules (`std`, `core`, `alloc`, `proc_macro`, …) are filtered out so intra-workspace and prelude types don't fire. Hint severity.
 - **`cross_layer_import`** — post-analysis pass that automatically infers project layers from the import graph (Martin's instability) and flags imports crossing boundaries upward. No configuration required; defers to the existing `layer_violation` plugin when the user has written an explicit `[plugins.layer_violation]` config. Warning severity (architectural violation).

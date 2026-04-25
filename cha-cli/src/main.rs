@@ -128,6 +128,10 @@ enum Cli {
         /// Show only the top N most severe findings (terminal format)
         #[arg(long)]
         top: Option<usize>,
+        /// Only show findings in these categories (comma-separated):
+        /// bloaters, oo_abusers, change_preventers, dispensables, couplers, security
+        #[arg(long, value_delimiter = ',')]
+        focus: Vec<String>,
     },
     /// Generate a baseline file from current findings (suppresses known issues)
     Baseline {
@@ -372,6 +376,7 @@ fn dispatch(cli: Cli) -> i32 {
             strictness,
             all,
             top,
+            focus,
         } => {
             let mode = DiffMode::from_flags(diff, stdin_diff);
             if no_cache {
@@ -389,6 +394,7 @@ fn dispatch(cli: Cli) -> i32 {
                 strictness: strictness.as_deref(),
                 show_all: all,
                 top,
+                focus: &focus,
             })
         }
         other => {

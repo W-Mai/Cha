@@ -162,6 +162,86 @@ fn plugin_filter_unknown_plugin_produces_no_findings() {
 }
 
 #[test]
+fn focus_filter_keeps_only_matching_categories() {
+    // The smelly.ts fixture produces findings across multiple categories;
+    // --focus bloaters should leave only bloaters.
+    let output = Command::new(cha_binary())
+        .args([
+            "analyze",
+            &fixture("smelly.ts"),
+            "--focus",
+            "bloaters",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("failed to run cha");
+    let out = String::from_utf8_lossy(&output.stdout);
+    let parsed: serde_json::Value = serde_json::from_str(&out).expect("invalid JSON");
+    let findings = parsed["findings"].as_array().expect("missing findings");
+    for f in findings {
+        assert_eq!(
+            f["category"].as_str().unwrap_or(""),
+            "bloaters",
+            "non-bloater leaked through --focus bloaters: {}",
+            f["smell_name"].as_str().unwrap_or("?")
+        );
+    }
+}
+
+#[test]
+fn focus_filter_accepts_multiple_categories() {
+    let output = Command::new(cha_binary())
+        .args([
+            "analyze",
+            &fixture("smelly.ts"),
+            "--focus",
+            "bloaters,couplers",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("failed to run cha");
+    let out = String::from_utf8_lossy(&output.stdout);
+    let parsed: serde_json::Value = serde_json::from_str(&out).expect("invalid JSON");
+    let findings = parsed["findings"].as_array().expect("missing findings");
+    for f in findings {
+        let cat = f["category"].as_str().unwrap_or("");
+        assert!(
+            cat == "bloaters" || cat == "couplers",
+            "category `{cat}` passed --focus bloaters,couplers but shouldn't have"
+        );
+    }
+}
+
+#[test]
+fn focus_filter_unknown_category_warns_but_does_not_crash() {
+    let output = Command::new(cha_binary())
+        .args([
+            "analyze",
+            &fixture("smelly.ts"),
+            "--focus",
+            "not_a_real_category",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("failed to run cha");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("unknown"),
+        "expected a warning for unknown category, got stderr: {stderr}"
+    );
+    let out = String::from_utf8_lossy(&output.stdout);
+    let parsed: serde_json::Value = serde_json::from_str(&out).expect("invalid JSON");
+    let findings = parsed["findings"].as_array().expect("missing findings");
+    assert!(
+        findings.is_empty(),
+        "unknown category should filter everything out"
+    );
+}
+
+#[test]
 fn llm_output_contains_findings_section() {
     let (_, out) = run_analyze(&fixture("smelly.ts"), "llm");
     assert!(
