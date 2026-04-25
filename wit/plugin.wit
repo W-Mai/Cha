@@ -87,6 +87,7 @@ interface types {
         called-functions: list<string>,
         cognitive-complexity: u32,
         body-hash: option<string>,
+        return-type: option<type-ref>,
     }
 
     /// Class info from parsed source.

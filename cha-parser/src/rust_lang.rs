@@ -111,7 +111,7 @@ impl<'a> ParseContext<'a> {
     }
 
     fn push_import(&mut self, node: Node) {
-        if let Some(i) = extract_use(node, self.src) {
+        if let Some(i) = crate::rust_imports::extract_use(node, self.src) {
             self.col.imports.push(i);
         }
     }
@@ -276,6 +276,7 @@ fn extract_function(
         .map(|b| collect_external_refs(b, src))
         .unwrap_or_default();
     let is_delegating = body.map(|b| check_delegating(b, src)).unwrap_or(false);
+    let return_type = crate::rust_imports::rust_return_type(node, src, imports_map);
     Some(FunctionInfo {
         name,
         start_line,
@@ -299,6 +300,7 @@ fn extract_function(
         optional_param_count: count_optional_params(node, src),
         called_functions: collect_calls_rs(body, src),
         cognitive_complexity: body.map(cognitive_complexity_rs).unwrap_or(0),
+        return_type,
     })
 }
 
@@ -487,21 +489,6 @@ fn check_delegating(body: Node, src: &[u8]) -> bool {
         _ => stmt,
     };
     is_external_call(expr, src)
-}
-
-fn extract_use(node: Node, src: &[u8]) -> Option<ImportInfo> {
-    // Extract the path from "use foo::bar::baz;"
-    let source = node_text(node, src)
-        .strip_prefix("use ")?
-        .trim_end_matches(';')
-        .trim()
-        .to_string();
-    Some(ImportInfo {
-        source,
-        line: node.start_position().row + 1,
-        col: node.start_position().column,
-        ..Default::default()
-    })
 }
 
 /// Count comment lines inside a function node.

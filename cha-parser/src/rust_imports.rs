@@ -1,9 +1,34 @@
 //! Rust `use` declaration → ImportsMap resolver.
 
-use cha_core::TypeOrigin;
+use cha_core::{ImportInfo, TypeOrigin, TypeRef};
 use tree_sitter::Node;
 
-use crate::type_ref::ImportsMap;
+use crate::type_ref::{self, ImportsMap};
+
+/// Read the `return_type` field of a `function_item`, resolving the origin
+/// via the file's imports map.
+pub fn rust_return_type(node: Node, src: &[u8], imports: &ImportsMap) -> Option<TypeRef> {
+    let rt = node.child_by_field_name("return_type")?;
+    let raw = rt.utf8_text(src).unwrap_or("").to_string();
+    Some(type_ref::resolve(raw, imports))
+}
+
+/// Build an `ImportInfo` from a `use_declaration` node.
+pub fn extract_use(node: Node, src: &[u8]) -> Option<ImportInfo> {
+    let source = node
+        .utf8_text(src)
+        .unwrap_or("")
+        .strip_prefix("use ")?
+        .trim_end_matches(';')
+        .trim()
+        .to_string();
+    Some(ImportInfo {
+        source,
+        line: node.start_position().row + 1,
+        col: node.start_position().column,
+        ..Default::default()
+    })
+}
 
 /// Scan the whole tree for `use` declarations and build a short-name ->
 /// TypeOrigin map. Call once per file before collecting functions.

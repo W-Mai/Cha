@@ -153,6 +153,7 @@ fn extract_function(
         .map(|b| collect_external_refs(b, src))
         .unwrap_or_default();
     let is_delegating = body.map(|b| check_delegating(b, src)).unwrap_or(false);
+    let return_type = ts_return_type(node, src, imports_map);
     Some(FunctionInfo {
         name,
         start_line,
@@ -176,7 +177,18 @@ fn extract_function(
         optional_param_count: count_optional_params_ts(node, src),
         called_functions: collect_calls_ts(body, src),
         cognitive_complexity: body.map(cognitive_complexity_ts).unwrap_or(0),
+        return_type,
     })
+}
+
+fn ts_return_type(
+    node: Node,
+    src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
+) -> Option<cha_core::TypeRef> {
+    let ann = node.child_by_field_name("return_type")?;
+    let raw = node_text(ann, src).trim_start_matches(':').trim();
+    Some(crate::type_ref::resolve(raw, imports_map))
 }
 
 fn extract_arrow_functions(
@@ -241,6 +253,7 @@ fn try_extract_arrow(
         optional_param_count: count_optional_params_ts(value, src),
         called_functions: collect_calls_ts(Some(value), src),
         cognitive_complexity: cognitive_complexity_ts(value),
+        return_type: ts_return_type(value, src, imports_map),
     })
 }
 

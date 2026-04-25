@@ -340,7 +340,26 @@ fn extract_function(
         optional_param_count: 0,
         called_functions: body.map(|b| collect_calls_c(b, src)).unwrap_or_default(),
         cognitive_complexity: body.map(cognitive_complexity_c).unwrap_or(0),
+        return_type: extract_c_return_type(node, src, imports_map),
     })
+}
+
+/// The C function's return type lives in the `type` field of the
+/// `function_definition` node. Pointer return types are indicated by the
+/// declarator having a `pointer_declarator`; prefix the type with ` *`
+/// so the `raw` text mirrors the written form.
+fn extract_c_return_type(
+    node: Node,
+    src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
+) -> Option<cha_core::TypeRef> {
+    let ty = node.child_by_field_name("type")?;
+    let base = node_text(ty, src).trim().to_string();
+    let is_ptr = node
+        .child_by_field_name("declarator")
+        .is_some_and(|d| d.kind() == "pointer_declarator");
+    let raw = if is_ptr { format!("{base} *") } else { base };
+    Some(crate::type_ref::resolve(raw, imports_map))
 }
 
 /// Check if a declaration node has a specific storage class specifier (e.g. "static").

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`return_type_leak`** post-analysis finding — dual of `abstraction_boundary_leak`. Detects when a dispatcher fans out to ≥ 3 sibling handlers whose return types are all the same non-local type, surfacing missing Anti-Corruption Layer on the way *out*. lvgl scan identifies thorvg's `TVG_API` leaking through dispatcher boundaries.
+- `FunctionInfo.return_type: Option<TypeRef>` — parsers extract the declared return type and resolve its origin through the same imports/type-registry pipeline as parameters. WIT schema grows an optional `return-type` field.
+- Container-expression primitive fallback: PEP 585 `dict[K, V]` / `list[T]` / `tuple[...]` resolve to Primitive instead of Unknown, eliminating false positives on Python handlers that return built-in container types.
+
+### Changed
+- WIT `function-info` record gains `return-type: option<type-ref>` — **breaking for WASM plugins**, rebuild against the new SDK.
+
 ## [1.8.0] - 2026-04-25
 
 ### Added

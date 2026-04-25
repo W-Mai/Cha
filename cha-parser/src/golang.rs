@@ -114,6 +114,9 @@ fn extract_function(
         optional_param_count: 0,
         called_functions: collect_calls(body, src),
         cognitive_complexity: body.map(|b| cognitive_complexity_go(b)).unwrap_or(0),
+        return_type: node
+            .child_by_field_name("result")
+            .map(|rt| crate::type_ref::resolve(node_text(rt, src), imports_map)),
     })
 }
 

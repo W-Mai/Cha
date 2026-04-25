@@ -23,16 +23,30 @@ pub fn resolve(raw: impl Into<String>, imports: &ImportsMap) -> TypeRef {
     let origin = imports
         .get(&name)
         .cloned()
-        .unwrap_or_else(|| fallback_origin(&name));
+        .unwrap_or_else(|| fallback_origin(&name, &raw));
     TypeRef { name, raw, origin }
 }
 
-fn fallback_origin(name: &str) -> TypeOrigin {
-    if is_universal_primitive(name) {
+fn fallback_origin(name: &str, raw: &str) -> TypeOrigin {
+    if is_universal_primitive(name) || is_container_expression(raw) {
         TypeOrigin::Primitive
     } else {
         TypeOrigin::Unknown
     }
+}
+
+/// Catch PEP 585 container annotations like `dict[int, str]` / `list[Foo]`
+/// whose stripped inner type is uninformative. Returning `Primitive` for the
+/// whole expression keeps it out of the leak detectors.
+fn is_container_expression(raw: &str) -> bool {
+    let trimmed = raw.trim_start_matches(|c: char| c == '&' || c == '*' || c.is_whitespace());
+    let trimmed = trimmed.trim_start_matches("mut ").trim();
+    for prefix in ["dict[", "list[", "set[", "tuple[", "frozenset["] {
+        if trimmed.starts_with(prefix) {
+            return true;
+        }
+    }
+    false
 }
 
 /// Primitives / prelude-visible types used across languages without an
@@ -164,7 +178,12 @@ fn peel_any_container(s: &str) -> Option<&str> {
             return Some(inner);
         }
     }
-    for wrapper in ["List", "Optional", "Set", "Dict", "Iterable"] {
+    // Python typing aliases come in PEP 484 (`List[T]`, `Optional[T]`) and
+    // PEP 585 (`list[T]`, `dict[K, V]`) forms.
+    for wrapper in [
+        "List", "Optional", "Set", "Dict", "Iterable", "Tuple", "Sequence", "list", "dict", "set",
+        "tuple",
+    ] {
         if let Some(inner) = peel_py_generic(s, wrapper) {
             return Some(inner);
         }

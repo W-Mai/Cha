@@ -141,6 +141,9 @@ fn extract_function(
         optional_param_count: params.map(count_optional).unwrap_or(0),
         called_functions: body.map(|b| collect_calls_py(b, src)).unwrap_or_default(),
         cognitive_complexity: body.map(cognitive_complexity_py).unwrap_or(0),
+        return_type: node
+            .child_by_field_name("return_type")
+            .map(|rt| crate::type_ref::resolve(node_text(rt, src), imports_map)),
     })
 }
 

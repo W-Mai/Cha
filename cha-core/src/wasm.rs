@@ -158,20 +158,7 @@ fn convert_functions(funcs: &[crate::model::FunctionInfo]) -> Vec<wit::FunctionI
         line_count: f.line_count as u32,
         complexity: f.complexity as u32,
         parameter_count: f.parameter_count as u32,
-        parameter_types: f
-            .parameter_types
-            .iter()
-            .map(|t| wit::TypeRef {
-                name: t.name.clone(),
-                raw: t.raw.clone(),
-                origin: match &t.origin {
-                    crate::model::TypeOrigin::Local => wit::TypeOrigin::ProjectLocal,
-                    crate::model::TypeOrigin::External(m) => wit::TypeOrigin::External(m.clone()),
-                    crate::model::TypeOrigin::Primitive => wit::TypeOrigin::Primitive,
-                    crate::model::TypeOrigin::Unknown => wit::TypeOrigin::Unknown,
-                },
-            })
-            .collect(),
+        parameter_types: f.parameter_types.iter().map(to_wit_type_ref).collect(),
         chain_depth: f.chain_depth as u32,
         switch_arms: f.switch_arms as u32,
         external_refs: f.external_refs.clone(),
@@ -185,7 +172,21 @@ fn convert_functions(funcs: &[crate::model::FunctionInfo]) -> Vec<wit::FunctionI
         called_functions: f.called_functions.clone(),
         cognitive_complexity: f.cognitive_complexity as u32,
         body_hash: f.body_hash.map(|h| format!("{h:016x}")),
+        return_type: f.return_type.as_ref().map(to_wit_type_ref),
     })
+}
+
+fn to_wit_type_ref(t: &crate::model::TypeRef) -> wit::TypeRef {
+    wit::TypeRef {
+        name: t.name.clone(),
+        raw: t.raw.clone(),
+        origin: match &t.origin {
+            crate::model::TypeOrigin::Local => wit::TypeOrigin::ProjectLocal,
+            crate::model::TypeOrigin::External(m) => wit::TypeOrigin::External(m.clone()),
+            crate::model::TypeOrigin::Primitive => wit::TypeOrigin::Primitive,
+            crate::model::TypeOrigin::Unknown => wit::TypeOrigin::Unknown,
+        },
+    }
 }
 
 fn convert_classes(classes: &[crate::model::ClassInfo]) -> Vec<wit::ClassInfo> {

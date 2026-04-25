@@ -78,6 +78,9 @@ pub struct FunctionInfo {
     pub called_functions: Vec<String>,
     /// Cognitive complexity score [SonarSource 2017] — nesting-aware understandability metric.
     pub cognitive_complexity: usize,
+    /// Declared return type (None if not annotated or inferred), resolved the
+    /// same way as parameter types. Drives return_type_leak detection.
+    pub return_type: Option<TypeRef>,
 }
 
 /// Extracted class/struct info from AST.

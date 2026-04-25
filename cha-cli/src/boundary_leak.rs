@@ -1,18 +1,27 @@
-//! Abstraction Boundary Leak (ABL-0) detector.
+//! Signature-based abstraction leak detectors.
 //!
-//! Flags dispatcher functions that fan out to ≥ N sibling callbacks which
-//! all share the same non-local type in corresponding parameter positions.
-//! The fix is to introduce a local DTO and have the dispatcher translate
-//! the external type into it — the Anti-Corruption Layer pattern.
+//! Two smells share a detector pipeline here:
 //!
-//! Implementation plan lives in `.kiro/specs/abstraction-boundary-leak/`.
+//! - `abstraction_boundary_leak` — dispatcher fans out to ≥ N sibling
+//!   callbacks that all take the same non-local type in corresponding
+//!   parameter positions. Missing Anti-Corruption Layer on the way *in*.
+//! - `return_type_leak` — dispatcher fans out to ≥ N sibling callbacks
+//!   whose **return types** are all the same non-local type. Missing
+//!   Anti-Corruption Layer on the way *out*. The fix is usually a local
+//!   DTO returned from the handlers plus one place that converts to the
+//!   external type, rather than every handler touching it directly.
+//!
+//! Both share sibling-clustering by signature + the project-wide type
+//! registry (`cha-parser` surfaces TypeOrigin on each parameter and on
+//! the return type).
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use cha_core::{Finding, FunctionInfo, Location, Severity, SmellCategory, TypeOrigin, TypeRef};
 
-const SMELL_NAME: &str = "abstraction_boundary_leak";
+const ABL_SMELL: &str = "abstraction_boundary_leak";
+const RTL_SMELL: &str = "return_type_leak";
 const DEFAULT_MIN_GROUP_SIZE: usize = 3;
 
 /// Run the detector across all project models. Returns hint-severity findings.
@@ -67,9 +76,12 @@ fn append_dispatcher_findings(
     findings: &mut Vec<Finding>,
 ) {
     for group in find_sibling_groups(dispatcher, by_name, min_group_size) {
-        if let Some(finding) = check_group(path, dispatcher, &group, min_group_size, project_types)
+        if let Some(f) = check_param_leak(path, dispatcher, &group, min_group_size, project_types) {
+            findings.push(f);
+        }
+        if let Some(f) = check_return_leak(path, dispatcher, &group, min_group_size, project_types)
         {
-            findings.push(finding);
+            findings.push(f);
         }
     }
 }
@@ -130,8 +142,8 @@ fn signature_key(f: &FunctionInfo) -> SignatureKey {
 }
 
 /// Check if a group of same-signature siblings shares a non-local type in
-/// any parameter position. Emit one finding per leaked position.
-fn check_group(
+/// any parameter position. Emit one finding for the first leaked position.
+fn check_param_leak(
     dispatcher_path: &Path,
     dispatcher: &FunctionInfo,
     callbacks: &[&FunctionInfo],
@@ -142,7 +154,7 @@ fn check_group(
     for position in 0..arity {
         let shared = callbacks[0].parameter_types.get(position)?;
         if is_interesting_leak(shared, project_types) {
-            return Some(build_finding(
+            return Some(build_abl_finding(
                 dispatcher_path,
                 dispatcher,
                 callbacks,
@@ -155,6 +167,38 @@ fn check_group(
     None
 }
 
+/// Check if a group of same-signature siblings all return the same non-local
+/// type — the dual of `check_param_leak`. Handlers leak an external result
+/// into the dispatcher's caller instead of translating it.
+fn check_return_leak(
+    dispatcher_path: &Path,
+    dispatcher: &FunctionInfo,
+    callbacks: &[&FunctionInfo],
+    min_group_size: usize,
+    project_types: &HashSet<&str>,
+) -> Option<Finding> {
+    let first = callbacks.first()?.return_type.as_ref()?;
+    // All callbacks must declare the same return type name (the signature
+    // cluster didn't include return type, so recheck here).
+    if !callbacks.iter().all(|cb| {
+        cb.return_type
+            .as_ref()
+            .is_some_and(|t| t.name == first.name)
+    }) {
+        return None;
+    }
+    if !is_interesting_leak(first, project_types) {
+        return None;
+    }
+    Some(build_rtl_finding(
+        dispatcher_path,
+        dispatcher,
+        callbacks,
+        first,
+        min_group_size,
+    ))
+}
+
 fn is_interesting_leak(t: &TypeRef, project_types: &HashSet<&str>) -> bool {
     // External types are always leaks. Unknown types may be Local in disguise
     // if they appear in the project's type registry.
@@ -165,7 +209,7 @@ fn is_interesting_leak(t: &TypeRef, project_types: &HashSet<&str>) -> bool {
     }
 }
 
-fn build_finding(
+fn build_abl_finding(
     path: &Path,
     dispatcher: &FunctionInfo,
     callbacks: &[&FunctionInfo],
@@ -174,11 +218,7 @@ fn build_finding(
     min_group_size: usize,
 ) -> Finding {
     let names: Vec<&str> = callbacks.iter().map(|c| c.name.as_str()).collect();
-    let module_hint = match &shared.origin {
-        TypeOrigin::External(m) => format!("from `{m}`"),
-        TypeOrigin::Unknown => "(origin unresolved)".to_string(),
-        _ => String::new(),
-    };
+    let module_hint = module_hint(shared);
     let message = format!(
         "Dispatcher `{}` fans out to {} handlers that all take `{}` {} in position #{} — consider a local DTO (Anti-Corruption Layer)",
         dispatcher.name,
@@ -188,17 +228,10 @@ fn build_finding(
         position + 1,
     );
     Finding {
-        smell_name: SMELL_NAME.into(),
+        smell_name: ABL_SMELL.into(),
         category: SmellCategory::Couplers,
         severity: Severity::Hint,
-        location: Location {
-            path: path.to_path_buf(),
-            start_line: dispatcher.start_line,
-            start_col: dispatcher.name_col,
-            end_line: dispatcher.start_line,
-            end_col: dispatcher.name_end_col,
-            name: Some(dispatcher.name.clone()),
-        },
+        location: dispatcher_location(path, dispatcher),
         message,
         suggested_refactorings: vec![
             format!(
@@ -211,6 +244,59 @@ fn build_finding(
         ],
         actual_value: Some(callbacks.len() as f64),
         threshold: Some(min_group_size as f64),
+    }
+}
+
+fn build_rtl_finding(
+    path: &Path,
+    dispatcher: &FunctionInfo,
+    callbacks: &[&FunctionInfo],
+    shared: &TypeRef,
+    min_group_size: usize,
+) -> Finding {
+    let module_hint = module_hint(shared);
+    let message = format!(
+        "Dispatcher `{}` fans out to {} handlers that all return `{}` {} — the external type escapes to callers; consider returning a local DTO",
+        dispatcher.name,
+        callbacks.len(),
+        shared.name,
+        module_hint,
+    );
+    Finding {
+        smell_name: RTL_SMELL.into(),
+        category: SmellCategory::Couplers,
+        severity: Severity::Hint,
+        location: dispatcher_location(path, dispatcher),
+        message,
+        suggested_refactorings: vec![
+            format!(
+                "Define a local `{}Result` DTO, return it from each handler, convert to `{}` once at the outer edge",
+                pascal_case(&shared.name),
+                shared.name
+            ),
+            "Centralise the external-type handling in one adapter instead of each handler producing it".into(),
+        ],
+        actual_value: Some(callbacks.len() as f64),
+        threshold: Some(min_group_size as f64),
+    }
+}
+
+fn module_hint(shared: &TypeRef) -> String {
+    match &shared.origin {
+        TypeOrigin::External(m) => format!("from `{m}`"),
+        TypeOrigin::Unknown => "(origin unresolved)".to_string(),
+        _ => String::new(),
+    }
+}
+
+fn dispatcher_location(path: &Path, dispatcher: &FunctionInfo) -> Location {
+    Location {
+        path: path.to_path_buf(),
+        start_line: dispatcher.start_line,
+        start_col: dispatcher.name_col,
+        end_line: dispatcher.start_line,
+        end_col: dispatcher.name_end_col,
+        name: Some(dispatcher.name.clone()),
     }
 }
 
@@ -422,5 +508,169 @@ mod tests {
             last.contains("already uses"),
             "expected shared-convention hint, got: {last}"
         );
+    }
+
+    // --- return_type_leak ---
+
+    fn func_with_return(
+        name: &str,
+        params: Vec<TypeRef>,
+        calls: Vec<String>,
+        ret: Option<TypeRef>,
+    ) -> FunctionInfo {
+        FunctionInfo {
+            name: name.into(),
+            start_line: 1,
+            end_line: 1,
+            parameter_count: params.len(),
+            parameter_types: params,
+            called_functions: calls,
+            return_type: ret,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn flags_external_return_type_in_callback_group() {
+        let param = tref("Ctx", TypeOrigin::Local);
+        let external_ret = tref("Value", TypeOrigin::External("serde_json".into()));
+        let callbacks = vec![
+            func_with_return(
+                "on_a",
+                vec![param.clone()],
+                vec![],
+                Some(external_ret.clone()),
+            ),
+            func_with_return(
+                "on_b",
+                vec![param.clone()],
+                vec![],
+                Some(external_ret.clone()),
+            ),
+            func_with_return(
+                "on_c",
+                vec![param.clone()],
+                vec![],
+                Some(external_ret.clone()),
+            ),
+        ];
+        let dispatcher = func_with_return(
+            "dispatch",
+            vec![],
+            vec!["on_a".into(), "on_b".into(), "on_c".into()],
+            None,
+        );
+        let mut all = callbacks;
+        all.push(dispatcher);
+        let models = vec![(PathBuf::from("test.rs"), model(all))];
+        let findings = detect_from_models(&models, 3);
+        let rtl: Vec<_> = findings
+            .iter()
+            .filter(|f| f.smell_name == "return_type_leak")
+            .collect();
+        assert_eq!(rtl.len(), 1, "expected one return_type_leak finding");
+        assert!(
+            rtl[0].message.contains("serde_json"),
+            "msg: {}",
+            rtl[0].message
+        );
+    }
+
+    #[test]
+    fn ignores_local_return_type() {
+        let param = tref("Ctx", TypeOrigin::Local);
+        let local_ret = tref("Finding", TypeOrigin::Local);
+        let callbacks = vec![
+            func_with_return("on_a", vec![param.clone()], vec![], Some(local_ret.clone())),
+            func_with_return("on_b", vec![param.clone()], vec![], Some(local_ret.clone())),
+            func_with_return("on_c", vec![param.clone()], vec![], Some(local_ret.clone())),
+        ];
+        let dispatcher = func_with_return(
+            "dispatch",
+            vec![],
+            vec!["on_a".into(), "on_b".into(), "on_c".into()],
+            None,
+        );
+        let mut all = callbacks;
+        all.push(dispatcher);
+        let models = vec![(PathBuf::from("test.rs"), model(all))];
+        let findings = detect_from_models(&models, 3);
+        assert!(
+            findings.iter().all(|f| f.smell_name != "return_type_leak"),
+            "local return types should not trigger"
+        );
+    }
+
+    #[test]
+    fn ignores_divergent_return_types() {
+        let param = tref("Ctx", TypeOrigin::Local);
+        let ra = tref("A", TypeOrigin::External("ext".into()));
+        let rb = tref("B", TypeOrigin::External("ext".into()));
+        let callbacks = vec![
+            func_with_return("on_a", vec![param.clone()], vec![], Some(ra.clone())),
+            func_with_return("on_b", vec![param.clone()], vec![], Some(rb.clone())),
+            func_with_return("on_c", vec![param.clone()], vec![], Some(ra.clone())),
+        ];
+        let dispatcher = func_with_return(
+            "dispatch",
+            vec![],
+            vec!["on_a".into(), "on_b".into(), "on_c".into()],
+            None,
+        );
+        let mut all = callbacks;
+        all.push(dispatcher);
+        let models = vec![(PathBuf::from("test.rs"), model(all))];
+        let findings = detect_from_models(&models, 3);
+        assert!(
+            findings.iter().all(|f| f.smell_name != "return_type_leak"),
+            "handlers return different external types, not a unified leak"
+        );
+    }
+
+    #[test]
+    fn return_type_leak_independent_from_param_leak() {
+        let local_param = tref("Ctx", TypeOrigin::Local);
+        let external_ret = tref("Value", TypeOrigin::External("serde_json".into()));
+        let callbacks = vec![
+            func_with_return(
+                "h_a",
+                vec![local_param.clone()],
+                vec![],
+                Some(external_ret.clone()),
+            ),
+            func_with_return(
+                "h_b",
+                vec![local_param.clone()],
+                vec![],
+                Some(external_ret.clone()),
+            ),
+            func_with_return(
+                "h_c",
+                vec![local_param.clone()],
+                vec![],
+                Some(external_ret.clone()),
+            ),
+        ];
+        let dispatcher = func_with_return(
+            "run",
+            vec![],
+            vec!["h_a".into(), "h_b".into(), "h_c".into()],
+            None,
+        );
+        let mut all = callbacks;
+        all.push(dispatcher);
+        let models = vec![(PathBuf::from("test.rs"), model(all))];
+        let findings = detect_from_models(&models, 3);
+        // Param leak should NOT fire (local Ctx); only RTL fires.
+        let abl_count = findings
+            .iter()
+            .filter(|f| f.smell_name == "abstraction_boundary_leak")
+            .count();
+        let rtl_count = findings
+            .iter()
+            .filter(|f| f.smell_name == "return_type_leak")
+            .count();
+        assert_eq!(abl_count, 0);
+        assert_eq!(rtl_count, 1);
     }
 }
