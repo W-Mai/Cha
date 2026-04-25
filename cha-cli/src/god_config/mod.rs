@@ -134,6 +134,7 @@ fn build_finding(
         ],
         actual_value: Some(caller_count as f64),
         threshold: Some(MIN_DISTINCT_CALLERS as f64),
+        risk_score: None,
     }
 }
 

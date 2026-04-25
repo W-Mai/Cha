@@ -55,6 +55,7 @@ impl Plugin for SwitchStatementAnalyzer {
                     suggested_refactorings: vec!["Replace Conditional with Polymorphism".into()],
                     actual_value: Some(f.switch_arms as f64),
                     threshold: Some(self.max_arms as f64),
+                    risk_score: None,
                 }
             })
             .collect()

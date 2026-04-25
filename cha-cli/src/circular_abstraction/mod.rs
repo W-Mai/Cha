@@ -110,6 +110,7 @@ fn build_finding(side: &Path, other: &Path, out_calls: usize, in_calls: usize) -
         ],
         actual_value: Some(out_calls as f64),
         threshold: Some(MIN_CALLS_EACH_SIDE as f64),
+        risk_score: None,
     }
 }
 

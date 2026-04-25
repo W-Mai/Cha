@@ -51,6 +51,7 @@ impl Plugin for LongParameterListAnalyzer {
                 ],
                 actual_value: Some(f.parameter_count as f64),
                 threshold: Some(self.max_params as f64),
+                risk_score: None,
             })
             .collect()
     }

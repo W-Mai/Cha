@@ -75,6 +75,7 @@ impl LengthAnalyzer {
                 suggested_refactorings: vec!["Extract Method".into()],
                 actual_value: Some(risk),
                 threshold: Some(1.0),
+                risk_score: None,
             });
         }
     }
@@ -123,6 +124,7 @@ impl LengthAnalyzer {
             suggested_refactorings: vec!["Extract Class".into()],
             actual_value: Some(c.line_count as f64),
             threshold: Some(self.max_class_lines as f64),
+            risk_score: None,
         })
     }
 
@@ -146,6 +148,7 @@ impl LengthAnalyzer {
                 suggested_refactorings: vec!["Extract Class".into(), "Move Method".into()],
                 actual_value: Some(ctx.model.total_lines as f64),
                 threshold: Some(self.max_file_lines as f64),
+                risk_score: None,
             });
         }
     }

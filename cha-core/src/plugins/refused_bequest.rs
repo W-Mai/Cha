@@ -63,6 +63,7 @@ impl Plugin for RefusedBequestAnalyzer {
                     ],
                     actual_value: Some(ratio),
                     threshold: Some(self.min_override_ratio),
+                    risk_score: None,
                 })
             })
             .collect()

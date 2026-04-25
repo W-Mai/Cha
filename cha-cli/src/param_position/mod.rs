@@ -154,6 +154,7 @@ fn build_finding(type_name: &str, site: &UsageSite<'_>, canonical: usize) -> Fin
         ],
         actual_value: Some(site.position as f64),
         threshold: Some(canonical as f64),
+        risk_score: None,
     }
 }
 

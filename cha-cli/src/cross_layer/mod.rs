@@ -70,6 +70,7 @@ fn violation_to_findings(v: &graph::LayerViolation, cwd: &Path) -> Vec<Finding> 
             ],
             actual_value: Some(v.gap),
             threshold: Some(MIN_GAP),
+            risk_score: None,
         })
         .collect()
 }

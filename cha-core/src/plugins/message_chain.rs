@@ -52,6 +52,7 @@ impl Plugin for MessageChainAnalyzer {
                     suggested_refactorings: vec!["Hide Delegate".into()],
                     actual_value: Some(f.chain_depth as f64),
                     threshold: Some(self.max_depth as f64),
+                    risk_score: None,
                 }
             })
             .collect()

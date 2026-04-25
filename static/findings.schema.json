@@ -27,6 +27,14 @@
         "message": {
           "type": "string"
         },
+        "risk_score": {
+          "description": "Composite priority score: severity × overshoot × hotspot factor.\nPopulated by `prioritize_findings` after analysis completes; absent\nfor findings produced but not yet ranked (pre-sort).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
         "severity": {
           "$ref": "#/$defs/Severity"
         },

@@ -143,6 +143,7 @@ fn build_finding(path: &Path, class: &ClassInfo, services: &[(&Path, &FunctionIn
         ],
         actual_value: Some(services.len() as f64),
         threshold: Some(1.0),
+        risk_score: None,
     }
 }
 

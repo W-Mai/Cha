@@ -64,6 +64,7 @@ impl Plugin for CouplingAnalyzer {
                 suggested_refactorings: vec!["Move Method".into(), "Extract Class".into()],
                 actual_value: Some(import_count as f64),
                 threshold: Some(self.max_imports as f64),
+                risk_score: None,
             });
         }
 

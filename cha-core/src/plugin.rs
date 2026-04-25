@@ -59,6 +59,11 @@ pub struct Finding {
     /// The threshold that was exceeded to produce this finding.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub threshold: Option<f64>,
+    /// Composite priority score: severity × overshoot × hotspot factor.
+    /// Populated by `prioritize_findings` after analysis completes; absent
+    /// for findings produced but not yet ranked (pre-sort).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub risk_score: Option<f64>,
 }
 
 /// Analysis context passed to plugins.

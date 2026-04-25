@@ -352,6 +352,7 @@ fn build_abl_finding(
         ],
         actual_value: Some(callbacks.len() as f64),
         threshold: Some(min_group_size as f64),
+        risk_score: None,
     }
 }
 
@@ -386,6 +387,7 @@ fn build_rtl_finding(
         ],
         actual_value: Some(callbacks.len() as f64),
         threshold: Some(min_group_size as f64),
+        risk_score: None,
     }
 }
 

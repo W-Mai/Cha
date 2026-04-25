@@ -63,6 +63,7 @@ impl ComplexityAnalyzer {
             ],
             actual_value: Some(f.complexity as f64),
             threshold: Some(self.warn_threshold as f64),
+            risk_score: None,
         })
     }
 }

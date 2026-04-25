@@ -104,6 +104,7 @@ impl Plugin for DivergentChangeAnalyzer {
             suggested_refactorings: vec!["Extract Class".into()],
             actual_value: Some(reasons as f64),
             threshold: Some(self.min_distinct_reasons as f64),
+            risk_score: None,
         }]
     }
 }

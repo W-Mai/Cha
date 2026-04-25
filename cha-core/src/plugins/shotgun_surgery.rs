@@ -122,6 +122,7 @@ impl Plugin for ShotgunSurgeryAnalyzer {
                 suggested_refactorings: vec!["Move Method".into(), "Move Field".into()],
                 actual_value: Some(*count as f64),
                 threshold: Some(self.min_co_changes as f64),
+                risk_score: None,
             })
             .collect()
     }

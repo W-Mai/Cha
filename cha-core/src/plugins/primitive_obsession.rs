@@ -73,6 +73,7 @@ impl Plugin for PrimitiveObsessionAnalyzer {
                     ],
                     actual_value: Some(ratio),
                     threshold: Some(self.primitive_ratio),
+                    risk_score: None,
                 })
             })
             .collect()

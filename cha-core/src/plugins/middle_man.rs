@@ -57,6 +57,7 @@ impl Plugin for MiddleManAnalyzer {
                 suggested_refactorings: vec!["Remove Middle Man".into()],
                 actual_value: Some(c.delegating_method_count as f64 / c.method_count as f64),
                 threshold: Some(self.delegation_ratio),
+                risk_score: None,
             })
             .collect()
     }

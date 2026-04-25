@@ -61,6 +61,7 @@ impl Plugin for CommentsAnalyzer {
                     suggested_refactorings: vec!["Extract Method".into(), "Rename Method".into()],
                     actual_value: Some(ratio),
                     threshold: Some(self.max_comment_ratio),
+                    risk_score: None,
                 })
             })
             .collect()

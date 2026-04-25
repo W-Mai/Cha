@@ -152,6 +152,7 @@ fn build_finding(path: &Path, other: &Path, from_other: &[String], to_other: &[S
         ],
         actual_value: Some(from_other.len() as f64),
         threshold: Some(MIN_TYPES_SHARED as f64),
+        risk_score: None,
     }
 }
 

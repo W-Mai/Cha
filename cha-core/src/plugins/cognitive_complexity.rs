@@ -60,6 +60,7 @@ impl Plugin for CognitiveComplexityAnalyzer {
                     ],
                     actual_value: Some(f.cognitive_complexity as f64),
                     threshold: Some(self.threshold as f64),
+                    risk_score: None,
                 }
             })
             .collect()

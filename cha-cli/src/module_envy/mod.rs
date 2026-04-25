@@ -141,6 +141,7 @@ fn build_finding(
         ],
         actual_value: Some(external_calls as f64),
         threshold: Some(MIN_EXTERNAL_CALLS as f64),
+        risk_score: None,
     }
 }
 

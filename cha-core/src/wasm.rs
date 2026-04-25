@@ -238,6 +238,7 @@ fn from_wit_finding(f: wit::Finding) -> Finding {
         suggested_refactorings: f.suggested_refactorings,
         actual_value: f.actual_value,
         threshold: f.threshold,
+        risk_score: None,
     }
 }
 

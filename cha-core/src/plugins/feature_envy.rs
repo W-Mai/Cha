@@ -68,6 +68,7 @@ impl Plugin for FeatureEnvyAnalyzer {
                     suggested_refactorings: vec!["Move Method".into()],
                     actual_value: Some(ratio),
                     threshold: Some(self.external_ratio),
+                    risk_score: None,
                 }
             })
             .collect()

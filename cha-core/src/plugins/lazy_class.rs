@@ -58,6 +58,7 @@ impl Plugin for LazyClassAnalyzer {
                     suggested_refactorings: vec!["Inline Class".into()],
                     actual_value: Some(c.method_count as f64),
                     threshold: Some(self.max_methods as f64),
+                    risk_score: None,
                 })
             })
             .collect()

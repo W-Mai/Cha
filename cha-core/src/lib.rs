@@ -38,6 +38,8 @@ pub fn is_zero_usize(v: &usize) -> bool {
 }
 
 /// Sort findings by priority descending (most important first).
+/// Writes the computed score back to `Finding::risk_score` so reporters can
+/// show *why* a finding ranks where it does.
 /// priority = severity_weight × overshoot × compound_factor
 pub fn prioritize_findings(findings: &mut [Finding]) {
     let per_file: std::collections::HashMap<std::path::PathBuf, usize> = {
@@ -47,9 +49,12 @@ pub fn prioritize_findings(findings: &mut [Finding]) {
         }
         m
     };
+    for f in findings.iter_mut() {
+        f.risk_score = Some(finding_priority(f, &per_file));
+    }
     findings.sort_by(|a, b| {
-        let pa = finding_priority(a, &per_file);
-        let pb = finding_priority(b, &per_file);
+        let pa = a.risk_score.unwrap_or(0.0);
+        let pb = b.risk_score.unwrap_or(0.0);
         pb.partial_cmp(&pa).unwrap_or(std::cmp::Ordering::Equal)
     });
 }
