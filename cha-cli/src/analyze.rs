@@ -42,8 +42,10 @@ pub(crate) fn cmd_analyze(opts: &AnalyzeOpts) -> i32 {
     let (mut all_findings, cache) = run_analysis(&files, &cwd, opts.plugin_filter);
     let cache = cache.unwrap_or_else(|| std::sync::Mutex::new(crate::open_project_cache(&cwd)));
     all_findings.extend(run_post_analysis(&files, &cwd, opts.plugin_filter, &cache));
-    all_findings =
-        crate::c_oop_filter::filter_c_oop_false_positives(all_findings, &files, &cache, &cwd);
+    // (Old `c_oop_filter` post-hoc filter replaced by `c_oop_enrich` running
+    // inside ProjectIndex::parse — models arrive at detectors with correct
+    // method_count / has_behavior, so lazy_class / data_class don't produce
+    // false positives in the first place on C structs with methods.)
     if let Ok(c) = cache.into_inner() {
         c.flush();
     }
@@ -188,9 +190,9 @@ const INDEX_PASSES: &[(&str, IndexPass)] = &[
 
 /// Passes that need parsed function signatures across the project. The
 /// shared `ProjectIndex` parses every file once and exposes the derived
-/// maps every index-backed pass wants. boundary_leak parses fresh (cache
-/// produced stale typedef aliases on lvgl; root cause TBD), so it still
-/// takes `(files, cwd, cache)`.
+/// maps every index-backed pass wants. boundary_leak parses fresh
+/// because the cached model occasionally drops typedef aliases in large
+/// C projects (root cause TBD), so it still takes `(files, cwd, cache)`.
 fn run_signature_post_passes(
     pass: &impl Fn(&str) -> bool,
     files: &[PathBuf],

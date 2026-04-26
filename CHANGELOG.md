@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **C OOP cross-file method attribution**: new `cha-cli/src/c_oop_enrich` module runs inside `ProjectIndex::parse` to rewrite `ClassInfo.method_count` / `has_behavior` and tighten `FunctionInfo.is_exported` for C / C++ projects. Uses tokenisation (snake_case, PascalCase, camelCase, acronyms) + typedef alias following to attribute free functions to structs via the universal `foo_t` + `foo_xxx(foo_t *self)` convention. Forward declarations and full definitions of the same struct share attribution. Third-party types declared only in `.c` files (no `.h` declaration) get demoted from exported to internal. Only affects post-analysis index-backed detectors (`anemic_domain_model`, `leaky_public_signature`, etc.); per-file Plugin detectors (`lazy_class`, `data_class`) still see the unenriched model and remain disabled in the C profile.
+- Replaces the previous same-file `associate_methods` in `cha-parser::c_lang` (deleted) and the same-directory `c_oop_filter` post-hoc filter in `cha-cli` (deleted) with a single project-wide enrichment pass.
+
 ### Added
 - `cha analyze --focus <category>` — comma-separated filter keeping only findings whose `SmellCategory` matches one of the listed values (`bloaters`, `oo_abusers`, `change_preventers`, `dispensables`, `couplers`, `security`). Unknown categories warn on stderr instead of crashing. Lets users narrow a noisy analyze run to a single architectural concern.
 - `Finding.risk_score: Option<f64>` — composite priority (severity × overshoot × hotspot factor) populated by `prioritize_findings` after analysis. Surfaces *why* a finding ranks where it does in reporter output and JSON/SARIF. Schema regenerated.

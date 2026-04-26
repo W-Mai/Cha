@@ -46,7 +46,7 @@ impl ProjectIndex {
         cwd: &Path,
         cache: &std::sync::Mutex<cha_core::ProjectCache>,
     ) -> Self {
-        let models: Vec<(PathBuf, SourceModel)> = files
+        let mut models: Vec<(PathBuf, SourceModel)> = files
             .iter()
             .filter_map(|p| {
                 let mut c = cache.lock().ok()?;
@@ -54,6 +54,10 @@ impl ProjectIndex {
                 Some((p.clone(), model))
             })
             .collect();
+        // Post-parse enrichment: for C / C++ projects, rewrite ClassInfo
+        // method counts, has_behavior, and is_exported so downstream
+        // detectors see the correct OOP shape. No-op for non-C projects.
+        crate::c_oop_enrich::enrich_c_oop(&mut models);
         Self::from_models(models)
     }
 

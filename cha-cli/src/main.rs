@@ -4,7 +4,7 @@ use std::process;
 mod analyze;
 mod anemic_domain;
 mod boundary_leak;
-mod c_oop_filter;
+mod c_oop_enrich;
 mod calibrate;
 mod circular_abstraction;
 mod cross_layer;

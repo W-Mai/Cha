@@ -377,6 +377,10 @@ pub fn builtin_language_profile(language: &str) -> Option<Vec<PluginProfile>> {
     match language {
         "c" | "cpp" => Some(vec![
             ("naming", false, &[] as &[(&str, i64)]),
+            // lazy_class / data_class stay disabled for C: they run as
+            // per-file plugins and don't see the `c_oop_enrich` enrichment
+            // (which only reaches post-analysis detectors via ProjectIndex).
+            // When these plugins get migrated to post-analysis, reopen them.
             ("lazy_class", false, &[]),
             ("data_class", false, &[]),
             (

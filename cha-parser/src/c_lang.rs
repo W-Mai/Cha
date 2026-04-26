@@ -54,10 +54,9 @@ fn parse_c_like(
         &mut type_aliases,
     );
 
-    // C OOP heuristic: if a function's first parameter is a pointer to a known
-    // struct type, count it as a method of that struct. This is the universal
-    // C OOP convention used by GLib/GObject, Linux kernel, lvgl, FreeRTOS, etc.
-    associate_methods(&functions, &mut classes);
+    // (C OOP method attribution moved to `cha-cli::c_oop_enrich`, which has
+    // cross-file visibility — a function in `foo.c` can be attributed to a
+    // struct declared in `foo.h`.)
 
     if is_header_file(file) {
         for f in &mut functions {
@@ -80,26 +79,6 @@ fn is_header_file(file: &SourceFile) -> bool {
     file.path
         .extension()
         .is_some_and(|e| e == "h" || e == "hxx" || e == "hpp")
-}
-
-/// C OOP heuristic: associate free functions with structs (same-file).
-/// A function is a "method" if its first parameter is a pointer to that struct.
-fn associate_methods(functions: &[FunctionInfo], classes: &mut [ClassInfo]) {
-    for class in classes.iter_mut() {
-        let count = functions
-            .iter()
-            .filter(|f| {
-                f.parameter_types.first().is_some_and(|t| {
-                    t.raw.contains('*')
-                        && t.raw.split('*').next().unwrap_or("").trim() == class.name
-                })
-            })
-            .count();
-        if count > 0 {
-            class.method_count += count;
-            class.has_behavior = true;
-        }
-    }
 }
 
 // cha:ignore cognitive_complexity
