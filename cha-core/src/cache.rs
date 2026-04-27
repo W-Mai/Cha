@@ -1,4 +1,4 @@
-use crate::{Finding, SourceModel};
+use crate::{Finding, SourceModel, SymbolIndex};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -28,13 +28,20 @@ struct CacheMeta {
     files: HashMap<String, FileEntry>,
 }
 
-/// Unified project cache: parse results + findings.
+/// Unified project cache: parse results + findings + symbol summaries.
+/// Facade over three cache layers (models, symbols, findings) plus the
+/// meta bookkeeping they share. Method count ≥ 10 is structural, not a
+/// smell — each layer exposes get/put atop the layered read/write helpers.
+// cha:ignore large_class
 pub struct ProjectCache {
     root: PathBuf,
     meta: CacheMeta,
     dirty: bool,
     /// L1 in-memory parse cache (avoids repeated disk reads within same process).
     mem_models: HashMap<u64, SourceModel>,
+    /// L1 symbol-level summaries. Small enough to keep alongside models; lets
+    /// `cached_symbols` skip the `SourceModel` deserialisation entirely.
+    mem_symbols: HashMap<u64, SymbolIndex>,
 }
 
 fn hash_all_configs(dir: &Path, h: &mut impl std::hash::Hasher) {
@@ -67,6 +74,43 @@ fn content_hash(content: &str) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     content.hash(&mut h);
     h.finish()
+}
+
+/// Layered L1-memory + L2-disk cache read. Templated over any
+/// bincode-serialisable value; SourceModel and SymbolIndex share this.
+fn get_layered<T: serde::de::DeserializeOwned + Clone>(
+    mem: &mut HashMap<u64, T>,
+    root: &Path,
+    subdir: &str,
+    chash: u64,
+) -> Option<T> {
+    if let Some(v) = mem.get(&chash) {
+        return Some(v.clone());
+    }
+    let path = cache_dir(root)
+        .join(subdir)
+        .join(format!("{chash:016x}.bin"));
+    let bytes = std::fs::read(&path).ok()?;
+    let val: T = bincode::deserialize(&bytes).ok()?;
+    mem.insert(chash, val.clone());
+    Some(val)
+}
+
+/// Layered L1 + L2 write. Silently ignores serialisation or filesystem
+/// errors — cache is a speed-up, not a correctness layer.
+fn put_layered<T: serde::Serialize + Clone>(
+    mem: &mut HashMap<u64, T>,
+    root: &Path,
+    subdir: &str,
+    chash: u64,
+    value: &T,
+) {
+    mem.insert(chash, value.clone());
+    let dir = cache_dir(root).join(subdir);
+    let _ = std::fs::create_dir_all(&dir);
+    if let Ok(bytes) = bincode::serialize(value) {
+        let _ = std::fs::write(dir.join(format!("{chash:016x}.bin")), bytes);
+    }
 }
 
 fn file_mtime_and_size(path: &Path) -> Option<(u64, u64)> {
@@ -104,6 +148,7 @@ impl ProjectCache {
             meta,
             dirty: false,
             mem_models: HashMap::new(),
+            mem_symbols: HashMap::new(),
         }
     }
 
@@ -124,26 +169,26 @@ impl ProjectCache {
 
     /// Get cached SourceModel: L1 memory → L2 disk.
     pub fn get_model(&mut self, chash: u64) -> Option<SourceModel> {
-        if let Some(m) = self.mem_models.get(&chash) {
-            return Some(m.clone());
-        }
-        let path = cache_dir(&self.root)
-            .join("parse")
-            .join(format!("{chash:016x}.bin"));
-        let bytes = std::fs::read(&path).ok()?;
-        let model: SourceModel = bincode::deserialize(&bytes).ok()?;
-        self.mem_models.insert(chash, model.clone());
-        Some(model)
+        get_layered(&mut self.mem_models, &self.root, "parse", chash)
     }
 
     /// Store a SourceModel in L1 + L2.
     pub fn put_model(&mut self, chash: u64, model: &SourceModel) {
-        self.mem_models.insert(chash, model.clone());
-        let dir = cache_dir(&self.root).join("parse");
-        let _ = std::fs::create_dir_all(&dir);
-        if let Ok(bytes) = bincode::serialize(model) {
-            let _ = std::fs::write(dir.join(format!("{chash:016x}.bin")), bytes);
-        }
+        put_layered(&mut self.mem_models, &self.root, "parse", chash, model);
+    }
+
+    /// Get a cached `SymbolIndex`: L1 memory → L2 disk.
+    /// Fast path for `cha deps`, LSP workspace-symbols and any other
+    /// consumer that only needs structural information (names, relations,
+    /// positions) without per-function-body analyse data.
+    pub fn get_symbols(&mut self, chash: u64) -> Option<SymbolIndex> {
+        get_layered(&mut self.mem_symbols, &self.root, "symbols", chash)
+    }
+
+    /// Store a `SymbolIndex` in L1 + L2. Called alongside `put_model` so
+    /// both caches stay in lockstep.
+    pub fn put_symbols(&mut self, chash: u64, idx: &SymbolIndex) {
+        put_layered(&mut self.mem_symbols, &self.root, "symbols", chash, idx);
     }
 
     /// Get cached findings for a file.
@@ -216,7 +261,7 @@ impl ProjectCache {
             .values()
             .map(|e| format!("{:016x}.bin", e.content_hash))
             .collect();
-        for subdir in &["parse", "findings"] {
+        for subdir in &["parse", "findings", "symbols"] {
             let dir = cache_dir(&self.root).join(subdir);
             let Ok(entries) = std::fs::read_dir(&dir) else {
                 continue;
@@ -379,5 +424,58 @@ mod tests {
         let p = &got.functions[0].parameter_types[0];
         assert_eq!(p.name, "ExtThing");
         assert!(matches!(&p.origin, TypeOrigin::External(m) if m == "ext"));
+    }
+
+    /// `SymbolIndex` cache writes land in `symbols/{chash}.bin` independent
+    /// of `parse/{chash}.bin`. Reopening the cache must recover them byte-
+    /// for-byte — this is the invariant that lets `cached_symbols` skip
+    /// `SourceModel` deserialisation entirely on warm runs.
+    #[test]
+    fn symbol_index_roundtrip_preserves_classes_and_functions() {
+        use crate::{ClassSymbol, FunctionSymbol, SymbolIndex};
+        let tmp = unique_tmp_dir();
+        let mut cache = ProjectCache::open(&tmp, 0xdeadbeef);
+        let idx = SymbolIndex {
+            language: "c".into(),
+            total_lines: 42,
+            imports: vec![],
+            classes: vec![ClassSymbol {
+                name: "Foo".into(),
+                parent_name: Some("Base".into()),
+                is_interface: false,
+                is_exported: true,
+                method_count: 3,
+                has_behavior: true,
+                field_names: vec!["x".into()],
+                field_types: vec!["int".into()],
+                start_line: 10,
+                end_line: 20,
+                ..Default::default()
+            }],
+            functions: vec![FunctionSymbol {
+                name: "bar".into(),
+                is_exported: true,
+                parameter_count: 2,
+                called_functions: vec!["helper".into(), "log".into()],
+                start_line: 30,
+                end_line: 40,
+                ..Default::default()
+            }],
+            type_aliases: vec![("Handle".into(), "void*".into())],
+        };
+        let chash = 0x1234_abcd_u64;
+        cache.update_file_entry("t.c".into(), &tmp.join("nope"), chash, vec![]);
+        cache.put_symbols(chash, &idx);
+        let got_l1 = cache.get_symbols(chash).expect("L1 hit");
+        assert_eq!(got_l1.classes[0].name, "Foo");
+        assert_eq!(got_l1.functions[0].called_functions.len(), 2);
+        assert_eq!(got_l1.type_aliases[0].0, "Handle");
+        // Force L2 round-trip.
+        cache.flush();
+        drop(cache);
+        let mut fresh = ProjectCache::open(&tmp, 0xdeadbeef);
+        let from_disk = fresh.get_symbols(chash).expect("L2 hit");
+        assert_eq!(from_disk.classes[0].parent_name.as_deref(), Some("Base"));
+        assert_eq!(from_disk.functions[0].parameter_count, 2);
     }
 }

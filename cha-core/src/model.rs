@@ -151,3 +151,120 @@ pub struct SourceModel {
     /// Type aliases: (alias, original). e.g. typedef, using, type =
     pub type_aliases: Vec<(String, String)>,
 }
+
+/// Compact structural summary of a file — symbol-level view without the
+/// per-function-body detail that analyze plugins need. Serves `cha deps`,
+/// future LSP workspace-symbols, and anywhere a reader needs "what
+/// classes/functions live here and how are they related" without caring
+/// about complexity metrics or TypeRef origin resolution.
+///
+/// One-way derivable from `SourceModel`; cached separately so light
+/// consumers don't pay `SourceModel`'s deserialise cost.
+#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SymbolIndex {
+    pub language: String,
+    pub total_lines: usize,
+    pub imports: Vec<ImportInfo>,
+    pub classes: Vec<ClassSymbol>,
+    pub functions: Vec<FunctionSymbol>,
+    /// `(alias, original)`. Mirrors `SourceModel.type_aliases`.
+    pub type_aliases: Vec<(String, String)>,
+}
+
+/// Symbol-level view of a class — everything deps/LSP/hotspot need to
+/// reason about a class without parsing method bodies. Fields intentionally
+/// track the subset of `ClassInfo` that survives cross-file consumption.
+#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ClassSymbol {
+    pub name: String,
+    pub parent_name: Option<String>,
+    pub is_interface: bool,
+    pub is_exported: bool,
+    pub method_count: usize,
+    pub has_behavior: bool,
+    pub field_names: Vec<String>,
+    pub field_types: Vec<String>,
+    pub start_line: usize,
+    pub end_line: usize,
+    pub name_col: usize,
+    pub name_end_col: usize,
+}
+
+/// Symbol-level view of a function — name + signature + call-graph input.
+/// Omits body_hash, complexity, cognitive, external_refs, chain_depth,
+/// parameter_types (TypeRef), return_type — those live in `FunctionInfo`
+/// for analyze plugins.
+#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FunctionSymbol {
+    pub name: String,
+    pub is_exported: bool,
+    pub parameter_count: usize,
+    pub called_functions: Vec<String>,
+    pub start_line: usize,
+    pub end_line: usize,
+    pub name_col: usize,
+    pub name_end_col: usize,
+    /// Bare type names (no module prefix, no origin info) for each
+    /// parameter in declaration order. Sufficient for signature-based
+    /// clustering (C OOP attribution, call-graph refinement) without
+    /// pulling in TypeRef's origin resolution, which is analyze-only.
+    pub parameter_type_names: Vec<String>,
+    /// Bare return type name (same conventions as parameter_type_names);
+    /// `None` if the function has no declared return type.
+    pub return_type_name: Option<String>,
+}
+
+impl SymbolIndex {
+    /// Project a `SourceModel` onto the symbol-level view. Cheap —
+    /// clones strings but no heavy structures.
+    pub fn from_source_model(m: &SourceModel) -> Self {
+        Self {
+            language: m.language.clone(),
+            total_lines: m.total_lines,
+            imports: m.imports.clone(),
+            classes: m.classes.iter().map(ClassSymbol::from_class_info).collect(),
+            functions: m
+                .functions
+                .iter()
+                .map(FunctionSymbol::from_function_info)
+                .collect(),
+            type_aliases: m.type_aliases.clone(),
+        }
+    }
+}
+
+impl ClassSymbol {
+    pub fn from_class_info(c: &ClassInfo) -> Self {
+        Self {
+            name: c.name.clone(),
+            parent_name: c.parent_name.clone(),
+            is_interface: c.is_interface,
+            is_exported: c.is_exported,
+            method_count: c.method_count,
+            has_behavior: c.has_behavior,
+            field_names: c.field_names.clone(),
+            field_types: c.field_types.clone(),
+            start_line: c.start_line,
+            end_line: c.end_line,
+            name_col: c.name_col,
+            name_end_col: c.name_end_col,
+        }
+    }
+}
+
+impl FunctionSymbol {
+    pub fn from_function_info(f: &FunctionInfo) -> Self {
+        Self {
+            name: f.name.clone(),
+            is_exported: f.is_exported,
+            parameter_count: f.parameter_count,
+            called_functions: f.called_functions.clone(),
+            start_line: f.start_line,
+            end_line: f.end_line,
+            name_col: f.name_col,
+            name_end_col: f.name_end_col,
+            parameter_type_names: f.parameter_types.iter().map(|t| t.raw.clone()).collect(),
+            return_type_name: f.return_type.as_ref().map(|t| t.raw.clone()),
+        }
+    }
+}

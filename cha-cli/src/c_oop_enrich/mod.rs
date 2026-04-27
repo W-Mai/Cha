@@ -19,7 +19,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use cha_core::SourceModel;
+use cha_core::{SourceModel, SymbolIndex};
 
 /// Entry point — mutate the shared set of parsed models in place.
 pub fn enrich_c_oop(models: &mut [(PathBuf, SourceModel)]) {
@@ -32,11 +32,26 @@ pub fn enrich_c_oop(models: &mut [(PathBuf, SourceModel)]) {
     write_back(models, &attributions, &exported_in_headers);
 }
 
+/// `SymbolIndex` twin of `enrich_c_oop` — same algorithm, but walks the
+/// compact symbol-level view instead of full `SourceModel`. Used by
+/// `cha deps` whose inputs come from `cached_symbols`.
+pub fn enrich_c_oop_symbols(indices: &mut [(PathBuf, SymbolIndex)]) {
+    if !indices.iter().any(|(_, s)| is_c_like_sym(s)) {
+        return;
+    }
+    let index = build_index_from_symbols(indices);
+    let attributions = attribute_methods_from_symbols(indices, &index);
+    let exported_in_headers = collect_header_exports_from_symbols(indices);
+    write_back_symbols(indices, &attributions, &exported_in_headers);
+}
+
 /// Method attribution exposed for consumers that want to know *which*
-/// functions attach to each C struct (not just the count). `cha deps
-/// --type classes --detail` uses this to fill method lists on UML
-/// output. Returns map: struct name → `(path, fn_name, is_exported)`
-/// for every function attributed to that struct.
+/// functions attach to each C struct (not just the count). Returns map:
+/// struct name → `(path, fn_name, is_exported)` for every function
+/// attributed to that struct. Kept alongside the SymbolIndex variant so
+/// SourceModel-based callers (future ProjectIndex work, plugins) don't
+/// need to downgrade through SymbolIndex first.
+#[allow(dead_code)]
 pub fn attribute_methods_by_name(
     models: &[(PathBuf, SourceModel)],
 ) -> HashMap<String, Vec<(PathBuf, String, bool)>> {
@@ -51,6 +66,32 @@ pub fn attribute_methods_by_name(
         }
         for f in &model.functions {
             if let Some(key) = attribute_one(f, &index) {
+                out.entry(key)
+                    .or_default()
+                    .push((path.clone(), f.name.clone(), f.is_exported));
+            }
+        }
+    }
+    out
+}
+
+/// `SymbolIndex` twin of `attribute_methods_by_name`. Used by deps'
+/// `--detail` path so it never has to touch `SourceModel`.
+pub fn attribute_methods_by_name_from_symbols(
+    indices: &[(PathBuf, SymbolIndex)],
+) -> HashMap<String, Vec<(PathBuf, String, bool)>> {
+    let mut out: HashMap<String, Vec<(PathBuf, String, bool)>> = HashMap::new();
+    if !indices.iter().any(|(_, s)| is_c_like_sym(s)) {
+        return out;
+    }
+    let index = build_index_from_symbols(indices);
+    for (path, s) in indices {
+        if !is_c_like_sym(s) {
+            continue;
+        }
+        for f in &s.functions {
+            let first = f.parameter_type_names.first().map(String::as_str);
+            if let Some(key) = attribute_one_raw(&f.name, first, &index) {
                 out.entry(key)
                     .or_default()
                     .push((path.clone(), f.name.clone(), f.is_exported));
@@ -83,6 +124,7 @@ struct Index {
     parent_of: HashMap<ClassKey, ClassKey>,
 }
 
+// cha:ignore duplicate_code
 fn build_index(models: &[(PathBuf, SourceModel)]) -> Index {
     let mut type_to_class: HashMap<Vec<String>, ClassKey> = HashMap::new();
     let mut prefix_to_owners: HashMap<Vec<String>, HashSet<ClassKey>> = HashMap::new();
@@ -240,19 +282,27 @@ fn attribute_methods(models: &[(PathBuf, SourceModel)], index: &Index) -> HashMa
 /// and passing `&derived->parent` around.
 fn attribute_one(f: &cha_core::FunctionInfo, index: &Index) -> Option<ClassKey> {
     let first = f.parameter_types.first()?;
-    let bare = normalize_type_raw(&first.raw);
+    attribute_one_raw(&f.name, Some(first.raw.as_str()), index)
+}
+
+/// Attribution on raw type text — the real brain. Both the SourceModel
+/// path (`FunctionInfo.parameter_types[0].raw`) and the SymbolIndex path
+/// (`FunctionSymbol.parameter_type_names[0]`) funnel through here.
+fn attribute_one_raw(
+    fn_name: &str,
+    first_param_raw: Option<&str>,
+    index: &Index,
+) -> Option<ClassKey> {
+    let bare = normalize_type_raw(first_param_raw?);
     let param_tokens = tokenize(&bare);
     if param_tokens.is_empty() {
         return None;
     }
     let target = index.type_to_class.get(&param_tokens)?;
 
-    let fn_tokens = tokenize(&f.name);
-    // Longest prefix of fn_tokens that some struct claims.
+    let fn_tokens = tokenize(fn_name);
     let owners = longest_prefix_owners(&fn_tokens, &index.prefix_to_owners)?;
 
-    // Prefer owner == target; otherwise any owner whose ancestor chain
-    // includes target (C "inheritance" via first-field base).
     if owners.contains(target) {
         return Some(target.clone());
     }
@@ -313,6 +363,7 @@ fn collect_header_exports(models: &[(PathBuf, SourceModel)]) -> HashSet<String> 
 
 // ── Write back ────────────────────────────────────────────────────────────
 
+// cha:ignore duplicate_code
 fn write_back(
     models: &mut [(PathBuf, SourceModel)],
     attributions: &HashMap<ClassKey, usize>,
@@ -348,6 +399,194 @@ fn tighten_exports(model: &mut SourceModel, exported_in_headers: &HashSet<String
 /// incorrectly flagged as lazy_class downstream.
 fn apply_attributions(model: &mut SourceModel, attributions: &HashMap<ClassKey, usize>) {
     for c in &mut model.classes {
+        if let Some(&added) = attributions.get(&c.name) {
+            c.method_count += added;
+            c.has_behavior = true;
+        }
+    }
+}
+
+// ── SymbolIndex parallel implementations ──────────────────────────────────
+//
+// Mirror of the SourceModel path — same index construction and
+// attribution rules, but reading and writing `SymbolIndex` fields.
+
+fn is_c_like_sym(s: &SymbolIndex) -> bool {
+    matches!(s.language.as_str(), "c" | "cpp")
+}
+
+/// Intentional parallel of `build_index` — the SymbolIndex path stays
+/// independent so `cha deps` never pulls in SourceModel. Shared `Index`
+/// result + `attribute_one_raw` keep the actual rules single-sourced.
+// cha:ignore duplicate_code
+fn build_index_from_symbols(indices: &[(PathBuf, SymbolIndex)]) -> Index {
+    let mut type_to_class: HashMap<Vec<String>, ClassKey> = HashMap::new();
+    let mut prefix_to_owners: HashMap<Vec<String>, HashSet<ClassKey>> = HashMap::new();
+    register_structs_sym(indices, &mut type_to_class, &mut prefix_to_owners);
+    register_aliases_sym(indices, &mut type_to_class, &mut prefix_to_owners);
+    let parent_of = build_parent_map_sym(indices, &type_to_class);
+    Index {
+        type_to_class,
+        prefix_to_owners,
+        parent_of,
+    }
+}
+
+fn register_structs_sym(
+    indices: &[(PathBuf, SymbolIndex)],
+    type_to_class: &mut HashMap<Vec<String>, ClassKey>,
+    prefix_to_owners: &mut HashMap<Vec<String>, HashSet<ClassKey>>,
+) {
+    for (_, s) in indices {
+        if !is_c_like_sym(s) {
+            continue;
+        }
+        for c in &s.classes {
+            let tokens = tokenize(&c.name);
+            if tokens.is_empty() {
+                continue;
+            }
+            type_to_class
+                .entry(tokens.clone())
+                .or_insert_with(|| c.name.clone());
+            for prefix in candidate_prefixes(&tokens) {
+                prefix_to_owners
+                    .entry(prefix)
+                    .or_default()
+                    .insert(c.name.clone());
+            }
+        }
+    }
+}
+
+fn register_aliases_sym(
+    indices: &[(PathBuf, SymbolIndex)],
+    type_to_class: &mut HashMap<Vec<String>, ClassKey>,
+    prefix_to_owners: &mut HashMap<Vec<String>, HashSet<ClassKey>>,
+) {
+    for (_, s) in indices {
+        if !is_c_like_sym(s) {
+            continue;
+        }
+        for (alias, original) in &s.type_aliases {
+            let alias_tokens = tokenize(alias);
+            let original_tokens = tokenize(original);
+            if alias_tokens.is_empty() {
+                continue;
+            }
+            let Some(key) = type_to_class
+                .get(&original_tokens)
+                .or_else(|| type_to_class.get(&alias_tokens))
+                .cloned()
+            else {
+                continue;
+            };
+            type_to_class
+                .entry(alias_tokens.clone())
+                .or_insert_with(|| key.clone());
+            for prefix in candidate_prefixes(&alias_tokens) {
+                prefix_to_owners
+                    .entry(prefix)
+                    .or_default()
+                    .insert(key.clone());
+            }
+        }
+    }
+}
+
+fn build_parent_map_sym(
+    indices: &[(PathBuf, SymbolIndex)],
+    type_to_class: &HashMap<Vec<String>, ClassKey>,
+) -> HashMap<ClassKey, ClassKey> {
+    let mut parent_of: HashMap<ClassKey, ClassKey> = HashMap::new();
+    for (_, s) in indices {
+        if !is_c_like_sym(s) {
+            continue;
+        }
+        for c in &s.classes {
+            let Some(parent_raw) = c.parent_name.as_deref() else {
+                continue;
+            };
+            let parent_tokens = tokenize(parent_raw);
+            if parent_tokens.is_empty() {
+                continue;
+            }
+            let Some(parent_key) = type_to_class.get(&parent_tokens) else {
+                continue;
+            };
+            if *parent_key == c.name {
+                continue;
+            }
+            parent_of
+                .entry(c.name.clone())
+                .or_insert_with(|| parent_key.clone());
+        }
+    }
+    parent_of
+}
+
+fn attribute_methods_from_symbols(
+    indices: &[(PathBuf, SymbolIndex)],
+    index: &Index,
+) -> HashMap<ClassKey, usize> {
+    let mut counts: HashMap<ClassKey, usize> = HashMap::new();
+    for (_, s) in indices {
+        if !is_c_like_sym(s) {
+            continue;
+        }
+        for f in &s.functions {
+            let first = f.parameter_type_names.first().map(String::as_str);
+            let Some(key) = attribute_one_raw(&f.name, first, index) else {
+                continue;
+            };
+            *counts.entry(key).or_default() += 1;
+        }
+    }
+    counts
+}
+
+fn collect_header_exports_from_symbols(indices: &[(PathBuf, SymbolIndex)]) -> HashSet<String> {
+    let mut set = HashSet::new();
+    for (path, s) in indices {
+        if !is_c_like_sym(s) || !is_header_path(path) {
+            continue;
+        }
+        for f in &s.functions {
+            set.insert(f.name.clone());
+        }
+    }
+    set
+}
+
+/// Intentional parallel of `write_back` for SymbolIndex. Same reason as
+/// `build_index_from_symbols` — two storage types need two entry points.
+// cha:ignore duplicate_code
+fn write_back_symbols(
+    indices: &mut [(PathBuf, SymbolIndex)],
+    attributions: &HashMap<ClassKey, usize>,
+    exported_in_headers: &HashSet<String>,
+) {
+    for (path, s) in indices.iter_mut() {
+        if !is_c_like_sym(s) {
+            continue;
+        }
+        if !is_header_path(path) {
+            tighten_exports_sym(s, exported_in_headers);
+        }
+        apply_attributions_sym(s, attributions);
+    }
+}
+
+fn tighten_exports_sym(s: &mut SymbolIndex, exported_in_headers: &HashSet<String>) {
+    for f in &mut s.functions {
+        if f.is_exported && !exported_in_headers.contains(&f.name) {
+            f.is_exported = false;
+        }
+    }
+}
+
+fn apply_attributions_sym(s: &mut SymbolIndex, attributions: &HashMap<ClassKey, usize>) {
+    for c in &mut s.classes {
         if let Some(&added) = attributions.get(&c.name) {
             c.method_count += added;
             c.has_behavior = true;
