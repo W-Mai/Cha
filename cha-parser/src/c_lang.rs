@@ -96,14 +96,7 @@ fn collect_top_level(
     for child in root.children(&mut cursor) {
         match child.kind() {
             "function_definition" => {
-                // Heuristic: `class MACRO Name { ... };` is parsed by tree-sitter
-                // as a function_definition whose return type is a class_specifier.
-                // Detect this and extract as a class instead.
-                if let Some(c) = try_extract_macro_class(child, src) {
-                    classes.push(c);
-                } else if let Some(f) = extract_function(child, src, imports_map) {
-                    functions.push(f);
-                }
+                handle_function_definition(child, src, imports_map, functions, classes);
             }
             "declaration" => {
                 // Header-style function declarations (`void foo(int);` — no
@@ -132,6 +125,23 @@ fn collect_top_level(
                     imports.push(imp);
                 }
             }
+            // C++ nesting constructs: recurse into them so inner
+            // functions/classes land at the top of `functions`/`classes`.
+            // `namespace { ... }` and `extern "C" { ... }` wrap their
+            // content in a `body` field; `template <...>` applies to its
+            // following sibling node directly (no body field). We just
+            // recurse into the whole subtree either way.
+            "namespace_definition" | "linkage_specification" | "template_declaration" => {
+                collect_top_level(
+                    child,
+                    src,
+                    imports_map,
+                    functions,
+                    classes,
+                    imports,
+                    type_aliases,
+                );
+            }
             _ => {
                 if child.child_count() > 0 {
                     collect_top_level(
@@ -147,6 +157,29 @@ fn collect_top_level(
             }
         }
     }
+}
+
+/// Process a `function_definition` node. Handles two C-specific edge
+/// cases (the `class MACRO Name {...}` macro-class pattern and plain
+/// functions) plus C++ out-of-class method attribution.
+fn handle_function_definition(
+    node: Node,
+    src: &[u8],
+    imports_map: &crate::type_ref::ImportsMap,
+    functions: &mut Vec<FunctionInfo>,
+    classes: &mut Vec<ClassInfo>,
+) {
+    if let Some(c) = try_extract_macro_class(node, src) {
+        classes.push(c);
+        return;
+    }
+    let Some(f) = extract_function(node, src, imports_map) else {
+        return;
+    };
+    if let Some(q) = crate::cpp::extract_class_qualifier(node, src) {
+        crate::cpp::attach_to_class(&q, classes);
+    }
+    functions.push(f);
 }
 
 fn extract_typedef_struct(
@@ -390,8 +423,15 @@ fn has_storage_class(node: Node, src: &[u8], keyword: &str) -> bool {
 }
 
 fn find_func_name_node(declarator: Node) -> Option<Node> {
-    if declarator.kind() == "identifier" {
-        return Some(declarator);
+    // Plain C: declarator chain bottoms out in `identifier`. C++ adds:
+    // `field_identifier` (in-class member), `destructor_name`,
+    // `operator_name`, and `qualified_identifier` (out-of-class / global).
+    match declarator.kind() {
+        "identifier" | "field_identifier" | "destructor_name" | "operator_name" => {
+            return Some(declarator);
+        }
+        "qualified_identifier" => return crate::cpp::qualified_identifier_leaf(declarator),
+        _ => {}
     }
     declarator
         .child_by_field_name("declarator")
