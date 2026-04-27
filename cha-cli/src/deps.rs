@@ -210,7 +210,7 @@ pub(crate) fn parse_all_models(
     cache: &mut cha_core::ProjectCache,
 ) -> Vec<(PathBuf, cha_core::SourceModel)> {
     let pb = crate::new_progress_bar(files.len() as u64);
-    let result = files
+    let mut result: Vec<(PathBuf, cha_core::SourceModel)> = files
         .iter()
         .filter_map(|path| {
             let (_, model) = crate::cached_parse(path, cache, cwd)?;
@@ -219,6 +219,10 @@ pub(crate) fn parse_all_models(
         })
         .collect();
     pb.finish_and_clear();
+    // Apply cross-file C OOP attribution so method_count / has_behavior /
+    // is_exported reflect project-wide reality before the caller reads
+    // the model. No-op for non-C projects.
+    crate::c_oop_enrich::enrich_c_oop(&mut result);
     result
 }
 
@@ -464,31 +468,9 @@ fn render_detail_classes(
         edge_names.retain(|n| re.is_match(n) || re.is_match(&display(n)));
     }
 
-    // Per-directory function index (for same-module matching)
-    let mut dir_funcs: HashMap<&Path, Vec<&cha_core::FunctionInfo>> = HashMap::new();
-    for (path, m) in parsed {
-        let dir = path.parent().unwrap_or(path);
-        dir_funcs.entry(dir).or_default().extend(&m.functions);
-    }
-
-    // Class → directory (prefer definition with fields over forward declarations)
-    let mut class_dir: HashMap<&str, &Path> = HashMap::new();
-    // First pass: only classes with fields (actual definitions)
-    for (path, m) in parsed {
-        let dir = path.parent().unwrap_or(path);
-        for c in &m.classes {
-            if c.field_count > 0 {
-                class_dir.insert(&c.name, dir);
-            }
-        }
-    }
-    // Second pass: fill in any missing (forward declarations)
-    for (path, m) in parsed {
-        let dir = path.parent().unwrap_or(path);
-        for c in &m.classes {
-            class_dir.entry(&c.name).or_insert(dir);
-        }
-    }
+    // Project-wide C OOP method attribution (used in addition to lexical
+    // in-class methods below). For non-C projects this is empty.
+    let c_methods = crate::c_oop_enrich::attribute_methods_by_name(parsed);
 
     // Inheritance: class_name → parent_name
     let parent_map: HashMap<&str, &str> = parsed
@@ -535,28 +517,31 @@ fn render_detail_classes(
                 .collect();
 
             let ancestors = ancestors_of(&c.name);
-            let alias = reverse.get(c.name.as_str()).copied().unwrap_or(&c.name);
 
-            // Same-module functions whose first param is this class or an ancestor
-            let dir = class_dir.get(c.name.as_str()).or(class_dir.get(alias));
-            let empty = vec![];
-            let funcs = dir.and_then(|d| dir_funcs.get(d)).unwrap_or(&empty);
-
-            let methods: Vec<(String, bool)> = m
+            // In-body methods (lexically inside the class) from the
+            // current file — these are the "real" OOP methods.
+            let in_body: Vec<(String, bool)> = m
                 .functions
                 .iter()
                 .filter(|f| f.start_line >= c.start_line && f.end_line <= c.end_line)
-                .chain(funcs.iter().copied().filter(|f| {
-                    f.parameter_types.first().is_some_and(|t| {
-                        if !t.raw.contains('*') {
-                            return false;
-                        }
-                        let base = t.raw.split('*').next().unwrap_or("").trim();
-                        base == c.name || base == alias || ancestors.contains(base)
-                    })
-                }))
                 .map(|f| (f.name.clone(), f.is_exported))
                 .collect();
+
+            // Cross-file C OOP attribution: look up every function the
+            // enrich pass attributed to this struct or any ancestor.
+            // Deduplicate against in_body by function name.
+            let mut seen: HashSet<String> = in_body.iter().map(|(n, _)| n.clone()).collect();
+            let mut methods = in_body;
+            let keys = std::iter::once(c.name.as_str()).chain(ancestors.iter().copied());
+            for key in keys {
+                if let Some(list) = c_methods.get(key) {
+                    for (_, fn_name, is_exp) in list {
+                        if seen.insert(fn_name.clone()) {
+                            methods.push((fn_name.clone(), *is_exp));
+                        }
+                    }
+                }
+            }
 
             detail_classes.insert(
                 dn,

@@ -193,7 +193,7 @@ fn register_single_typedef_struct(
     }
 }
 
-/// `typedef uint32_t lv_part_t;` — simple alias, no struct body.
+/// `typedef uint32_t tag_t;` — simple alias, no struct body.
 fn register_simple_typedef(node: Node, src: &[u8], type_aliases: &mut Vec<(String, String)>) {
     let alias = extract_typedef_alias(node, src);
     let original = node
