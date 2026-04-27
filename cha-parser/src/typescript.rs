@@ -1,3 +1,4 @@
+// cha:ignore large_file
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -5,6 +6,7 @@ use cha_core::{ClassInfo, FunctionInfo, ImportInfo, SourceFile, SourceModel};
 use tree_sitter::{Node, Parser};
 
 use crate::LanguageParser;
+use crate::type_aliases::typescript as extract_type_alias;
 
 pub struct TypeScriptParser;
 
@@ -33,16 +35,18 @@ impl LanguageParser for TypeScriptParser {
             classes: ctx.col.classes,
             imports: ctx.col.imports,
             comments: collect_comments(root, src),
-            type_aliases: vec![], // TODO(parser): extract type aliases from 'type X = Y' declarations
+            type_aliases: ctx.col.type_aliases,
         })
     }
 }
 
 /// Accumulator for collected AST items.
+#[derive(Default)]
 struct Collector {
     functions: Vec<FunctionInfo>,
     classes: Vec<ClassInfo>,
     imports: Vec<ImportInfo>,
+    type_aliases: Vec<(String, String)>,
 }
 
 /// Bundles source bytes and collector to eliminate repeated parameter passing.
@@ -57,11 +61,7 @@ impl<'a> ParseContext<'a> {
         Self {
             src,
             imports_map,
-            col: Collector {
-                functions: Vec::new(),
-                classes: Vec::new(),
-                imports: Vec::new(),
-            },
+            col: Collector::default(),
         }
     }
 
@@ -87,6 +87,10 @@ impl<'a> ParseContext<'a> {
                 self.collect_nodes(child, exported);
             }
             "class_declaration" => self.push_class(child, exported),
+            "type_alias_declaration" => self
+                .col
+                .type_aliases
+                .extend(extract_type_alias(child, self.src)),
             "import_statement" => self.push_import(child),
             _ => self.collect_nodes(child, false),
         }

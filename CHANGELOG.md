@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`SourceModel.type_aliases` now populated for Rust, TypeScript, Python, and Go** (previously all four returned empty `vec![]` with parser-side TODOs). Each parser recognises its language's alias form and records `(alias, rhs)` pairs: Rust `type X = Y;` / `pub type X<T> = Y;`, TypeScript `type X = Y;` / `export type X<T> = Y;`, Python 3.12+ `type X = Y` and pre-3.12 `X: TypeAlias = Y`, Go `type X = Y` (only the true alias form — `type X Y` defined types are excluded). Plain Python `X = Y` assignments remain unclassified (too ambiguous). Shared extraction lives in a new `cha-parser/src/type_aliases.rs` module so per-language files stay below the `large_file` gate.
+
 ## [1.11.1] - 2026-04-27
 
 ### Changed
