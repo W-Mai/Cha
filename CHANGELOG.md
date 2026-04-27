@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`SymbolIndex` — structural view of a file, cached separately from `SourceModel`.** New type in `cha-core::model` carrying the fields consumers like `cha deps`, LSP workspace-symbols, and future `cha summary` all share — class/function names + signatures + positions + `type_aliases` — without per-function-body data (complexity, body hash, TypeRef origin, cognitive, chain depth etc. stay in `SourceModel`).
+  - `ProjectCache::{get,put}_symbols` store to `symbols/{chash}.bin`, mirrored independently of `parse/{chash}.bin`. Same `env_hash` mechanism invalidates both on parser code changes.
+  - `cached_symbols(path)` is a new warm fast path that skips `SourceModel` deserialisation entirely — `symbols/{chash}.bin` is roughly 10% the size of `parse/{chash}.bin`.
+  - `cached_parse` now populates both caches on every fresh parse, so the two views are always in lockstep.
+  - `lvgl src/` warm benchmarks (379 files): `deps --type imports` 1.28s → 38ms (34×), `--type classes` 1.30s → 56ms (23×), `--type calls` 1.30s → 48ms (27×). Edge counts unchanged vs. pre-migration (1351/142/8109).
+  - `cha-cli/src/c_oop_enrich` grows a `enrich_c_oop_symbols` / `attribute_methods_by_name_from_symbols` pair alongside the existing `SourceModel` functions. Shared `attribute_one_raw` keeps attribution rules single-sourced; build-index / write-back are deliberate parallel code paths because the two storage types have to stay independent.
+  - `cha-cli/src/parse_cache.rs` (new module) hosts both `cached_parse` and `cached_symbols`.
+
+### Added
 - **C++ parser now handles `ClassName::method()` out-of-class definitions, namespaces, and templates.** Three gaps in the previous CppParser have been closed:
   - `void Foo::bar() {...}` (and `::global()`, `A::B::c()`, destructors `Foo::~Foo()`, operators `Foo::operator+()`) was silently dropped — `find_func_name_node` only accepted bare `identifier` declarators. It now also unwraps `qualified_identifier`, `destructor_name`, and `operator_name`.
   - Out-of-class method definitions now attribute to their owning same-file class: `void Foo::bar()` bumps `ClassInfo::method_count` on `Foo` and flips `has_behavior`. Cross-file attribution still runs through `cha-cli::c_oop_enrich`.

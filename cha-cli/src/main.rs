@@ -17,6 +17,7 @@ mod layers;
 mod leaky_public;
 mod module_envy;
 mod param_position;
+mod parse_cache;
 mod plugin;
 mod project_index;
 mod tangled;
@@ -317,38 +318,7 @@ pub(crate) fn open_project_cache(cwd: &std::path::Path) -> cha_core::ProjectCach
     cha_core::ProjectCache::open(cwd, eh)
 }
 
-/// Parse a file with cache support: mtime check → content hash → parse on miss.
-pub(crate) fn cached_parse(
-    path: &std::path::Path,
-    cache: &mut cha_core::ProjectCache,
-    cwd: &std::path::Path,
-) -> Option<(String, cha_core::SourceModel)> {
-    let rel = path
-        .strip_prefix(cwd)
-        .unwrap_or(path)
-        .to_string_lossy()
-        .to_string();
-    // Fast path: mtime+size unchanged → use cached model without reading file
-    if let cha_core::FileStatus::Unchanged(chash) = cache.check_file(&rel, path)
-        && let Some(model) = cache.get_model(chash)
-    {
-        return Some((rel, model));
-    }
-    // Slow path: read file, hash, check/parse
-    let content = std::fs::read_to_string(path).ok()?;
-    let chash = cha_core::hash_content(&content);
-    if let Some(model) = cache.get_model(chash) {
-        let imports = model.imports.iter().map(|i| i.source.clone()).collect();
-        cache.update_file_entry(rel.clone(), path, chash, imports);
-        return Some((rel, model));
-    }
-    let file = cha_core::SourceFile::new(path.to_path_buf(), content);
-    let model = cha_parser::parse_file(&file)?;
-    cache.put_model(chash, &model);
-    let imports = model.imports.iter().map(|i| i.source.clone()).collect();
-    cache.update_file_entry(rel.clone(), path, chash, imports);
-    Some((rel, model))
-}
+pub(crate) use parse_cache::{cached_parse, cached_symbols};
 
 fn main() {
     clap_complete::CompleteEnv::with_factory(Args::command).complete();

@@ -38,7 +38,7 @@ pub fn cmd_deps(
     };
 
     if detail && matches!(graph_type, DepsType::Classes) {
-        let parsed = parse_all_models(&files, &cwd, &mut cache);
+        let parsed = collect_symbol_indices(&files, &cwd, &mut cache);
         render_detail_classes(&edges, &parsed, format, filter, exact);
     } else {
         render(&edges, &cycles, format, &style);
@@ -144,11 +144,11 @@ fn build_import_graph(files: &[PathBuf], cwd: &Path, depth: &DepsDepth) -> Vec<E
     let mut edges = Vec::new();
     let mut cache = crate::open_project_cache(cwd);
     for path in files {
-        let Some((src, model)) = crate::cached_parse(path, &mut cache, cwd) else {
+        let Some((src, idx)) = crate::cached_symbols(path, &mut cache, cwd) else {
             pb.inc(1);
             continue;
         };
-        for imp in &model.imports {
+        for imp in &idx.imports {
             if SKIP_PREFIXES.iter().any(|p| imp.source.starts_with(p)) {
                 continue;
             }
@@ -204,25 +204,26 @@ fn aggregate_to_dirs(edges: Vec<Edge>) -> Vec<Edge> {
 
 // ── Class graph ──
 
-pub(crate) fn parse_all_models(
+/// Collect `SymbolIndex`es for every file, via `cached_symbols` (the warm
+/// fast path). Applies cross-file C OOP attribution in-memory before
+/// returning, so callers see the enriched structural view without having
+/// to load `SourceModel`.
+pub(crate) fn collect_symbol_indices(
     files: &[PathBuf],
     cwd: &std::path::Path,
     cache: &mut cha_core::ProjectCache,
-) -> Vec<(PathBuf, cha_core::SourceModel)> {
+) -> Vec<(PathBuf, cha_core::SymbolIndex)> {
     let pb = crate::new_progress_bar(files.len() as u64);
-    let mut result: Vec<(PathBuf, cha_core::SourceModel)> = files
+    let mut result: Vec<(PathBuf, cha_core::SymbolIndex)> = files
         .iter()
         .filter_map(|path| {
-            let (_, model) = crate::cached_parse(path, cache, cwd)?;
+            let (_, idx) = crate::cached_symbols(path, cache, cwd)?;
             pb.inc(1);
-            Some((path.clone(), model))
+            Some((path.clone(), idx))
         })
         .collect();
     pb.finish_and_clear();
-    // Apply cross-file C OOP attribution so method_count / has_behavior /
-    // is_exported reflect project-wide reality before the caller reads
-    // the model. No-op for non-C projects.
-    crate::c_oop_enrich::enrich_c_oop(&mut result);
+    crate::c_oop_enrich::enrich_c_oop_symbols(&mut result);
     result
 }
 
@@ -234,8 +235,8 @@ struct ClassContext {
 }
 
 impl ClassContext {
-    fn from_files(files: &[PathBuf], models: &[&cha_core::SourceModel]) -> Self {
-        let mut aliases = collect_typedef_aliases_from_models(models);
+    fn from_symbols(files: &[PathBuf], indices: &[&cha_core::SymbolIndex]) -> Self {
+        let mut aliases = collect_typedef_aliases_from_symbols(indices);
         for (k, v) in collect_typedef_aliases(files) {
             aliases.entry(k).or_insert(v);
         }
@@ -243,15 +244,15 @@ impl ClassContext {
             .iter()
             .map(|(a, o)| (o.clone(), a.clone()))
             .collect();
-        let mut all_names: HashSet<String> = models
+        let mut all_names: HashSet<String> = indices
             .iter()
-            .flat_map(|m| &m.classes)
+            .flat_map(|s| &s.classes)
             .map(|c| c.name.clone())
             .collect();
         all_names.extend(aliases.keys().cloned());
-        let interfaces = models
+        let interfaces = indices
             .iter()
-            .flat_map(|m| &m.classes)
+            .flat_map(|s| &s.classes)
             .filter(|c| c.is_interface)
             .map(|c| c.name.clone())
             .collect();
@@ -276,12 +277,12 @@ fn build_class_graph(
     cwd: &std::path::Path,
     cache: &mut cha_core::ProjectCache,
 ) -> Vec<Edge> {
-    let parsed = parse_all_models(files, cwd, cache);
-    let models: Vec<_> = parsed.iter().map(|(_, m)| m).collect();
-    let ctx = ClassContext::from_files(files, &models);
-    models
+    let parsed = collect_symbol_indices(files, cwd, cache);
+    let indices: Vec<_> = parsed.iter().map(|(_, s)| s).collect();
+    let ctx = ClassContext::from_symbols(files, &indices);
+    indices
         .iter()
-        .flat_map(|m| &m.classes)
+        .flat_map(|s| &s.classes)
         .filter_map(|class| {
             let parent = class.parent_name.as_ref()?;
             let resolved = ctx.aliases.get(parent.as_str()).unwrap_or(parent);
@@ -302,13 +303,12 @@ fn build_class_graph(
         .collect()
 }
 
-/// Scan files for `typedef struct X Y;` patterns to build alias map (Y -> X).
-fn collect_typedef_aliases_from_models(
-    models: &[&cha_core::SourceModel],
+fn collect_typedef_aliases_from_symbols(
+    indices: &[&cha_core::SymbolIndex],
 ) -> HashMap<String, String> {
     let mut aliases = HashMap::new();
-    for m in models {
-        for (alias, original) in &m.type_aliases {
+    for s in indices {
+        for (alias, original) in &s.type_aliases {
             aliases.insert(alias.clone(), original.clone());
         }
     }
@@ -341,20 +341,19 @@ fn build_call_graph(
     cwd: &std::path::Path,
     cache: &mut cha_core::ProjectCache,
 ) -> Vec<Edge> {
-    let parsed = parse_all_models(files, cwd, cache);
+    let parsed = collect_symbol_indices(files, cwd, cache);
     let known: HashSet<String> = parsed
         .iter()
-        .flat_map(|(_, m)| &m.functions)
+        .flat_map(|(_, s)| &s.functions)
         .map(|f| f.name.clone())
         .collect();
     parsed
         .iter()
-        .flat_map(|(_, m)| &m.functions)
+        .flat_map(|(_, s)| &s.functions)
         .flat_map(|f| {
             f.called_functions
                 .iter()
                 .filter_map(|callee| {
-                    // Extract the last segment (e.g. "obj.method" -> "method", "func" -> "func")
                     let name = callee.rsplit('.').next().unwrap_or(callee);
                     known.contains(name).then(|| Edge {
                         from: f.name.clone(),
@@ -418,15 +417,15 @@ struct DetailClass {
 // cha:ignore long_method,high_complexity,brain_method,cognitive_complexity
 fn render_detail_classes(
     edges: &[Edge],
-    parsed: &[(PathBuf, cha_core::SourceModel)],
+    parsed: &[(PathBuf, cha_core::SymbolIndex)],
     format: &DepsFormat,
     filter: Option<&str>,
     exact: bool,
 ) {
-    // Build alias maps from all models + file fallback
+    // Build alias maps from all symbol indices + file fallback
     let mut aliases: HashMap<String, String> = HashMap::new();
-    for (path, m) in parsed {
-        for (a, o) in &m.type_aliases {
+    for (path, s) in parsed {
+        for (a, o) in &s.type_aliases {
             aliases.entry(a.clone()).or_insert(o.clone());
         }
         if let Ok(content) = std::fs::read_to_string(path) {
@@ -470,7 +469,7 @@ fn render_detail_classes(
 
     // Project-wide C OOP method attribution (used in addition to lexical
     // in-class methods below). For non-C projects this is empty.
-    let c_methods = crate::c_oop_enrich::attribute_methods_by_name(parsed);
+    let c_methods = crate::c_oop_enrich::attribute_methods_by_name_from_symbols(parsed);
 
     // Inheritance: class_name → parent_name
     let parent_map: HashMap<&str, &str> = parsed
@@ -502,7 +501,7 @@ fn render_detail_classes(
             }
             let dn = display(&c.name);
             let existing_fields = detail_classes.get(&dn).map(|d| d.fields.len()).unwrap_or(0);
-            if c.field_count < existing_fields {
+            if c.field_names.len() < existing_fields {
                 continue;
             }
             let fields: Vec<(String, String)> = c
