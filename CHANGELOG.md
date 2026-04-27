@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-04-27
+
 ### Fixed
 - **Cache invalidation now tracks the cha binary**, not `CARGO_PKG_VERSION`. `env_hash` folds in `std::env::current_exe()`'s mtime, so any new binary — developer rebuild after editing parser code, or end-user upgrade to a new release — invalidates stale cached `SourceModel` entries. The previous version-based key allowed parser behaviour changes shipped without a `cargo xtask bump` to silently serve wrong cached data (which is what hid the header-declaration parser fix from users with existing `.cha/cache`). Falls back to `CARGO_PKG_VERSION` when `current_exe()` fails (unusual — sandboxed runners).
 - C/C++ parser now extracts function declarations from header files (`void foo(int);` — no body). Previously the parser only recognised `function_definition` nodes at the top level, silently dropping every prototype in a `.h` file. This broke `cha deps --type classes --detail` on C projects (every widget method displayed as private), `leaky_public_signature` (blind to the real public API), and the `c_oop_enrich::tighten_exports` pass (demoted public `.c` implementations whose `.h` declaration didn't parse). Variadic + attribute-macro signatures like `foo(..., ...) LV_FORMAT_ATTRIBUTE(4, 5)` remain an edge case because tree-sitter-c errors on the macro. **Existing `.cha/cache/` entries are stale after this fix and need to be deleted manually** — the cache key hashes `CARGO_PKG_VERSION`, not parser behaviour.
