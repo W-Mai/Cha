@@ -10,6 +10,7 @@ mod circular_abstraction;
 mod cross_layer;
 mod deps;
 mod diff;
+mod git_metrics;
 mod god_config;
 mod hotspot;
 mod layers;

@@ -82,6 +82,7 @@ fn is_header_file(file: &SourceFile) -> bool {
 }
 
 // cha:ignore cognitive_complexity
+// cha:ignore high_complexity
 fn collect_top_level(
     root: Node,
     src: &[u8],
