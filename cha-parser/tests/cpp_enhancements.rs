@@ -108,6 +108,90 @@ fn operator_out_of_class_is_captured() {
 }
 
 #[test]
+fn reference_return_type_does_not_drop_function() {
+    // Regression: `reference_declarator` (e.g. `const int& Foo::get()`)
+    // lacks a named `declarator` field, which previously made the
+    // declarator walker return None and the function vanish.
+    let m = parse(
+        "class Foo { public: const int& get(); };\n\
+         const int& Foo::get() { static int x = 0; return x; }\n",
+    );
+    assert!(
+        m.functions.iter().any(|f| f.name == "get"),
+        "reference-return method should still be captured; got {:?}",
+        m.functions.iter().map(|f| &f.name).collect::<Vec<_>>()
+    );
+    let foo = m.classes.iter().find(|c| c.name == "Foo").unwrap();
+    assert!(foo.method_count >= 1, "Foo::get should still attribute");
+}
+
+#[test]
+fn pointer_return_type_captured() {
+    // `pointer_declarator` has a `declarator` field; make sure the happy
+    // path still works alongside the reference fix.
+    let m = parse(
+        "class Foo { public: int* ptr(); };\n\
+         int* Foo::ptr() { return nullptr; }\n",
+    );
+    assert!(m.functions.iter().any(|f| f.name == "ptr"));
+    let foo = m.classes.iter().find(|c| c.name == "Foo").unwrap();
+    assert!(foo.method_count >= 1);
+}
+
+#[test]
+fn multiple_out_of_class_methods_attribute_to_same_class() {
+    let m = parse(
+        "class Foo { public: void a(); void b(); void c(); };\n\
+         void Foo::a() {}\n\
+         void Foo::b() {}\n\
+         void Foo::c() {}\n",
+    );
+    assert_eq!(m.functions.len(), 3);
+    let foo = m.classes.iter().find(|c| c.name == "Foo").unwrap();
+    // 3 declarations inside the class body + 3 out-of-class definitions.
+    assert!(
+        foo.method_count >= 3,
+        "all three methods should attribute; got {}",
+        foo.method_count
+    );
+}
+
+#[test]
+fn constructor_out_of_class_captured() {
+    let m = parse(
+        "class Foo { public: Foo(int); };\n\
+         Foo::Foo(int x) { (void)x; }\n",
+    );
+    assert!(
+        m.functions.iter().any(|f| f.name == "Foo"),
+        "constructor should be captured as a function"
+    );
+}
+
+#[test]
+fn extern_c_linkage_functions_captured() {
+    let m = parse(
+        "extern \"C\" {\n\
+             int foo(int x) { return x + 1; }\n\
+             int bar(int y) { return y * 2; }\n\
+         }\n",
+    );
+    assert!(m.functions.iter().any(|f| f.name == "foo"));
+    assert!(m.functions.iter().any(|f| f.name == "bar"));
+}
+
+#[test]
+fn const_member_method_out_of_class() {
+    let m = parse(
+        "class Foo { public: int bar() const; };\n\
+         int Foo::bar() const { return 0; }\n",
+    );
+    assert!(m.functions.iter().any(|f| f.name == "bar"));
+    let foo = m.classes.iter().find(|c| c.name == "Foo").unwrap();
+    assert!(foo.method_count >= 1);
+}
+
+#[test]
 fn nested_class_scope_resolved() {
     // A::B::method — qualifier should be A::B, attribute to class B.
     let m = parse(

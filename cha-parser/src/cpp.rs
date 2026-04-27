@@ -51,8 +51,19 @@ fn descend_to_qualified_identifier(declarator: Node) -> Option<Node> {
         if cur.kind() == "qualified_identifier" {
             return Some(cur);
         }
-        cur = cur.child_by_field_name("declarator")?;
+        // `reference_declarator` lacks a named `declarator` field — its
+        // sub-declarator is an unnamed positional child. Fall back to the
+        // first named descendant when the field isn't present.
+        cur = match cur.child_by_field_name("declarator") {
+            Some(n) => n,
+            None => first_named_child(cur)?,
+        };
     }
+}
+
+fn first_named_child(node: Node) -> Option<Node> {
+    let mut c = node.walk();
+    node.children(&mut c).find(|n| n.is_named())
 }
 
 fn build_qualifier_chain(qid: Node, src: &[u8]) -> Option<String> {
