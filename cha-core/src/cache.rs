@@ -247,11 +247,24 @@ pub fn hash_content(s: &str) -> u64 {
     content_hash(s)
 }
 
-/// Compute environment hash from config + plugins + cha version.
+/// Compute environment hash from config + plugins + cha binary fingerprint.
+///
+/// The binary fingerprint covers both cases that make cached SourceModels
+/// stale:
+/// - developer rebuilds cha after editing parser code,
+/// - end user upgrades to a new cha release.
+///
+/// Both produce a different on-disk binary, so the binary's modification
+/// time is sufficient. `CARGO_PKG_VERSION` was the old key, but it was
+/// a strict subset of this: every release-version bump necessarily writes
+/// a new binary (new mtime), and no parser change ever happens without a
+/// rebuild (new mtime). Version-only tracking missed parser-behaviour
+/// changes that shipped without a `cargo xtask bump` — this is what let
+/// the header-declaration parser fix silently fail against stale caches.
 pub fn env_hash(project_root: &Path, plugin_dirs: &[PathBuf]) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut h = std::collections::hash_map::DefaultHasher::new();
-    env!("CARGO_PKG_VERSION").hash(&mut h);
+    hash_cha_binary(&mut h);
     hash_all_configs(project_root, &mut h);
     for dir in plugin_dirs {
         if let Ok(entries) = std::fs::read_dir(dir) {
@@ -264,4 +277,16 @@ pub fn env_hash(project_root: &Path, plugin_dirs: &[PathBuf]) -> u64 {
         }
     }
     h.finish()
+}
+
+/// Hash the cha binary's identity. Uses the running executable's mtime;
+/// falls back to `CARGO_PKG_VERSION` if the executable path isn't
+/// discoverable (unusual — sandboxed runners, embedded contexts). Either
+/// path invalidates the cache on every new binary.
+fn hash_cha_binary(h: &mut impl std::hash::Hasher) {
+    use std::hash::Hash;
+    match std::env::current_exe().and_then(|p| p.metadata()?.modified()) {
+        Ok(mtime) => mtime.hash(h),
+        Err(_) => env!("CARGO_PKG_VERSION").hash(h),
+    }
 }
