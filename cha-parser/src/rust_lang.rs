@@ -35,16 +35,18 @@ impl LanguageParser for RustParser {
             classes: ctx.col.classes,
             imports: ctx.col.imports,
             comments: collect_comments(root, src),
-            type_aliases: vec![], // TODO(parser): extract type aliases from 'type X = Y' declarations
+            type_aliases: ctx.col.type_aliases,
         })
     }
 }
 
 /// Accumulator for collected AST items.
+#[derive(Default)]
 struct Collector {
     functions: Vec<FunctionInfo>,
     classes: Vec<ClassInfo>,
     imports: Vec<ImportInfo>,
+    type_aliases: Vec<(String, String)>,
 }
 
 /// Bundles source bytes and collector to eliminate repeated parameter passing.
@@ -67,11 +69,7 @@ impl<'a> ParseContext<'a> {
             last_has_notify: false,
             callback_fields: std::collections::HashMap::new(),
             imports_map,
-            col: Collector {
-                functions: Vec::new(),
-                classes: Vec::new(),
-                imports: Vec::new(),
-            },
+            col: Collector::default(),
         }
     }
 
@@ -87,6 +85,7 @@ impl<'a> ParseContext<'a> {
             "function_item" => self.push_function(child, exported),
             "impl_item" => self.extract_impl_methods(child),
             "struct_item" | "enum_item" | "trait_item" => self.push_struct(child),
+            "type_item" => self.push_type_alias(child),
             "use_declaration" => self.push_import(child),
             "mod_item" => self.push_mod_as_import(child),
             _ => self.collect_nodes(child, false),
@@ -113,6 +112,12 @@ impl<'a> ParseContext<'a> {
     fn push_import(&mut self, node: Node) {
         if let Some(i) = crate::rust_imports::extract_use(node, self.src) {
             self.col.imports.push(i);
+        }
+    }
+
+    fn push_type_alias(&mut self, node: Node) {
+        if let Some(pair) = crate::type_aliases::rust(node, self.src) {
+            self.col.type_aliases.push(pair);
         }
     }
 

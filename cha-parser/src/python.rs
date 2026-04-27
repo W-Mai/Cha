@@ -25,6 +25,7 @@ impl LanguageParser for PythonParser {
         let mut functions = Vec::new();
         let mut classes = Vec::new();
         let mut imports = Vec::new();
+        let mut type_aliases = Vec::new();
 
         let imports_map = crate::python_imports::build(root, src);
         collect_top_level(
@@ -34,6 +35,7 @@ impl LanguageParser for PythonParser {
             &mut functions,
             &mut classes,
             &mut imports,
+            &mut type_aliases,
         );
 
         Some(SourceModel {
@@ -43,7 +45,7 @@ impl LanguageParser for PythonParser {
             classes,
             imports,
             comments: collect_comments(root, src),
-            type_aliases: vec![], // TODO(parser): extract type aliases from 'type X = Y' / 'X = Y' declarations
+            type_aliases,
         })
     }
 }
@@ -77,6 +79,7 @@ fn collect_top_level(
     functions: &mut Vec<FunctionInfo>,
     classes: &mut Vec<ClassInfo>,
     imports: &mut Vec<ImportInfo>,
+    type_aliases: &mut Vec<(String, String)>,
 ) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
@@ -86,6 +89,8 @@ fn collect_top_level(
             }
             "import_statement" => collect_import(child, src, imports),
             "import_from_statement" => collect_import_from(child, src, imports),
+            "type_alias_statement" => collect_type_alias_statement(child, src, type_aliases),
+            "expression_statement" => collect_typed_alias_assignment(child, src, type_aliases),
             "decorated_definition" => {
                 let mut inner = child.walk();
                 for c in child.children(&mut inner) {
@@ -94,6 +99,18 @@ fn collect_top_level(
             }
             _ => {}
         }
+    }
+}
+
+fn collect_type_alias_statement(node: Node, src: &[u8], out: &mut Vec<(String, String)>) {
+    if let Some(pair) = crate::type_aliases::python_statement(node, src) {
+        out.push(pair);
+    }
+}
+
+fn collect_typed_alias_assignment(node: Node, src: &[u8], out: &mut Vec<(String, String)>) {
+    if let Some(pair) = crate::type_aliases::python_assignment(node, src) {
+        out.push(pair);
     }
 }
 

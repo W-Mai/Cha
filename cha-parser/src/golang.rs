@@ -23,6 +23,7 @@ impl LanguageParser for GolangParser {
         let mut functions = Vec::new();
         let mut classes = Vec::new();
         let mut imports = Vec::new();
+        let mut type_aliases = Vec::new();
 
         let imports_map = crate::golang_imports::build(root, src, &file.path);
         collect_top_level(
@@ -32,6 +33,7 @@ impl LanguageParser for GolangParser {
             &mut functions,
             &mut classes,
             &mut imports,
+            &mut type_aliases,
         );
 
         Some(SourceModel {
@@ -41,7 +43,7 @@ impl LanguageParser for GolangParser {
             classes,
             imports,
             comments: collect_comments(root, src),
-            type_aliases: vec![], // TODO(parser): extract type aliases from 'type X = Y' declarations
+            type_aliases,
         })
     }
 }
@@ -53,6 +55,7 @@ fn collect_top_level(
     functions: &mut Vec<FunctionInfo>,
     classes: &mut Vec<ClassInfo>,
     imports: &mut Vec<ImportInfo>,
+    type_aliases: &mut Vec<(String, String)>,
 ) {
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
@@ -62,7 +65,7 @@ fn collect_top_level(
                     functions.push(f);
                 }
             }
-            "type_declaration" => extract_type_decl(child, src, classes),
+            "type_declaration" => extract_type_decl(child, src, classes, type_aliases),
             "import_declaration" => collect_imports(child, src, imports),
             _ => {}
         }
@@ -120,13 +123,29 @@ fn extract_function(
     })
 }
 
-fn extract_type_decl(node: Node, src: &[u8], classes: &mut Vec<ClassInfo>) {
+fn extract_type_decl(
+    node: Node,
+    src: &[u8],
+    classes: &mut Vec<ClassInfo>,
+    type_aliases: &mut Vec<(String, String)>,
+) {
+    // Go distinguishes `type X = Y` (alias, `type_alias` node) from
+    // `type X Y` (defined type, `type_spec` node). Only the former is a
+    // transparent alias worth recording for TypeRef origin resolution.
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        if child.kind() == "type_spec"
-            && let Some(c) = extract_struct(child, src)
-        {
-            classes.push(c);
+        match child.kind() {
+            "type_spec" => {
+                if let Some(c) = extract_struct(child, src) {
+                    classes.push(c);
+                }
+            }
+            "type_alias" => {
+                if let Some(pair) = crate::type_aliases::go(child, src) {
+                    type_aliases.push(pair);
+                }
+            }
+            _ => {}
         }
     }
 }

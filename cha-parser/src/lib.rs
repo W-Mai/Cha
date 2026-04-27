@@ -6,6 +6,7 @@ mod python;
 mod python_imports;
 mod rust_imports;
 mod rust_lang;
+mod type_aliases;
 mod type_ref;
 mod typescript;
 mod typescript_imports;
