@@ -433,9 +433,18 @@ fn find_func_name_node(declarator: Node) -> Option<Node> {
         "qualified_identifier" => return crate::cpp::qualified_identifier_leaf(declarator),
         _ => {}
     }
-    declarator
+    // `pointer_declarator` has a `declarator` field; `reference_declarator`
+    // does not — its named children are the sub-declarator positionally.
+    // Fall back to the first named child if the field is absent.
+    let next = declarator
         .child_by_field_name("declarator")
-        .and_then(find_func_name_node)
+        .or_else(|| first_named_child(declarator));
+    next.and_then(find_func_name_node)
+}
+
+fn first_named_child(node: Node) -> Option<Node> {
+    let mut c = node.walk();
+    node.children(&mut c).find(|n| n.is_named())
 }
 
 fn extract_params(
