@@ -104,6 +104,20 @@ fn collect_top_level(
                     functions.push(f);
                 }
             }
+            "declaration" => {
+                // Header-style function declarations (`void foo(int);` — no
+                // body) surface as `declaration` nodes in tree-sitter-c. Pick
+                // out the function_declarator variants and treat them as
+                // functions so `.h` file contents contribute to the project
+                // API surface / method attribution. Non-function
+                // `declaration` (globals, typedefs, extern vars) have no
+                // function_declarator child and are skipped.
+                if has_function_declarator(child)
+                    && let Some(f) = extract_function(child, src, imports_map)
+                {
+                    functions.push(f);
+                }
+            }
             "struct_specifier" | "class_specifier" => {
                 if let Some(c) = extract_class(child, src) {
                     classes.push(c);
@@ -339,6 +353,26 @@ fn extract_c_return_type(
         .is_some_and(|d| d.kind() == "pointer_declarator");
     let raw = if is_ptr { format!("{base} *") } else { base };
     Some(crate::type_ref::resolve(raw, imports_map))
+}
+
+/// Does this `declaration` node actually declare a function (as opposed
+/// to a variable / typedef / extern)? tree-sitter-c wraps function
+/// prototypes in `declaration` with a `function_declarator` descendant.
+fn has_function_declarator(node: Node) -> bool {
+    node.child_by_field_name("declarator")
+        .is_some_and(has_function_declarator_inside)
+}
+
+fn has_function_declarator_inside(node: Node) -> bool {
+    if node.kind() == "function_declarator" {
+        return true;
+    }
+    // Pointer return types wrap the declarator: `int *foo(...)` produces
+    // `pointer_declarator { function_declarator { ... } }`. Unwrap.
+    if let Some(inner) = node.child_by_field_name("declarator") {
+        return has_function_declarator_inside(inner);
+    }
+    false
 }
 
 /// Check if a declaration node has a specific storage class specifier (e.g. "static").
