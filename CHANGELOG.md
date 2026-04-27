@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.1] - 2026-04-27
+
+### Changed
+- Internal: split git-backed post-analysis passes (`unstable_dependency`, `bus_factor`, `low_test_ratio`) out of `cha-cli/src/analyze.rs` into a new `cha-cli/src/git_metrics` module. No behaviour change; `analyze.rs` drops below the 850-line `large_file` threshold that `cargo xtask analyze` gates on. `collect_top_level` in the C parser also picks up `// cha:ignore high_complexity` alongside the existing cognitive-complexity ignore after the `declaration` arm added one branch.
+
+Note: 1.11.0 was tagged in the repo but the CI self-analyze gate failed on the above source-dir warnings so crates.io was never updated. 1.11.1 is the first shipped release of the 1.11 line.
+
 ## [1.11.0] - 2026-04-27
 
 ### Fixed
