@@ -290,3 +290,94 @@ fn hash_cha_binary(h: &mut impl std::hash::Hasher) {
         Err(_) => env!("CARGO_PKG_VERSION").hash(h),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{SourceModel, TypeRef};
+    use std::path::PathBuf;
+
+    fn unique_tmp_dir() -> PathBuf {
+        let base = std::env::temp_dir().join(format!(
+            "cha-cache-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0),
+        ));
+        std::fs::create_dir_all(&base).unwrap();
+        base
+    }
+
+    fn sample_model() -> SourceModel {
+        SourceModel {
+            language: "c".into(),
+            total_lines: 10,
+            functions: vec![],
+            classes: vec![],
+            imports: vec![],
+            comments: vec![],
+            type_aliases: vec![
+                ("MyId".into(), "uint32_t".into()),
+                ("Handle".into(), "void*".into()),
+            ],
+        }
+    }
+
+    /// Regression: `boundary_leak` used to parse files fresh because the
+    /// cache appeared to drop typedef aliases on some C projects. After
+    /// v1.11.0 tied the cache key to the binary's mtime, put/get should
+    /// round-trip SourceModel faithfully — including `type_aliases`.
+    #[test]
+    fn cache_roundtrip_preserves_type_aliases() {
+        let tmp = unique_tmp_dir();
+        let mut cache = ProjectCache::open(&tmp, 0xdeadbeef);
+        let model = sample_model();
+        let chash: u64 = 0xdead_beef_1234_5678;
+        // Register a file entry so flush()->gc() keeps the parse blob.
+        cache.update_file_entry("x.c".into(), &tmp.join("nope"), chash, vec![]);
+        cache.put_model(chash, &model);
+        let got = cache.get_model(chash).expect("cached model present");
+        assert_eq!(got.type_aliases, model.type_aliases);
+        // Persist meta so reopening with the same env_hash doesn't
+        // trigger the full-invalidation branch.
+        cache.flush();
+        drop(cache);
+        let mut fresh = ProjectCache::open(&tmp, 0xdeadbeef);
+        let from_disk = fresh.get_model(chash).expect("on-disk model present");
+        assert_eq!(from_disk.type_aliases, model.type_aliases);
+    }
+
+    /// TypeRef origin information in parameter / return types also has to
+    /// survive serialisation; boundary_leak's "interesting" check keys on
+    /// `TypeOrigin::External`.
+    #[test]
+    fn cache_roundtrip_preserves_typeref_origin() {
+        use crate::{FunctionInfo, TypeOrigin};
+        let tmp = unique_tmp_dir();
+        let mut cache = ProjectCache::open(&tmp, 0xdeadbeef);
+        let model = SourceModel {
+            language: "rust".into(),
+            total_lines: 5,
+            functions: vec![FunctionInfo {
+                name: "f".into(),
+                parameter_types: vec![TypeRef {
+                    name: "ExtThing".into(),
+                    raw: "ext::ExtThing".into(),
+                    origin: TypeOrigin::External("ext".into()),
+                }],
+                ..Default::default()
+            }],
+            classes: vec![],
+            imports: vec![],
+            comments: vec![],
+            type_aliases: vec![],
+        };
+        cache.put_model(99, &model);
+        let got = cache.get_model(99).unwrap();
+        let p = &got.functions[0].parameter_types[0];
+        assert_eq!(p.name, "ExtThing");
+        assert!(matches!(&p.origin, TypeOrigin::External(m) if m == "ext"));
+    }
+}

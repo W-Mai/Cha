@@ -190,26 +190,27 @@ const INDEX_PASSES: &[(&str, IndexPass)] = &[
 
 /// Passes that need parsed function signatures across the project. The
 /// shared `ProjectIndex` parses every file once and exposes the derived
-/// maps every index-backed pass wants. boundary_leak parses fresh
-/// because the cached model occasionally drops typedef aliases in large
-/// C projects (root cause TBD), so it still takes `(files, cwd, cache)`.
+/// maps every index-backed pass wants. `boundary_leak` emits three smell
+/// names from one detector, so it's gated separately instead of entering
+/// `INDEX_PASSES` as three duplicate rows.
 fn run_signature_post_passes(
     pass: &impl Fn(&str) -> bool,
     files: &[PathBuf],
     cwd: &Path,
     cache: &std::sync::Mutex<cha_core::ProjectCache>,
 ) -> Vec<Finding> {
-    let mut findings = Vec::new();
-    if pass("abstraction_boundary_leak")
+    let boundary_wanted = pass("abstraction_boundary_leak")
         || pass("return_type_leak")
-        || pass("test_only_type_in_production")
-    {
-        findings.extend(crate::boundary_leak::detect(files, cwd, cache));
-    }
-    if !INDEX_PASSES.iter().any(|(name, _)| pass(name)) {
-        return findings;
+        || pass("test_only_type_in_production");
+    let any_index_pass = INDEX_PASSES.iter().any(|(name, _)| pass(name));
+    if !boundary_wanted && !any_index_pass {
+        return Vec::new();
     }
     let index = crate::project_index::ProjectIndex::parse(files, cwd, cache);
+    let mut findings = Vec::new();
+    if boundary_wanted {
+        findings.extend(crate::boundary_leak::detect(&index));
+    }
     for (name, detector) in INDEX_PASSES {
         if pass(name) {
             findings.extend(detector(&index));

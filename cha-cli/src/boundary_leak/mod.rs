@@ -25,26 +25,12 @@ const RTL_SMELL: &str = "return_type_leak";
 const TEST_ONLY_SMELL: &str = "test_only_type_in_production";
 const DEFAULT_MIN_GROUP_SIZE: usize = 3;
 
-/// Run the detector across all project models. Returns hint-severity findings.
-pub fn detect(
-    files: &[PathBuf],
-    _cwd: &Path,
-    _cache: &std::sync::Mutex<cha_core::ProjectCache>,
-) -> Vec<Finding> {
-    // Parse every file fresh. The boundary-leak detector is sensitive to
-    // every typedef alias in the project — going through the shared cache
-    // has occasionally surfaced models with fewer aliases than a fresh parse
-    // (root cause TBD), and the extra parse pass is already amortised with
-    // the main analyze phase's per-file work, so we accept the cost.
-    let models: Vec<(PathBuf, cha_core::SourceModel)> = files
-        .iter()
-        .filter_map(|p| {
-            let content = std::fs::read_to_string(p).ok()?;
-            let file = cha_core::SourceFile::new(p.clone(), content);
-            cha_parser::parse_file(&file).map(|m| (p.clone(), m))
-        })
-        .collect();
-    detect_from_models(&models, DEFAULT_MIN_GROUP_SIZE)
+/// Run the detector over the shared `ProjectIndex`. Returns hint/warning-
+/// severity findings. All three smells emitted here (`abstraction_boundary_
+/// leak`, `return_type_leak`, `test_only_type_in_production`) share the same
+/// parse + index walk — the caller gates on any of them being enabled.
+pub fn detect(index: &crate::project_index::ProjectIndex) -> Vec<Finding> {
+    detect_from_models(index.models(), DEFAULT_MIN_GROUP_SIZE)
 }
 
 fn detect_from_models(
