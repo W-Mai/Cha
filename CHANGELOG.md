@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **C++ parser now handles `ClassName::method()` out-of-class definitions, namespaces, and templates.** Three gaps in the previous CppParser have been closed:
+  - `void Foo::bar() {...}` (and `::global()`, `A::B::c()`, destructors `Foo::~Foo()`, operators `Foo::operator+()`) was silently dropped — `find_func_name_node` only accepted bare `identifier` declarators. It now also unwraps `qualified_identifier`, `destructor_name`, and `operator_name`.
+  - Out-of-class method definitions now attribute to their owning same-file class: `void Foo::bar()` bumps `ClassInfo::method_count` on `Foo` and flips `has_behavior`. Cross-file attribution still runs through `cha-cli::c_oop_enrich`.
+  - `namespace_definition`, `linkage_specification` (`extern "C" { ... }`), and `template_declaration` are now explicitly matched in the top-level dispatch (previously fell through to the generic recursion arm) — same observable behaviour, but the nesting constructs are now a stable hook rather than an accidental default-case artefact.
+  - C++-specific declarator helpers moved to a new `cha-parser/src/cpp.rs` so `c_lang.rs` stays below the `large_file` gate.
 - **`SourceModel.type_aliases` now populated for Rust, TypeScript, Python, and Go** (previously all four returned empty `vec![]` with parser-side TODOs). Each parser recognises its language's alias form and records `(alias, rhs)` pairs: Rust `type X = Y;` / `pub type X<T> = Y;`, TypeScript `type X = Y;` / `export type X<T> = Y;`, Python 3.12+ `type X = Y` and pre-3.12 `X: TypeAlias = Y`, Go `type X = Y` (only the true alias form — `type X Y` defined types are excluded). Plain Python `X = Y` assignments remain unclassified (too ambiguous). Shared extraction lives in a new `cha-parser/src/type_aliases.rs` module so per-language files stay below the `large_file` gate.
 
 ## [1.11.1] - 2026-04-27
