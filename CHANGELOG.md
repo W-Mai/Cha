@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **C++: template specialisation methods attribute to the right class.** `template<> void Foo<int>::bar()` used to drop on the floor because the qualifier `Foo<int>` (a `template_type` node) didn't match the stored class name `Foo`. `attach_to_class` now strips trailing `<...>` template arguments before matching, so out-of-class specialisations attribute correctly. Same stripping applies to any declaration whose declarator surfaces `Foo<...>` as the owning scope.
+- **C++: real inheritance (`class Derived : public Base`) now recognised.** `extract_class` consults the `base_class_clause` child and pulls the first `type_identifier` (or `template_type`'s underlying name) as `parent_name`. Falls back to the first-field heuristic only when no base clause is present, so legacy C struct-embedding cases still work. Also fixes the class-name extraction for templated classes so `template<typename T> class Foo {...}` stores `"Foo"` instead of `"Foo<T>"`.
+
 ### Added
 - **`SymbolIndex` — structural view of a file, cached separately from `SourceModel`.** New type in `cha-core::model` carrying the fields consumers like `cha deps`, LSP workspace-symbols, and future `cha summary` all share — class/function names + signatures + positions + `type_aliases` — without per-function-body data (complexity, body hash, TypeRef origin, cognitive, chain depth etc. stay in `SourceModel`).
   - `ProjectCache::{get,put}_symbols` store to `symbols/{chash}.bin`, mirrored independently of `parse/{chash}.bin`. Same `env_hash` mechanism invalidates both on parser code changes.
