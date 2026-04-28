@@ -4,7 +4,7 @@
 //! Enhancement" (§566-569).
 
 use cha_core::SourceFile;
-use cha_parser::{CppParser, LanguageParser};
+use cha_parser::{CParser, CppParser, LanguageParser};
 
 fn parse(content: &str) -> cha_core::SourceModel {
     let file = SourceFile {
@@ -12,6 +12,14 @@ fn parse(content: &str) -> cha_core::SourceModel {
         content: content.to_string(),
     };
     CppParser.parse(&file).unwrap()
+}
+
+fn parse_c(content: &str) -> cha_core::SourceModel {
+    let file = SourceFile {
+        path: std::path::PathBuf::from("t.c"),
+        content: content.to_string(),
+    };
+    CParser.parse(&file).unwrap()
 }
 
 #[test]
@@ -189,6 +197,77 @@ fn const_member_method_out_of_class() {
     assert!(m.functions.iter().any(|f| f.name == "bar"));
     let foo = m.classes.iter().find(|c| c.name == "Foo").unwrap();
     assert!(foo.method_count >= 1);
+}
+
+#[test]
+fn cpp_inheritance_sets_parent_name() {
+    // `class Derived : public Base` — real C++ inheritance should
+    // populate `parent_name`, not the first-field heuristic.
+    let m = parse(
+        "class Base { public: virtual ~Base(); };\n\
+         class Derived : public Base { public: int x; };\n",
+    );
+    let d = m.classes.iter().find(|c| c.name == "Derived").unwrap();
+    assert_eq!(
+        d.parent_name.as_deref(),
+        Some("Base"),
+        "Derived should inherit from Base via base_class_clause, got {:?}",
+        d.parent_name
+    );
+}
+
+#[test]
+fn cpp_struct_inheritance_picks_first_base() {
+    // `struct Cfg : BaseCfg { int x; }` — struct form without explicit
+    // access specifier, still recognised.
+    let m = parse("struct BaseCfg { int flag; };\nstruct Cfg : BaseCfg { int x; };\n");
+    let cfg = m.classes.iter().find(|c| c.name == "Cfg").unwrap();
+    assert_eq!(cfg.parent_name.as_deref(), Some("BaseCfg"));
+}
+
+#[test]
+fn cpp_template_inheritance_strips_args() {
+    // `class G : public Base<T>` — the base is `Base<T>` wrapped in
+    // `template_type`. Stored parent_name should be the bare `Base`.
+    let m = parse(
+        "template <typename T> class Base { public: T x; };\n\
+         template <typename T> class G : public Base<T> { public: int y; };\n",
+    );
+    let g = m.classes.iter().find(|c| c.name == "G").unwrap();
+    assert_eq!(g.parent_name.as_deref(), Some("Base"));
+}
+
+#[test]
+fn c_struct_without_inheritance_falls_back_to_first_field() {
+    // Plain C has no base_class_clause — the existing heuristic
+    // (parent_name = first field type, validated by the caller) must
+    // continue to work for legacy C projects.
+    let m = parse_c(
+        "typedef struct { int header; char data[16]; } widget_t;\n\
+         typedef struct { widget_t base; int extra; } button_t;\n",
+    );
+    let button = m.classes.iter().find(|c| c.name == "button_t").unwrap();
+    // The first-field type is embedded `widget_t` — the fall-through
+    // heuristic should still surface it as parent_name.
+    assert_eq!(button.parent_name.as_deref(), Some("widget_t"));
+}
+
+#[test]
+fn template_specialization_attributes_to_base_class() {
+    // `template<> void Foo<int>::bar()` — the qualifier is `Foo<int>`
+    // (a template_type node). Attribution must strip the `<int>` to
+    // find `class Foo`.
+    let m = parse(
+        "template <typename T> class Foo { public: void bar(); };\n\
+         template <> void Foo<int>::bar() { return; }\n",
+    );
+    assert!(m.functions.iter().any(|f| f.name == "bar"));
+    let foo = m.classes.iter().find(|c| c.name == "Foo").unwrap();
+    assert!(
+        foo.method_count >= 1,
+        "Foo<int>::bar should attribute to class Foo, got method_count={}",
+        foo.method_count
+    );
 }
 
 #[test]

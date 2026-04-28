@@ -477,18 +477,21 @@ fn extract_params(
 }
 
 fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
-    let name_node = node.child_by_field_name("name");
-    let name = name_node
-        .map(|n| node_text(n, src).to_string())
-        .unwrap_or_default();
-    let name_col = name_node.map(|n| n.start_position().column).unwrap_or(0);
-    let name_end_col = name_node.map(|n| n.end_position().column).unwrap_or(0);
+    let (name, name_col, name_end_col) =
+        crate::cpp::class_name_triple(node.child_by_field_name("name"), src);
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body");
     let method_count = body.map(count_methods).unwrap_or(0);
     let (field_names, field_types, first_field_type) =
         body.map(|b| extract_field_info(b, src)).unwrap_or_default();
+
+    // C++ inheritance (`class Derived : public Base`) takes precedence
+    // over the "first field looks like an embedded base struct" C heuristic.
+    // `crate::cpp::extract_cpp_base` returns `None` for plain C
+    // struct_specifier (no base_class_clause child), so the old behaviour
+    // is preserved where real inheritance syntax isn't present.
+    let parent_name = crate::cpp::extract_cpp_base(node, src).or(first_field_type);
 
     Some(ClassInfo {
         name,
@@ -505,9 +508,7 @@ fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {
         field_types,
         has_behavior: method_count > 0,
         is_interface: false,
-        // First field type stored as parent candidate;
-        // build_class_graph validates against known struct names.
-        parent_name: first_field_type,
+        parent_name,
         override_count: 0,
         self_call_count: 0,
         has_listener_field: false,
