@@ -194,6 +194,7 @@ const INDEX_PASSES: &[(&str, IndexPass)] = &[
         "stringly_typed_dispatch",
         crate::stringly_typed_dispatch::detect,
     ),
+    ("cross_boundary_chain", crate::cross_boundary_chain::detect),
 ];
 
 /// Passes that need parsed function signatures across the project. The
