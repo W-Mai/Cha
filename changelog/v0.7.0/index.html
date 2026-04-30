@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en" id="oranda" class="cupcake">
+  <head>
+    <title>Cha</title>
+    
+      <meta property="og:url" content="https://github.com/W-Mai/Cha" />
+    
+    
+      <link rel="icon" href="/favicon.ico" />
+    
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+      <meta name="description" content="察 — Code Health Analyzer" />
+      <meta property="og:description" content="察 — Code Health Analyzer" />
+    
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Cha" />
+    
+    
+    
+    <meta http-equiv="Permissions-Policy" content="interest-cohort=()" />
+    <link rel="stylesheet" href="/oranda-v0.6.1.css" />
+    
+    
+  </head>
+  <body>
+    <div class="container">
+      <div class="page-body">
+        
+          <div class="repo_banner">
+            <a href="https://github.com/W-Mai/Cha">
+              <div class="github-icon" aria-hidden="true"></div>
+              Check out our GitHub!
+            </a>
+          </div>
+        
+
+        <main>
+          <header>
+            
+            <h1 class="title">Cha</h1>
+            
+  <nav class="nav">
+    <ul>
+      <li><a href="/">Home</a></li>
+
+      
+
+      
+        <li><a href="/artifacts/">Install</a></li>
+      
+
+      
+
+      
+
+      
+        <li><a href="/changelog/">Changelog</a></li>
+      
+    </ul>
+  </nav>
+
+          </header>
+
+          
+  <div>
+    <h1>0.7.0 - 2026-04-17</h1>
+    <div class="releases-body">
+      
+      
+      <section class="release ">
+  
+  <div class="release-info">
+    <span class="flex items-center gap-2">
+      <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'>
+    <path stroke-linecap='round' stroke-linejoin='round' d='M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z' />
+    <path stroke-linecap='round' stroke-linejoin='round' d='M6 6h.008v.008H6V6z' /></svg>
+      v0.7.0
+    </span>
+    <span class="flex items-center gap-2">
+      
+        <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' /></svg>
+        Apr 17 2026 at 03:34 UTC
+      
+    </span>
+  </div>
+  <div class="release-body">
+    <h3>Added</h3>
+<ul>
+<li>Dynamic shell completion for <code>--plugin</code> via <code>CompleteEnv</code> (unstable-dynamic): <code>eval "$(COMPLETE=zsh cha)"</code></li>
+<li><code>PluginRegistry::plugin_info()</code> for runtime plugin discovery with descriptions</li>
+<li><code>Plugin</code> trait unified: <code>version()</code>, <code>description()</code>, <code>authors()</code> with defaults from Cargo.toml</li>
+<li>All 33 builtin plugins now have description text for shell completion</li>
+<li><code>completions</code> subcommand now outputs dynamic completion scripts; shows usage when called without args</li>
+<li><code>--strictness</code> flag: <code>relaxed</code> (2x), <code>default</code> (1x), <code>strict</code> (0.5x), or custom float — scales all numeric thresholds</li>
+<li>Per-language plugin config: <code>[languages.c.plugins.naming]</code> overrides in <code>.cha.toml</code></li>
+<li>Builtin C language profile: disables naming, lazy_class, data_class, builder/null_object/strategy pattern by default</li>
+<li><code>cha preset list/show</code> subcommand — display language profiles and plugin rules</li>
+<li><code>SourceModel.type_aliases</code> — unified typedef/type alias tracking across all languages</li>
+<li>C OOP heuristic: associate functions with structs via inheritance chain + same-module matching</li>
+<li><code>--exact --detail</code> now shows only directly matched classes, not parents/children</li>
+<li>C parser <code>extract_params</code> now includes pointer info (<code>Type *</code>) from AST</li>
+<li>UML class diagrams: <code>static</code> functions shown as private (<code>-</code>), non-static as public (<code>+</code>)</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li><code>Config</code> struct now has <code>strictness</code> and <code>languages</code> fields (fully backward compatible)</li>
+<li><code>get_usize()</code> applies strictness scaling factor automatically</li>
+<li><code>cmd_analyze</code> refactored into <code>AnalyzeOpts</code> + <code>run_post_analysis()</code> + <code>apply_filters()</code></li>
+<li><code>parse_all_models</code> returns <code>(PathBuf, SourceModel)</code> pairs for correct file-model association</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>C/C++ parser: <code>static</code> functions now correctly marked <code>is_exported = false</code>; header files always exported</li>
+<li>Reduces <code>large_api_surface</code> false positives by ~51% and enables accurate <code>dead_code</code> detection for C</li>
+<li><code>shotgun_surgery</code>, <code>divergent_change</code>, <code>bus_factor</code> now use single batch <code>git log</code> call instead of per-file — fixes freeze on large repos (lvgl: &gt;2min → 23s)</li>
+<li>C OOP method association resolves typedef aliases for cross-file matching</li>
+<li><code>class_dir</code> prefers struct definitions with fields over forward declarations</li>
+</ul>
+
+  </div>
+</section>
+    </div>
+  </div>
+
+        </main>
+      </div>
+
+      <footer>
+        
+          <a href="https://github.com/W-Mai/Cha"><div class="github-icon" aria-hidden="true"></div></a>
+        
+        <span>
+          Cha, MIT
+        </span>
+      </footer>
+    </div>
+
+    
+    
+
+    
+  </body>
+</html>

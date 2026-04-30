@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en" id="oranda" class="cupcake">
+  <head>
+    <title>Cha</title>
+    
+      <meta property="og:url" content="https://github.com/W-Mai/Cha" />
+    
+    
+      <link rel="icon" href="/favicon.ico" />
+    
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+      <meta name="description" content="察 — Code Health Analyzer" />
+      <meta property="og:description" content="察 — Code Health Analyzer" />
+    
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Cha" />
+    
+    
+    
+    <meta http-equiv="Permissions-Policy" content="interest-cohort=()" />
+    <link rel="stylesheet" href="/oranda-v0.6.1.css" />
+    
+    
+  </head>
+  <body>
+    <div class="container">
+      <div class="page-body">
+        
+          <div class="repo_banner">
+            <a href="https://github.com/W-Mai/Cha">
+              <div class="github-icon" aria-hidden="true"></div>
+              Check out our GitHub!
+            </a>
+          </div>
+        
+
+        <main>
+          <header>
+            
+            <h1 class="title">Cha</h1>
+            
+  <nav class="nav">
+    <ul>
+      <li><a href="/">Home</a></li>
+
+      
+
+      
+        <li><a href="/artifacts/">Install</a></li>
+      
+
+      
+
+      
+
+      
+        <li><a href="/changelog/">Changelog</a></li>
+      
+    </ul>
+  </nav>
+
+          </header>
+
+          
+  <div>
+    <h1>1.12.0 - 2026-04-28</h1>
+    <div class="releases-body">
+      
+      
+      <section class="release ">
+  
+  <div class="release-info">
+    <span class="flex items-center gap-2">
+      <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'>
+    <path stroke-linecap='round' stroke-linejoin='round' d='M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z' />
+    <path stroke-linecap='round' stroke-linejoin='round' d='M6 6h.008v.008H6V6z' /></svg>
+      v1.12.0
+    </span>
+    <span class="flex items-center gap-2">
+      
+        <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' /></svg>
+        Apr 28 2026 at 13:57 UTC
+      
+    </span>
+  </div>
+  <div class="release-body">
+    <h3>Added</h3>
+<ul>
+<li><strong><code>SymbolIndex</code> — structural view of a file, cached separately from <code>SourceModel</code>.</strong> New type in <code>cha-core::model</code> carrying the fields consumers like <code>cha deps</code>, LSP workspace-symbols, and future <code>cha summary</code> all share — class/function names + signatures + positions + <code>type_aliases</code> — without per-function-body data (complexity, body hash, TypeRef origin, cognitive, chain depth etc. stay in <code>SourceModel</code>).
+<ul>
+<li><code>ProjectCache::{get,put}_symbols</code> store to <code>symbols/{chash}.bin</code>, mirrored independently of <code>parse/{chash}.bin</code>. Same <code>env_hash</code> mechanism invalidates both on parser code changes.</li>
+<li><code>cached_symbols(path)</code> is a new warm fast path that skips <code>SourceModel</code> deserialisation entirely — <code>symbols/{chash}.bin</code> is roughly 10% the size of <code>parse/{chash}.bin</code>.</li>
+<li><code>cached_parse</code> now populates both caches on every fresh parse, so the two views are always in lockstep.</li>
+<li><code>lvgl src/</code> warm benchmarks (379 files): <code>deps --type imports</code> 1.28s → 38ms (34×), <code>--type classes</code> 1.30s → 56ms (23×), <code>--type calls</code> 1.30s → 48ms (27×). Edge counts unchanged vs. pre-migration (1351/142/8109).</li>
+<li><code>cha-cli/src/c_oop_enrich</code> grows a <code>enrich_c_oop_symbols</code> / <code>attribute_methods_by_name_from_symbols</code> pair alongside the existing <code>SourceModel</code> functions. Shared <code>attribute_one_raw</code> keeps attribution rules single-sourced; build-index / write-back are deliberate parallel code paths because the two storage types have to stay independent.</li>
+<li><code>cha-cli/src/parse_cache.rs</code> (new module) hosts both <code>cached_parse</code> and <code>cached_symbols</code>.</li>
+</ul>
+</li>
+<li><strong>C++ parser now handles <code>ClassName::method()</code> out-of-class definitions, namespaces, and templates.</strong> Three gaps in the previous CppParser have been closed:
+<ul>
+<li><code>void Foo::bar() {...}</code> (and <code>::global()</code>, <code>A::B::c()</code>, destructors <code>Foo::~Foo()</code>, operators <code>Foo::operator+()</code>) was silently dropped — <code>find_func_name_node</code> only accepted bare <code>identifier</code> declarators. It now also unwraps <code>qualified_identifier</code>, <code>destructor_name</code>, and <code>operator_name</code>.</li>
+<li>Out-of-class method definitions now attribute to their owning same-file class: <code>void Foo::bar()</code> bumps <code>ClassInfo::method_count</code> on <code>Foo</code> and flips <code>has_behavior</code>. Cross-file attribution still runs through <code>cha-cli::c_oop_enrich</code>.</li>
+<li><code>namespace_definition</code>, <code>linkage_specification</code> (<code>extern "C" { ... }</code>), and <code>template_declaration</code> are now explicitly matched in the top-level dispatch (previously fell through to the generic recursion arm) — same observable behaviour, but the nesting constructs are now a stable hook rather than an accidental default-case artefact.</li>
+<li>C++-specific declarator helpers moved to a new <code>cha-parser/src/cpp.rs</code> so <code>c_lang.rs</code> stays below the <code>large_file</code> gate.</li>
+</ul>
+</li>
+<li><strong><code>SourceModel.type_aliases</code> now populated for Rust, TypeScript, Python, and Go</strong> (previously all four returned empty <code>vec![]</code> with parser-side TODOs). Each parser recognises its language's alias form and records <code>(alias, rhs)</code> pairs: Rust <code>type X = Y;</code> / <code>pub type X&lt;T&gt; = Y;</code>, TypeScript <code>type X = Y;</code> / <code>export type X&lt;T&gt; = Y;</code>, Python 3.12+ <code>type X = Y</code> and pre-3.12 <code>X: TypeAlias = Y</code>, Go <code>type X = Y</code> (only the true alias form — <code>type X Y</code> defined types are excluded). Plain Python <code>X = Y</code> assignments remain unclassified (too ambiguous). Shared extraction lives in a new <code>cha-parser/src/type_aliases.rs</code> module so per-language files stay below the <code>large_file</code> gate.</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li><strong><code>boundary_leak</code> detector migrated to <code>ProjectIndex</code>.</strong> The three smells it emits (<code>abstraction_boundary_leak</code>, <code>return_type_leak</code>, <code>test_only_type_in_production</code>) previously parsed the whole project a second time — the codebase noted a "cached model occasionally drops typedef aliases" concern with root cause TBD. v1.11.0's binary-mtime cache keying removed the suspected root cause, and a new <code>cache::tests::cache_roundtrip_preserves_type_aliases</code> unit test makes the invariant a testable one. <code>boundary_leak::detect</code> now takes <code>&amp;ProjectIndex</code> and shares the same parse pass as <code>anemic_domain_model</code>, <code>typed_intimacy</code>, <code>module_envy</code>, and friends. Verified against lvgl's <code>src/</code> tree: 155 findings before = 155 findings after (<code>abstraction_boundary_leak: 154, return_type_leak: 1</code>). Completes roadmap S8.infra.4.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li><strong>C++: template specialisation methods attribute to the right class.</strong> <code>template&lt;&gt; void Foo&lt;int&gt;::bar()</code> used to drop on the floor because the qualifier <code>Foo&lt;int&gt;</code> (a <code>template_type</code> node) didn't match the stored class name <code>Foo</code>. <code>attach_to_class</code> now strips trailing <code>&lt;...&gt;</code> template arguments before matching, so out-of-class specialisations attribute correctly. Same stripping applies to any declaration whose declarator surfaces <code>Foo&lt;...&gt;</code> as the owning scope.</li>
+<li><strong>C++: real inheritance (<code>class Derived : public Base</code>) now recognised.</strong> <code>extract_class</code> consults the <code>base_class_clause</code> child and pulls the first <code>type_identifier</code> (or <code>template_type</code>'s underlying name) as <code>parent_name</code>. Falls back to the first-field heuristic only when no base clause is present, so legacy C struct-embedding cases still work. Also fixes the class-name extraction for templated classes so <code>template&lt;typename T&gt; class Foo {...}</code> stores <code>"Foo"</code> instead of <code>"Foo&lt;T&gt;"</code>.</li>
+<li><strong>C++: reference-return methods no longer vanish.</strong> <code>const int&amp; Foo::get()</code> and similar <code>reference_declarator</code>-wrapped definitions used to be silently dropped because tree-sitter-cpp's <code>reference_declarator</code> has no <code>declarator</code> field — the declarator walker returned <code>None</code>. Both <code>find_func_name_node</code> (c_lang) and <code>descend_to_qualified_identifier</code> (cpp) now fall back to the first named child when the field is absent. Same fix path covers reference-return + qualified (<code>const T&amp; Foo::bar()</code>) so class attribution still works. 6 additional regression tests (reference/pointer return types, multi-method attribution, constructor, <code>extern "C"</code>, const member) added in <code>cha-parser/tests/cpp_enhancements.rs</code> (14 total).</li>
+</ul>
+
+  </div>
+</section>
+    </div>
+  </div>
+
+        </main>
+      </div>
+
+      <footer>
+        
+          <a href="https://github.com/W-Mai/Cha"><div class="github-icon" aria-hidden="true"></div></a>
+        
+        <span>
+          Cha, MIT
+        </span>
+      </footer>
+    </div>
+
+    
+    
+
+    
+  </body>
+</html>

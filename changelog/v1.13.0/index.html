@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en" id="oranda" class="cupcake">
+  <head>
+    <title>Cha</title>
+    
+      <meta property="og:url" content="https://github.com/W-Mai/Cha" />
+    
+    
+      <link rel="icon" href="/favicon.ico" />
+    
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+      <meta name="description" content="察 — Code Health Analyzer" />
+      <meta property="og:description" content="察 — Code Health Analyzer" />
+    
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Cha" />
+    
+    
+    
+    <meta http-equiv="Permissions-Policy" content="interest-cohort=()" />
+    <link rel="stylesheet" href="/oranda-v0.6.1.css" />
+    
+    
+  </head>
+  <body>
+    <div class="container">
+      <div class="page-body">
+        
+          <div class="repo_banner">
+            <a href="https://github.com/W-Mai/Cha">
+              <div class="github-icon" aria-hidden="true"></div>
+              Check out our GitHub!
+            </a>
+          </div>
+        
+
+        <main>
+          <header>
+            
+            <h1 class="title">Cha</h1>
+            
+  <nav class="nav">
+    <ul>
+      <li><a href="/">Home</a></li>
+
+      
+
+      
+        <li><a href="/artifacts/">Install</a></li>
+      
+
+      
+
+      
+
+      
+        <li><a href="/changelog/">Changelog</a></li>
+      
+    </ul>
+  </nav>
+
+          </header>
+
+          
+  <div>
+    <h1>1.13.0 - 2026-04-30</h1>
+    <div class="releases-body">
+      
+      
+      <section class="release ">
+  
+  <div class="release-info">
+    <span class="flex items-center gap-2">
+      <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'>
+    <path stroke-linecap='round' stroke-linejoin='round' d='M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z' />
+    <path stroke-linecap='round' stroke-linejoin='round' d='M6 6h.008v.008H6V6z' /></svg>
+      v1.13.0
+    </span>
+    <span class="flex items-center gap-2">
+      
+        <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' /></svg>
+        Apr 30 2026 at 09:05 UTC
+      
+    </span>
+  </div>
+  <div class="release-body">
+    <h3>Added</h3>
+<ul>
+<li><strong><code>primitive_representation</code> detector</strong> (roadmap S8.2). Flags function parameters whose <strong>name</strong> carries a domain concept (<code>user_id</code>, <code>email</code>, <code>status_code</code>, <code>api_url</code>, <code>password</code>, <code>language</code>, …) but whose <strong>type</strong> is a raw scalar primitive (<code>String</code>, <code>i32</code>, <code>bool</code>, <code>char</code>, …). Signals an opportunity to introduce a newtype / value object to preserve the invariant. Per-parameter detection groups all offending params of one function into a single hint. Complements the existing <code>primitive_obsession</code> (which looks at per-function ratio): this fires on even a single param when it's clearly a business concept.
+<ul>
+<li>Business-token and noise-token vocabularies are deliberately narrow to keep signal-to-noise high. Substring matches are ruled out (tokens must be standalone words — <code>widget_identifier</code> does not trigger on <code>id</code>).</li>
+<li>Parameters already typed with project-local newtypes (e.g. <code>id: UserId</code> where <code>UserId</code> is <code>TypeOrigin::Local</code>) are skipped — the author already did the right thing.</li>
+<li>Container types (<code>Path</code>, <code>PathBuf</code>, <code>Vec</code>, <code>Arc</code>, <code>Box</code>, <code>HashMap</code>, …) are treated as domain-carrying and excluded; wrapping <code>path: &amp;Path</code> in a newtype would destroy the abstraction.</li>
+<li>Only runs on <code>is_exported</code> functions — private helpers are noise for a design signal aimed at public API hygiene.</li>
+<li>Cha self-analyze: 14 findings (all genuine — <code>rel_path</code>/<code>env_hash</code>/<code>language</code>/<code>key</code>/<code>hash</code> as raw types). lvgl <code>src/</code> baseline: 53 findings (TTF <code>platformID/encodingID/languageID/nameID: int</code>, file-explorer <code>path/dir: char</code> pointers, …).</li>
+</ul>
+</li>
+<li><strong><code>stringly_typed_dispatch</code> detector</strong> (roadmap S8.8). Flags functions whose <code>switch</code>/<code>match</code> body dispatches on ≥ 3 <strong>string</strong> or ≥ 3 <strong>integer</strong> literal arms — classic "the arm values should have been an enum" smell. Char-literal arms (C tokenisers) skipped. Enum-variant / structural-pattern arms classify as <code>Other</code> and never contribute to the threshold, so <code>match event { Event::Click =&gt; …, Event::Scroll =&gt; …, _ =&gt; … }</code> stays quiet while <code>match s { "click" =&gt; …, "scroll" =&gt; …, "submit" =&gt; … }</code> fires. Severity <code>Hint</code>. Complements S8.2 <code>primitive_representation</code> (signature side) with the body-side dispatch signal.
+<ul>
+<li>New <code>cha_core::ArmValue</code> enum (<code>Str / Int / Char / Other</code>) + <code>FunctionInfo.switch_arm_values</code> + <code>FunctionSymbol.switch_arm_values</code>. Populated by every parser via a new shared <code>cha-parser/src/switch_arms.rs</code> helper — language-specific arm-node kinds funnel through one classifier.</li>
+<li>Cha self-baseline: 20 findings (all node-kind dispatchers in the 6 language parsers — valid detections, users can add <code>// cha:ignore stringly_typed_dispatch</code> if the dispatch shape is forced by tree-sitter). lvgl <code>src/</code> baseline: 23 findings (PNG/JPEG/QR error-code dispatchers, color-format size tables, TTF bytecode interpreter).</li>
+</ul>
+</li>
+<li><strong><code>cross_boundary_chain</code> detector</strong> (roadmap S8.U4). Flags functions where <code>chain_depth ≥ 3</code> <strong>and</strong> the chain's root parameter is externally-typed (<code>TypeOrigin::External(crate)</code>) — the function is reaching into a third-party library's internal field layout, not just over-chaining local data. Companion to the existing <code>message_chain</code> (which fires on depth regardless of source): <code>cross_boundary_chain</code> is narrower but a stronger abstraction-leak signal. Severity <code>Hint</code>.
+<ul>
+<li>Workspace crates are auto-whitelisted (same mechanism <code>leaky_public_signature</code> uses), so sibling <code>cha_core::Finding</code> traversals inside this repo don't fire. Cha self-baseline: 4 findings, all genuine <code>tree_sitter::Node</code> traversals in <code>cha-parser</code>. lvgl <code>src/</code> baseline: 0 (C project, few <code>External</code> origins by design).</li>
+<li>Zero parser changes — reuses <code>chain_depth</code>, <code>parameter_types</code> (with origin), <code>parameter_names</code>, <code>external_refs</code>. Pure post-pass on <code>ProjectIndex</code>.</li>
+</ul>
+</li>
+<li><strong><code>FunctionInfo.parameter_names</code> + <code>FunctionSymbol.parameter_names</code></strong> (<code>cha-core</code>). Parallel to <code>parameter_types</code>: identifier names in declaration order. All six parsers (Rust / TS / Python / Go / C / C++) extract these; <code>self</code> / C++ <code>this</code> positions skipped to stay length-aligned with <code>parameter_types</code>. Enables name-semantic analyses like <code>primitive_representation</code>, future LSP hover with full signatures, future <code>cha summary</code>.</li>
+<li>New helpers <code>cha_parser::rust_imports::rust_param_names</code> and <code>cha_parser::cpp::c_param_name</code> extract identifier names from their language's declarator chains; reused across all C/C++ function-definition sites.</li>
+</ul>
+
+  </div>
+</section>
+    </div>
+  </div>
+
+        </main>
+      </div>
+
+      <footer>
+        
+          <a href="https://github.com/W-Mai/Cha"><div class="github-icon" aria-hidden="true"></div></a>
+        
+        <span>
+          Cha, MIT
+        </span>
+      </footer>
+    </div>
+
+    
+    
+
+    
+  </body>
+</html>

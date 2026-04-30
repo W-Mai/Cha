@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en" id="oranda" class="cupcake">
+  <head>
+    <title>Cha</title>
+    
+      <meta property="og:url" content="https://github.com/W-Mai/Cha" />
+    
+    
+      <link rel="icon" href="/favicon.ico" />
+    
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+      <meta name="description" content="察 — Code Health Analyzer" />
+      <meta property="og:description" content="察 — Code Health Analyzer" />
+    
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Cha" />
+    
+    
+    
+    <meta http-equiv="Permissions-Policy" content="interest-cohort=()" />
+    <link rel="stylesheet" href="/oranda-v0.6.1.css" />
+    
+    
+  </head>
+  <body>
+    <div class="container">
+      <div class="page-body">
+        
+          <div class="repo_banner">
+            <a href="https://github.com/W-Mai/Cha">
+              <div class="github-icon" aria-hidden="true"></div>
+              Check out our GitHub!
+            </a>
+          </div>
+        
+
+        <main>
+          <header>
+            
+            <h1 class="title">Cha</h1>
+            
+  <nav class="nav">
+    <ul>
+      <li><a href="/">Home</a></li>
+
+      
+
+      
+        <li><a href="/artifacts/">Install</a></li>
+      
+
+      
+
+      
+
+      
+        <li><a href="/changelog/">Changelog</a></li>
+      
+    </ul>
+  </nav>
+
+          </header>
+
+          
+  <div>
+    <h1>1.9.0 - 2026-04-25</h1>
+    <div class="releases-body">
+      
+      
+      <section class="release ">
+  
+  <div class="release-info">
+    <span class="flex items-center gap-2">
+      <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'>
+    <path stroke-linecap='round' stroke-linejoin='round' d='M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z' />
+    <path stroke-linecap='round' stroke-linejoin='round' d='M6 6h.008v.008H6V6z' /></svg>
+      v1.9.0
+    </span>
+    <span class="flex items-center gap-2">
+      
+        <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' /></svg>
+        Apr 25 2026 at 14:25 UTC
+      
+    </span>
+  </div>
+  <div class="release-body">
+    <h3>Added</h3>
+<ul>
+<li><strong><code>module_envy</code></strong> — flags a function that makes ≥ 3 calls into another file in the project while making ≤ half as many calls within its own file. The function is a "resident" of the wrong module — its body does work that belongs in the envied module. Suppresses test → <code>common.rs</code> pairs and calls to conventional helper filenames (<code>utils</code>, <code>helpers</code>, <code>shared</code>, <code>prelude</code>, …) where cross-file dependency is idiomatic, not misplaced. Hint severity.</li>
+<li><strong><code>typed_intimacy</code></strong> — flags file pairs whose function signatures exchange each other's declared types in both directions. Stronger signal than import-level <code>inappropriate_intimacy</code>: the pair literally accepts/returns types defined in each other, indicating they're functionally fused at the type boundary. Emits one finding per side of the pair, listing the shared type names. Hint severity.</li>
+<li><strong><code>async_callback_leak</code></strong> — flags a function signature that exposes a raw concurrency primitive (<code>JoinHandle</code>, <code>Future</code>, <code>Task</code>, <code>Sender</code>, <code>Receiver</code>, <code>Promise</code>, <code>Awaitable</code>, <code>Coroutine</code>, <code>CancelFunc</code>, …) in its return type or parameters. Skips launcher-shaped names (<code>spawn_*</code>, <code>launch_*</code>, <code>start_*</code>) where exposing the handle is the function's whole purpose. Hint severity.</li>
+<li><strong><code>anemic_domain_model</code></strong> — flags a class that is pure data (≥ 2 fields, no behavior) paired with one or more external service-shaped functions (filename ends in <code>service</code>/<code>manager</code>/<code>handler</code>/<code>helper</code>/<code>util</code>, or function name starts with a service verb prefix like <code>process_</code>/<code>validate_</code>/<code>calculate_</code>) that take the class as a first parameter. Promotes a <code>data_class</code> hint into an architectural finding when there's evidence the paired service owns behavior that should live on the class itself. Hint severity.</li>
+<li><strong><code>test_only_type_in_production</code></strong> — warns when production code references a class/struct declared only in test files (mocks, stubs, fixtures). Surfaces test scaffolding bleeding into shipping code. Warning severity.</li>
+<li><strong><code>return_type_leak</code></strong> post-analysis finding — dual of <code>abstraction_boundary_leak</code>. Detects when a dispatcher fans out to ≥ 3 sibling handlers whose return types are all the same non-local type, surfacing missing Anti-Corruption Layer on the way <em>out</em>. lvgl scan identifies thorvg's <code>TVG_API</code> leaking through dispatcher boundaries.</li>
+<li><code>FunctionInfo.return_type: Option&lt;TypeRef&gt;</code> — parsers extract the declared return type and resolve its origin through the same imports/type-registry pipeline as parameters. WIT schema grows an optional <code>return-type</code> field.</li>
+<li>Container-expression primitive fallback: PEP 585 <code>dict[K, V]</code> / <code>list[T]</code> / <code>tuple[...]</code> resolve to Primitive instead of Unknown, eliminating false positives on Python handlers that return built-in container types.</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>WIT <code>function-info</code> record gains <code>return-type: option&lt;type-ref&gt;</code> — <strong>breaking for WASM plugins</strong>, rebuild against the new SDK.</li>
+<li><code>cha-cli/src/analyze.rs</code> — extracted C OOP false-positive filter to <code>c_oop_filter.rs</code> and split <code>run_post_analysis</code> into git-based and signature-based helpers to keep the orchestrator lean as more post-analysis passes land.</li>
+</ul>
+
+  </div>
+</section>
+    </div>
+  </div>
+
+        </main>
+      </div>
+
+      <footer>
+        
+          <a href="https://github.com/W-Mai/Cha"><div class="github-icon" aria-hidden="true"></div></a>
+        
+        <span>
+          Cha, MIT
+        </span>
+      </footer>
+    </div>
+
+    
+    
+
+    
+  </body>
+</html>
