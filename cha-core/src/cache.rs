@@ -343,13 +343,18 @@ mod tests {
     use std::path::PathBuf;
 
     fn unique_tmp_dir() -> PathBuf {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        // Per-thread nanos can collide under parallel test execution —
+        // fold in a monotonic counter so each call is unique.
+        static SEQ: AtomicU64 = AtomicU64::new(0);
         let base = std::env::temp_dir().join(format!(
-            "cha-cache-test-{}-{}",
+            "cha-cache-test-{}-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_nanos())
                 .unwrap_or(0),
+            SEQ.fetch_add(1, Ordering::Relaxed),
         ));
         std::fs::create_dir_all(&base).unwrap();
         base

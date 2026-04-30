@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`primitive_representation` detector** (roadmap S8.2). Flags function parameters whose **name** carries a domain concept (`user_id`, `email`, `status_code`, `api_url`, `password`, `language`, …) but whose **type** is a raw scalar primitive (`String`, `i32`, `bool`, `char`, …). Signals an opportunity to introduce a newtype / value object to preserve the invariant. Per-parameter detection groups all offending params of one function into a single hint. Complements the existing `primitive_obsession` (which looks at per-function ratio): this fires on even a single param when it's clearly a business concept.
+  - Business-token and noise-token vocabularies are deliberately narrow to keep signal-to-noise high. Substring matches are ruled out (tokens must be standalone words — `widget_identifier` does not trigger on `id`).
+  - Parameters already typed with project-local newtypes (e.g. `id: UserId` where `UserId` is `TypeOrigin::Local`) are skipped — the author already did the right thing.
+  - Container types (`Path`, `PathBuf`, `Vec`, `Arc`, `Box`, `HashMap`, …) are treated as domain-carrying and excluded; wrapping `path: &Path` in a newtype would destroy the abstraction.
+  - Only runs on `is_exported` functions — private helpers are noise for a design signal aimed at public API hygiene.
+  - Cha self-analyze: 14 findings (all genuine — `rel_path`/`env_hash`/`language`/`key`/`hash` as raw types). lvgl `src/` baseline: 53 findings (TTF `platformID/encodingID/languageID/nameID: int`, file-explorer `path/dir: char` pointers, …).
+- **`FunctionInfo.parameter_names` + `FunctionSymbol.parameter_names`** (`cha-core`). Parallel to `parameter_types`: identifier names in declaration order. All six parsers (Rust / TS / Python / Go / C / C++) extract these; `self` / C++ `this` positions skipped to stay length-aligned with `parameter_types`. Enables name-semantic analyses (this commit's `primitive_representation`, future LSP hover with full signatures, future `cha summary`).
+- New helpers `cha_parser::rust_imports::rust_param_names` and `cha_parser::cpp::c_param_name` extract identifier names from their language's declarator chains; reused across all C/C++ function-definition sites.
+
 ## [1.12.0] - 2026-04-28
 
 ### Added

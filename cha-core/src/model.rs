@@ -64,6 +64,10 @@ pub struct FunctionInfo {
     /// Parameter types **in declaration order**, each resolved to a TypeRef.
     /// Preserves position (first param = index 0) so positional analyses work.
     pub parameter_types: Vec<TypeRef>,
+    /// Parameter identifier names, parallel to `parameter_types`. Empty
+    /// string for anonymous parameters (C `void foo(int);`). Drives
+    /// name-semantic analyses like `primitive_representation`.
+    pub parameter_names: Vec<String>,
     /// Number of comment lines in the function body.
     pub comment_lines: usize,
     /// Field names referenced in this function body (for Temporary Field).
@@ -209,6 +213,11 @@ pub struct FunctionSymbol {
     /// clustering (C OOP attribution, call-graph refinement) without
     /// pulling in TypeRef's origin resolution, which is analyze-only.
     pub parameter_type_names: Vec<String>,
+    /// Parameter identifier names, parallel to `parameter_type_names`.
+    /// Empty string for anonymous params (C `void foo(int);`). Enables
+    /// name-semantic views (e.g. LSP hover "email: String") without
+    /// loading the full `SourceModel`.
+    pub parameter_names: Vec<String>,
     /// Bare return type name (same conventions as parameter_type_names);
     /// `None` if the function has no declared return type.
     pub return_type_name: Option<String>,
@@ -264,6 +273,7 @@ impl FunctionSymbol {
             name_col: f.name_col,
             name_end_col: f.name_end_col,
             parameter_type_names: f.parameter_types.iter().map(|t| t.raw.clone()).collect(),
+            parameter_names: f.parameter_names.clone(),
             return_type_name: f.return_type.as_ref().map(|t| t.raw.clone()),
         }
     }

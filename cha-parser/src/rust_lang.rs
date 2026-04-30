@@ -294,6 +294,7 @@ fn extract_function(
         is_exported: false,
         parameter_count,
         parameter_types,
+        parameter_names: crate::rust_imports::rust_param_names(node, src),
         chain_depth,
         switch_arms,
         external_refs,

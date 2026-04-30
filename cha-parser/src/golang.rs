@@ -85,9 +85,9 @@ fn extract_function(
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body");
     let params = node.child_by_field_name("parameters");
-    let (param_count, param_types) = params
+    let (param_count, param_types, param_names) = params
         .map(|p| extract_params(p, src, imports_map))
-        .unwrap_or((0, vec![]));
+        .unwrap_or((0, vec![], vec![]));
     let is_exported = name.starts_with(|c: char| c.is_uppercase());
 
     Some(FunctionInfo {
@@ -102,6 +102,7 @@ fn extract_function(
         is_exported,
         parameter_count: param_count,
         parameter_types: param_types,
+        parameter_names: param_names,
         chain_depth: body.map(max_chain_depth).unwrap_or(0),
         switch_arms: body.map(count_case_clauses).unwrap_or(0),
         external_refs: body
@@ -223,9 +224,10 @@ fn extract_params(
     params: Node,
     src: &[u8],
     imports_map: &crate::type_ref::ImportsMap,
-) -> (usize, Vec<cha_core::TypeRef>) {
+) -> (usize, Vec<cha_core::TypeRef>, Vec<String>) {
     let mut count = 0;
     let mut types = Vec::new();
+    let mut names_out = Vec::new();
     let mut cursor = params.walk();
     for child in params.children(&mut cursor) {
         if child.kind() == "parameter_declaration" {
@@ -233,20 +235,29 @@ fn extract_params(
                 .child_by_field_name("type")
                 .map(|t| node_text(t, src).to_string())
                 .unwrap_or_else(|| "any".into());
-            // Count names in this declaration (e.g. `a, b int` = 2 params)
+            // Each parameter_declaration can introduce multiple names
+            // sharing one type (`a, b int`). Expand them out to one
+            // TypeRef + name pair each.
             let mut inner = child.walk();
-            let names: usize = child
+            let idents: Vec<String> = child
                 .children(&mut inner)
                 .filter(|c| c.kind() == "identifier")
-                .count()
-                .max(1);
-            for _ in 0..names {
+                .map(|c| node_text(c, src).to_string())
+                .collect();
+            if idents.is_empty() {
                 count += 1;
                 types.push(resolve_go_type(&raw, imports_map));
+                names_out.push(String::new());
+            } else {
+                for n in idents {
+                    count += 1;
+                    types.push(resolve_go_type(&raw, imports_map));
+                    names_out.push(n);
+                }
             }
         }
     }
-    (count, types)
+    (count, types, names_out)
 }
 
 /// Go types are `pkg.TypeName` or `*pkg.TypeName`; the importable name in
