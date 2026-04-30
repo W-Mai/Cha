@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::process;
 
+mod abstraction_leak_surgery;
 mod analyze;
 mod anemic_domain;
 mod boundary_leak;
