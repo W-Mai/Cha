@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`cross_boundary_chain` detector** (roadmap S8.U4). Flags functions where `chain_depth ≥ 3` **and** the chain's root parameter is externally-typed (`TypeOrigin::External(crate)`) — the function is reaching into a third-party library's internal field layout, not just over-chaining local data. Companion to the existing `message_chain` (which fires on depth regardless of source): `cross_boundary_chain` is narrower but a stronger abstraction-leak signal. Severity `Hint`.
+  - Workspace crates are auto-whitelisted (same mechanism `leaky_public_signature` uses), so sibling `cha_core::Finding` traversals inside this repo don't fire. Cha self-baseline: 4 findings, all genuine `tree_sitter::Node` traversals in `cha-parser`. lvgl `src/` baseline: 0 (C project, few `External` origins by design).
+  - Zero parser changes — reuses `chain_depth`, `parameter_types` (with origin), `parameter_names`, `external_refs`. Pure post-pass on `ProjectIndex`.
+
+### Added
 - **`stringly_typed_dispatch` detector** (roadmap S8.8). Flags functions whose `switch`/`match` body dispatches on ≥ 3 **string** or ≥ 3 **integer** literal arms — classic "the arm values should have been an enum" smell. Char-literal arms (C tokenisers) skipped. Enum-variant / structural-pattern arms classify as `Other` and never contribute to the threshold, so `match event { Event::Click => …, Event::Scroll => …, _ => … }` stays quiet while `match s { "click" => …, "scroll" => …, "submit" => … }` fires. Severity `Hint`. Complements S8.2 `primitive_representation` (signature side) with the body-side dispatch signal.
   - New `cha_core::ArmValue` enum (`Str / Int / Char / Other`) + `FunctionInfo.switch_arm_values` + `FunctionSymbol.switch_arm_values`. Populated by every parser via a new shared `cha-parser/src/switch_arms.rs` helper — language-specific arm-node kinds funnel through one classifier.
   - Cha self-baseline: 20 findings (all node-kind dispatchers in the 6 language parsers — valid detections, users can add `// cha:ignore stringly_typed_dispatch` if the dispatch shape is forced by tree-sitter). lvgl `src/` baseline: 23 findings (PNG/JPEG/QR error-code dispatchers, color-format size tables, TTF bytecode interpreter).

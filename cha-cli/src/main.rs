@@ -7,6 +7,7 @@ mod boundary_leak;
 mod c_oop_enrich;
 mod calibrate;
 mod circular_abstraction;
+mod cross_boundary_chain;
 mod cross_layer;
 mod deps;
 mod diff;
