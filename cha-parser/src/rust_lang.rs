@@ -277,6 +277,9 @@ fn extract_function(
     let parameter_types = extract_param_types(node, src, imports_map);
     let chain_depth = body.map(max_chain_depth).unwrap_or(0);
     let switch_arms = body.map(count_switch_arms).unwrap_or(0);
+    let switch_arm_values = body
+        .map(|b| crate::rust_imports::rust_collect_arm_values(b, src))
+        .unwrap_or_default();
     let external_refs = body
         .map(|b| collect_external_refs(b, src))
         .unwrap_or_default();
@@ -297,6 +300,7 @@ fn extract_function(
         parameter_names: crate::rust_imports::rust_param_names(node, src),
         chain_depth,
         switch_arms,
+        switch_arm_values,
         external_refs,
         is_delegating,
         comment_lines: count_comment_lines(node, src),

@@ -36,6 +36,13 @@ pub fn rust_param_names(node: Node, src: &[u8]) -> Vec<String> {
     names
 }
 
+/// Collect match-arm literal values from a Rust function body.
+pub fn rust_collect_arm_values(body: Node, src: &[u8]) -> Vec<cha_core::ArmValue> {
+    let mut out = Vec::new();
+    crate::switch_arms::walk_arms(body, src, &mut out, &|n| n.kind() == "match_arm");
+    out
+}
+
 /// Build an `ImportInfo` from a `use_declaration` node.
 pub fn extract_use(node: Node, src: &[u8]) -> Option<ImportInfo> {
     let source = node

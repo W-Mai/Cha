@@ -154,6 +154,9 @@ fn extract_function(
     let parameter_names = ts_param_names(node, src);
     let chain_depth = body.map(max_chain_depth).unwrap_or(0);
     let switch_arms = body.map(count_switch_arms).unwrap_or(0);
+    let switch_arm_values = body
+        .map(|b| collect_ts_arm_values(b, src))
+        .unwrap_or_default();
     let external_refs = body
         .map(|b| collect_external_refs(b, src))
         .unwrap_or_default();
@@ -174,6 +177,7 @@ fn extract_function(
         parameter_names,
         chain_depth,
         switch_arms,
+        switch_arm_values,
         external_refs,
         is_delegating,
         comment_lines: count_comment_lines(node),
@@ -249,6 +253,9 @@ fn try_extract_arrow(
         parameter_names: ts_param_names(value, src),
         chain_depth: body.map(max_chain_depth).unwrap_or(0),
         switch_arms: body.map(count_switch_arms).unwrap_or(0),
+        switch_arm_values: body
+            .map(|b| collect_ts_arm_values(b, src))
+            .unwrap_or_default(),
         external_refs: body
             .map(|b| collect_external_refs(b, src))
             .unwrap_or_default(),
@@ -448,6 +455,12 @@ fn measure_chain(node: Node) -> usize {
         }
     }
     depth
+}
+
+fn collect_ts_arm_values(body: Node, src: &[u8]) -> Vec<cha_core::ArmValue> {
+    let mut out = Vec::new();
+    crate::switch_arms::walk_arms(body, src, &mut out, &|n| n.kind() == "switch_case");
+    out
 }
 
 fn count_switch_arms(node: Node) -> usize {
