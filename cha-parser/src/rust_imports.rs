@@ -13,6 +13,29 @@ pub fn rust_return_type(node: Node, src: &[u8], imports: &ImportsMap) -> Option<
     Some(type_ref::resolve(raw, imports))
 }
 
+/// Parallel to `extract_param_types` — returns identifier names in the
+/// same order. `self` parameters are skipped to keep the vector
+/// length-aligned with `parameter_types` (which only records typed
+/// parameters). Anonymous `_` surfaces as empty string.
+pub fn rust_param_names(node: Node, src: &[u8]) -> Vec<String> {
+    let Some(params) = node.child_by_field_name("parameters") else {
+        return vec![];
+    };
+    let mut names = Vec::new();
+    let mut cursor = params.walk();
+    for child in params.children(&mut cursor) {
+        if child.kind() == "parameter"
+            && let Some(pat) = child.child_by_field_name("pattern")
+        {
+            let text = pat.utf8_text(src).unwrap_or("");
+            names.push(text.trim_start_matches("mut ").trim().to_string());
+        } else if child.kind() == "parameter" {
+            names.push(String::new());
+        }
+    }
+    names
+}
+
 /// Build an `ImportInfo` from a `use_declaration` node.
 pub fn extract_use(node: Node, src: &[u8]) -> Option<ImportInfo> {
     let source = node

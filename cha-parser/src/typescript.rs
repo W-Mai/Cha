@@ -151,6 +151,7 @@ fn extract_function(
     let body_hash = body.map(hash_ast_structure);
     let parameter_count = count_parameters(node);
     let parameter_types = extract_param_types(node, src, imports_map);
+    let parameter_names = ts_param_names(node, src);
     let chain_depth = body.map(max_chain_depth).unwrap_or(0);
     let switch_arms = body.map(count_switch_arms).unwrap_or(0);
     let external_refs = body
@@ -170,6 +171,7 @@ fn extract_function(
         is_exported: false,
         parameter_count,
         parameter_types,
+        parameter_names,
         chain_depth,
         switch_arms,
         external_refs,
@@ -244,6 +246,7 @@ fn try_extract_arrow(
         is_exported: exported,
         parameter_count: count_parameters(value),
         parameter_types: extract_param_types(value, src, imports_map),
+        parameter_names: ts_param_names(value, src),
         chain_depth: body.map(max_chain_depth).unwrap_or(0),
         switch_arms: body.map(count_switch_arms).unwrap_or(0),
         external_refs: body
@@ -381,6 +384,36 @@ fn extract_param_types(
         }
     }
     types
+}
+
+/// Parallel to `extract_param_types`. Only emits a name when the
+/// parameter also has a type annotation — keeps the two vectors
+/// length-aligned for positional analyses.
+fn ts_param_names(node: Node, src: &[u8]) -> Vec<String> {
+    let params = match node.child_by_field_name("parameters") {
+        Some(p) => p,
+        None => return vec![],
+    };
+    let mut names = Vec::new();
+    let mut cursor = params.walk();
+    for child in params.children(&mut cursor) {
+        if child.child_by_field_name("type").is_some() {
+            let pat = child.child_by_field_name("pattern").or_else(|| {
+                let mut c = child.walk();
+                child.children(&mut c).find(|n| {
+                    matches!(
+                        n.kind(),
+                        "identifier" | "shorthand_property_identifier_pattern"
+                    )
+                })
+            });
+            names.push(
+                pat.map(|p| node_text(p, src).to_string())
+                    .unwrap_or_default(),
+            );
+        }
+    }
+    names
 }
 
 fn max_chain_depth(node: Node) -> usize {

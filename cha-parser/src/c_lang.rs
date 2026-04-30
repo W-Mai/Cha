@@ -335,7 +335,7 @@ fn extract_function(
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body");
-    let (param_count, param_types) = extract_params(declarator, src, imports_map);
+    let (param_count, param_types, param_names) = extract_params(declarator, src, imports_map);
     let is_static = has_storage_class(node, src, "static");
 
     Some(FunctionInfo {
@@ -350,6 +350,7 @@ fn extract_function(
         is_exported: !is_static,
         parameter_count: param_count,
         parameter_types: param_types,
+        parameter_names: param_names,
         chain_depth: body.map(max_chain_depth).unwrap_or(0),
         switch_arms: body.map(count_case_labels).unwrap_or(0),
         external_refs: body
@@ -451,13 +452,14 @@ fn extract_params(
     declarator: Node,
     src: &[u8],
     imports_map: &crate::type_ref::ImportsMap,
-) -> (usize, Vec<cha_core::TypeRef>) {
+) -> (usize, Vec<cha_core::TypeRef>, Vec<String>) {
     let params = match declarator.child_by_field_name("parameters") {
         Some(p) => p,
-        None => return (0, vec![]),
+        None => return (0, vec![], vec![]),
     };
     let mut count = 0;
     let mut types = Vec::new();
+    let mut names = Vec::new();
     let mut cursor = params.walk();
     for child in params.children(&mut cursor) {
         if child.kind() == "parameter_declaration" {
@@ -466,14 +468,17 @@ fn extract_params(
                 .child_by_field_name("type")
                 .map(|t| node_text(t, src).to_string())
                 .unwrap_or_else(|| "int".into());
-            let is_ptr = child
-                .child_by_field_name("declarator")
-                .is_some_and(|d| d.kind() == "pointer_declarator");
+            let decl = child.child_by_field_name("declarator");
+            let is_ptr = decl.is_some_and(|d| d.kind() == "pointer_declarator");
             let raw = if is_ptr { format!("{base} *") } else { base };
             types.push(crate::type_ref::resolve(raw, imports_map));
+            names.push(
+                decl.map(|d| crate::cpp::c_param_name(d, src))
+                    .unwrap_or_default(),
+            );
         }
     }
-    (count, types)
+    (count, types, names)
 }
 
 fn extract_class(node: Node, src: &[u8]) -> Option<ClassInfo> {

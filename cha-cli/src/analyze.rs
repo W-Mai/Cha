@@ -186,6 +186,10 @@ const INDEX_PASSES: &[(&str, IndexPass)] = &[
     ("circular_abstraction", crate::circular_abstraction::detect),
     ("god_config", crate::god_config::detect),
     ("leaky_public_signature", crate::leaky_public::detect),
+    (
+        "primitive_representation",
+        crate::primitive_representation::detect,
+    ),
 ];
 
 /// Passes that need parsed function signatures across the project. The

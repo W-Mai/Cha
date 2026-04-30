@@ -127,9 +127,9 @@ fn extract_function(
     let end_line = node.end_position().row + 1;
     let body = node.child_by_field_name("body");
     let params = node.child_by_field_name("parameters");
-    let (param_count, param_types) = params
+    let (param_count, param_types, param_names) = params
         .map(|p| extract_params(p, src, imports_map))
-        .unwrap_or((0, vec![]));
+        .unwrap_or((0, vec![], vec![]));
 
     Some(FunctionInfo {
         name,
@@ -143,6 +143,7 @@ fn extract_function(
         is_exported: true,
         parameter_count: param_count,
         parameter_types: param_types,
+        parameter_names: param_names,
         chain_depth: body.map(max_chain_depth).unwrap_or(0),
         switch_arms: body.map(count_match_arms).unwrap_or(0),
         external_refs: body
@@ -594,17 +595,19 @@ fn extract_params(
     params_node: Node,
     src: &[u8],
     imports_map: &crate::type_ref::ImportsMap,
-) -> (usize, Vec<cha_core::TypeRef>) {
+) -> (usize, Vec<cha_core::TypeRef>, Vec<String>) {
     let mut count = 0usize;
     let mut types = Vec::new();
+    let mut names = Vec::new();
     let mut cursor = params_node.walk();
     for child in params_node.children(&mut cursor) {
-        if let Some((_name, ty)) = param_name_and_type(child, src) {
+        if let Some((name, ty)) = param_name_and_type(child, src) {
             count += 1;
             types.push(crate::type_ref::resolve(ty, imports_map));
+            names.push(name.to_string());
         }
     }
-    (count, types)
+    (count, types, names)
 }
 
 fn count_optional(params_node: Node) -> usize {

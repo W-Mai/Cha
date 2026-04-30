@@ -10,6 +10,32 @@ fn text<'a>(n: Node, src: &'a [u8]) -> &'a str {
     n.utf8_text(src).unwrap_or("")
 }
 
+/// Walk a C/C++ declarator chain down to its bare identifier name.
+/// Handles `int x`, `int *x`, `int x[]`, `int (*x)(...)`, `int &x`.
+/// Anonymous or malformed declarators return an empty string.
+pub(crate) fn c_param_name(decl: Node, src: &[u8]) -> String {
+    let mut cur = decl;
+    loop {
+        match cur.kind() {
+            "identifier" => return text(cur, src).to_string(),
+            "pointer_declarator"
+            | "array_declarator"
+            | "function_declarator"
+            | "reference_declarator" => match cur.child_by_field_name("declarator") {
+                Some(n) => cur = n,
+                None => {
+                    let mut c = cur.walk();
+                    let Some(next) = cur.children(&mut c).find(|n| n.is_named()) else {
+                        return String::new();
+                    };
+                    cur = next;
+                }
+            },
+            _ => return String::new(),
+        }
+    }
+}
+
 /// For `A::B::c` (nested `qualified_identifier`), return the `c` leaf.
 /// Leaf kinds are the identifier forms used for function names.
 pub(crate) fn qualified_identifier_leaf(node: Node) -> Option<Node> {

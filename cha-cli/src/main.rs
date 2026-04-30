@@ -19,6 +19,7 @@ mod module_envy;
 mod param_position;
 mod parse_cache;
 mod plugin;
+mod primitive_representation;
 mod project_index;
 mod tangled;
 mod trend;
