@@ -192,4 +192,3 @@ fn workspace_internal_crate_quiet() {
         "sibling workspace crate should not count as cross-boundary"
     );
 }
-
