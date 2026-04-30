@@ -20,6 +20,22 @@ pub enum TypeOrigin {
     Unknown,
 }
 
+/// A single arm value of a `switch`/`match` construct. Recorded so
+/// signature-based analyses can notice "switch on string constants" or
+/// "switch on integer magic numbers" dispatch patterns. Non-literal
+/// patterns (Rust enum variants, Python capture patterns, `default`)
+/// collapse to `Other`.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ArmValue {
+    Str(String),
+    Int(i64),
+    Char(char),
+    /// Non-literal pattern — enum variants, destructuring, guards,
+    /// `default`, `_`. Kept counted so callers can tell "dispatch with
+    /// N arms total" from "dispatch with N literal arms".
+    Other,
+}
+
 /// A function parameter's (or return value's) type, with resolved origin.
 /// Produced by parsers after combining AST type text with the file's imports.
 #[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
@@ -59,6 +75,12 @@ pub struct FunctionInfo {
     pub chain_depth: usize,
     /// Number of switch/match arms (for Switch Statements).
     pub switch_arms: usize,
+    /// Arm values of each `switch`/`match` arm in the function body,
+    /// in source order, across *all* dispatch constructs. Enables
+    /// `stringly_typed_dispatch` to notice "≥ 3 arms are string
+    /// literals" without re-walking the AST. Empty for functions
+    /// with no switch/match.
+    pub switch_arm_values: Vec<ArmValue>,
     /// Whether this function only delegates to another object's method (for Middle Man).
     pub is_delegating: bool,
     /// Parameter types **in declaration order**, each resolved to a TypeRef.
@@ -221,6 +243,10 @@ pub struct FunctionSymbol {
     /// Bare return type name (same conventions as parameter_type_names);
     /// `None` if the function has no declared return type.
     pub return_type_name: Option<String>,
+    /// Mirror of `FunctionInfo.switch_arm_values`. Enables LSP / summary
+    /// tools to recognise stringly-typed dispatchers without loading
+    /// the full source model.
+    pub switch_arm_values: Vec<ArmValue>,
 }
 
 impl SymbolIndex {
@@ -275,6 +301,7 @@ impl FunctionSymbol {
             parameter_type_names: f.parameter_types.iter().map(|t| t.raw.clone()).collect(),
             parameter_names: f.parameter_names.clone(),
             return_type_name: f.return_type.as_ref().map(|t| t.raw.clone()),
+            switch_arm_values: f.switch_arm_values.clone(),
         }
     }
 }

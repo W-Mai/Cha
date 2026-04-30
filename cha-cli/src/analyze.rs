@@ -190,6 +190,10 @@ const INDEX_PASSES: &[(&str, IndexPass)] = &[
         "primitive_representation",
         crate::primitive_representation::detect,
     ),
+    (
+        "stringly_typed_dispatch",
+        crate::stringly_typed_dispatch::detect,
+    ),
 ];
 
 /// Passes that need parsed function signatures across the project. The

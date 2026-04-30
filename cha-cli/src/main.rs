@@ -21,6 +21,7 @@ mod parse_cache;
 mod plugin;
 mod primitive_representation;
 mod project_index;
+mod stringly_typed_dispatch;
 mod tangled;
 mod trend;
 mod typed_intimacy;

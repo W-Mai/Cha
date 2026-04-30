@@ -105,6 +105,9 @@ fn extract_function(
         parameter_names: param_names,
         chain_depth: body.map(max_chain_depth).unwrap_or(0),
         switch_arms: body.map(count_case_clauses).unwrap_or(0),
+        switch_arm_values: body
+            .map(|b| collect_go_arm_values(b, src))
+            .unwrap_or_default(),
         external_refs: body
             .map(|b| collect_external_refs(b, src))
             .unwrap_or_default(),
@@ -366,6 +369,12 @@ fn chain_len(node: Node) -> usize {
         }
     }
     depth
+}
+
+fn collect_go_arm_values(body: Node, src: &[u8]) -> Vec<cha_core::ArmValue> {
+    let mut out = Vec::new();
+    crate::switch_arms::walk_arms(body, src, &mut out, &|n| n.kind() == "expression_case");
+    out
 }
 
 fn count_case_clauses(node: Node) -> usize {
