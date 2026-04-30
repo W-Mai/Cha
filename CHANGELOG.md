@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`abstraction_leak_surgery` detector** — files that co-change in git history **and** share a third-party type in their function signatures. Upgrade of the classic `shotgun_surgery`: instead of "these files always change together" (agnostic of why), this pinpoints "these files always change together *because* they all depend on the same external type" — the shared external type is the concrete abstraction leak driving the co-change cascade. Severity `Hint`.
+  - Inputs: git co-change counts (`git log --name-only -N`, threshold ≥ 5 commits in last 100) × per-file `TypeOrigin::External` sets derived from parameter / return types. Workspace-sibling crates auto-whitelisted (same mechanism `cross_boundary_chain` / `leaky_public_signature` use), so `cha_core`-internal dependencies between `cha-parser` / `cha-cli` don't fire.
+  - Cha self-baseline: 10 genuine findings, all pointing at the 5 language parsers sharing `tree_sitter::Node` — exactly the abstraction leak the detector is designed to find (tree-sitter upgrades ripple across every parser file). lvgl `src/`: 0 (C project, no External origins).
+
 ## [1.13.0] - 2026-04-30
 
 ### Added
