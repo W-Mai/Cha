@@ -8,38 +8,66 @@ impl PluginImpl for ExamplePlugin {
     }
 
     fn smells() -> Vec<String> {
-        vec!["suspicious_name".into()]
+        vec!["suspicious_name".into(), "unsafe_block".into()]
     }
 
     fn analyze(input: AnalysisInput) -> Vec<Finding> {
-        input
-            .functions
-            .iter()
-            .filter(|f| {
-                let lower = f.name.to_lowercase();
-                lower.contains("todo") || lower.contains("fixme") || lower.contains("hack")
-            })
-            .map(|f| Finding {
-                smell_name: "suspicious_name".into(),
-                category: SmellCategory::Dispensables,
-                severity: Severity::Hint,
-                location: Location {
-                    path: input.path.clone(),
-                    start_line: f.start_line,
-                    start_col: f.name_col,
-                    end_line: f.start_line,
-                    end_col: f.name_end_col,
-                    name: Some(f.name.clone()),
-                },
-                message: format!(
-                    "Function `{}` has a suspicious name suggesting incomplete work",
-                    f.name
-                ),
-                suggested_refactorings: vec!["Rename Method".into()],
-                actual_value: None,
-                threshold: None,
-            })
-            .collect()
+        let mut findings = Vec::new();
+
+        for f in &input.functions {
+            let lower = f.name.to_lowercase();
+            if lower.contains("todo") || lower.contains("fixme") || lower.contains("hack") {
+                findings.push(Finding {
+                    smell_name: "suspicious_name".into(),
+                    category: SmellCategory::Dispensables,
+                    severity: Severity::Hint,
+                    location: Location {
+                        path: input.path.clone(),
+                        start_line: f.start_line,
+                        start_col: f.name_col,
+                        end_line: f.start_line,
+                        end_col: f.name_end_col,
+                        name: Some(f.name.clone()),
+                    },
+                    message: format!(
+                        "Function `{}` has a suspicious name suggesting incomplete work",
+                        f.name
+                    ),
+                    suggested_refactorings: vec!["Rename Method".into()],
+                    actual_value: None,
+                    threshold: None,
+                });
+            }
+        }
+
+        if input.role == FileRole::Test {
+            return findings;
+        }
+
+        let matches = tree_query::run_query("(unsafe_block) @unsafe");
+        for m in &matches {
+            for capture in m {
+                findings.push(Finding {
+                    smell_name: "unsafe_block".into(),
+                    category: SmellCategory::Security,
+                    severity: Severity::Hint,
+                    location: Location {
+                        path: input.path.clone(),
+                        start_line: capture.start_line,
+                        start_col: capture.start_col,
+                        end_line: capture.end_line,
+                        end_col: capture.end_col,
+                        name: None,
+                    },
+                    message: "unsafe block detected — review for soundness".into(),
+                    suggested_refactorings: vec!["Encapsulate unsafe in a safe wrapper".into()],
+                    actual_value: None,
+                    threshold: None,
+                });
+            }
+        }
+
+        findings
     }
 }
 
@@ -103,5 +131,12 @@ mod tests {
         WasmPluginTest::new()
             .source("typescript", "function todo_fix() {}")
             .assert_no_finding_named("high_complexity");
+    }
+
+    #[test]
+    fn no_unsafe_in_test_file() {
+        WasmPluginTest::new()
+            .source("rust", "fn foo() { unsafe { std::ptr::null::<u8>().read() }; }")
+            .assert_no_finding_named("unsafe_block");
     }
 }
