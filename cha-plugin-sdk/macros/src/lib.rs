@@ -32,8 +32,11 @@ pub fn plugin(input: TokenStream) -> TokenStream {
         });
         #[allow(unused_imports)]
         use cha::plugin::types::{
-            ClassInfo, FunctionInfo, ImportInfo, Location, OptionValue, Severity, SmellCategory,
+            ArmValue, ClassInfo, CommentInfo, FileRole, FunctionInfo, ImportInfo,
+            Location, OptionValue, Severity, SmellCategory,
         };
+        #[allow(unused_imports)]
+        pub use cha::plugin::tree_query;
 
         /// Implement this trait in your plugin struct.
         /// `version`, `description`, `authors`, `smells` all have default impls.
