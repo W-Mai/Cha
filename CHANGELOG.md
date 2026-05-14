@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Plugin AST Query API** — WASM plugins can now execute tree-sitter queries against the current file's AST via the `tree-query` host import interface (`run-query`, `run-queries`, `node-at`, `nodes-in-range`). Enables plugins to do custom structural pattern matching without reimplementing parsing.
+- **`file-role` enum** in `analysis-input` — host infers whether a file is `source`, `test`, `doc`, `config`, or `generated` from its path, allowing plugins to apply differential detection strategies.
+- **SourceModel enrichment** — `analysis-input` now includes `comments`, `type-aliases`, `parameter-names`, `switch-arm-values`, and `is-module-decl` fields previously only available to internal plugins.
+- **`parse_file_full()`** in `cha-parser` — returns `ParseResult` carrying model + tree-sitter `Tree` + `Language` for downstream use by WASM host callbacks.
+
+### Changed
+- **WIT bumped to `cha:plugin@0.2.0`** — breaking change: plugins compiled against `0.1.0` must be recompiled. No behavioral change for existing internal plugins.
+
 ## [1.13.1] - 2026-04-30
 
 ### Added
