@@ -82,31 +82,91 @@ After `plugin!(MyPlugin)`, these types are in scope and `PluginImpl` is the trai
 |------|-------------|
 | `AnalysisInput` | Full file context passed to `analyze()` |
 | `Finding` | A single detected issue |
-| `FunctionInfo` | Per-function data (name, lines, complexity, …) |
+| `FunctionInfo` | Per-function data (name, lines, complexity, params, …) |
 | `ClassInfo` | Per-class data (name, methods, fields, …) |
-| `ImportInfo` | Import source + line |
+| `ImportInfo` | Import source + line + is_module_decl |
+| `CommentInfo` | Comment text + line |
+| `ArmValue` | Switch/match arm value (`StrLit` / `IntLit` / `CharLit` / `Other`) |
+| `FileRole` | `Source` / `Test` / `Doc` / `Config` / `Generated` |
 | `Location` | File path + line/column range |
 | `Severity` | `Hint` / `Warning` / `Error` |
 | `SmellCategory` | `Bloaters` / `Couplers` / `Dispensables` / … |
 | `OptionValue` | `Str` / `Int` / `Float` / `Boolean` / `ListStr` |
+| `tree_query` | Module for AST queries (see below) |
 
 ### AnalysisInput Fields
 
 ```rust
 pub struct AnalysisInput {
-    pub path: String,          // file path
-    pub content: String,       // raw source text
-    pub language: String,      // "typescript" | "rust"
+    pub path: String,             // file path
+    pub content: String,          // raw source text
+    pub language: String,         // "typescript" | "rust" | "python" | "go" | "c" | "cpp"
     pub total_lines: u32,
+    pub role: FileRole,           // Source / Test / Doc / Config / Generated
     pub functions: Vec<FunctionInfo>,
     pub classes: Vec<ClassInfo>,
     pub imports: Vec<ImportInfo>,
+    pub comments: Vec<CommentInfo>,
+    pub type_aliases: Vec<(String, String)>,
     pub options: Vec<(String, OptionValue)>,  // from .cha.toml
 }
 ```
 
 > **Note:** WASM plugins run in a sandboxed environment with no filesystem access.
 > Use `input.content` to read the source text — do **not** use `std::fs::read_to_string(&input.path)`, it will silently return an empty string.
+
+### File Role
+
+The `role` field tells you what kind of file is being analyzed. Use it to apply different rules:
+
+```rust
+fn analyze(input: AnalysisInput) -> Vec<Finding> {
+    if input.role == FileRole::Test {
+        return vec![];  // skip detection for test files
+    }
+    // ...
+}
+```
+
+### AST Query API (`tree_query`)
+
+Plugins can execute tree-sitter queries against the current file's AST via host callbacks:
+
+```rust
+fn analyze(input: AnalysisInput) -> Vec<Finding> {
+    // Find all unsafe blocks in the file
+    let matches = tree_query::run_query("(unsafe_block) @blk");
+    for m in &matches {
+        for capture in m {
+            // capture.node_kind, capture.text, capture.start_line, ...
+        }
+    }
+
+    // Batch multiple queries in one call (reduces overhead)
+    let results = tree_query::run_queries(&[
+        "(if_statement) @if".into(),
+        "(for_statement) @for".into(),
+    ]);
+
+    // Get node at a specific position
+    if let Some(node) = tree_query::node_at(10, 4) {
+        // node.node_kind, node.text, ...
+    }
+
+    // Get all named top-level nodes in a line range
+    let nodes = tree_query::nodes_in_range(1, 50);
+
+    vec![]
+}
+```
+
+The query pattern syntax is [tree-sitter's S-expression query language](https://tree-sitter.github.io/tree-sitter/syntax-highlighting/queries). Queries are compiled and cached per-invocation on the host side.
+
+Each `QueryMatch` contains:
+- `capture_name` — the `@name` from the pattern
+- `node_kind` — tree-sitter node type (e.g. `"function_definition"`)
+- `text` — the matched source text
+- `start_line`, `start_col`, `end_line`, `end_col` — 0-based positions
 
 ### FunctionInfo Fields
 
@@ -115,19 +175,28 @@ pub struct FunctionInfo {
     pub name: String,
     pub start_line: u32,
     pub end_line: u32,
-    pub name_col: u32,      // 0-based column of the name identifier
-    pub name_end_col: u32,  // 0-based end column of the name identifier
+    pub name_col: u32,
+    pub name_end_col: u32,
     pub line_count: u32,
     pub complexity: u32,
-    pub param_count: u32,
-    pub param_types: Vec<String>,
+    pub parameter_count: u32,
+    pub parameter_types: Vec<TypeRef>,
+    pub parameter_names: Vec<String>,
+    pub chain_depth: u32,
+    pub switch_arms: u32,
+    pub switch_arm_values: Vec<ArmValue>,
+    pub external_refs: Vec<String>,
+    pub is_delegating: bool,
     pub is_exported: bool,
     pub comment_lines: u32,
     pub referenced_fields: Vec<String>,
     pub null_check_fields: Vec<String>,
     pub switch_dispatch_target: Option<String>,
     pub optional_param_count: u32,
-    pub body_hash: u64,
+    pub called_functions: Vec<String>,
+    pub cognitive_complexity: u32,
+    pub body_hash: Option<String>,
+    pub return_type: Option<TypeRef>,
 }
 ```
 
