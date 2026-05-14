@@ -1,3 +1,4 @@
+// cha:ignore large_file
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -13,6 +14,9 @@ impl LanguageParser for CParser {
     fn language_name(&self) -> &str {
         "c"
     }
+    fn ts_language(&self) -> tree_sitter::Language {
+        tree_sitter_c::LANGUAGE.into()
+    }
     fn parse(&self, file: &SourceFile) -> Option<SourceModel> {
         parse_c_like(file, "c", &tree_sitter_c::LANGUAGE.into())
     }
@@ -21,6 +25,9 @@ impl LanguageParser for CParser {
 impl LanguageParser for CppParser {
     fn language_name(&self) -> &str {
         "cpp"
+    }
+    fn ts_language(&self) -> tree_sitter::Language {
+        tree_sitter_cpp::LANGUAGE.into()
     }
     fn parse(&self, file: &SourceFile) -> Option<SourceModel> {
         parse_c_like(file, "cpp", &tree_sitter_cpp::LANGUAGE.into())

@@ -27,6 +27,8 @@ fn bad() {
     let ctx = AnalysisContext {
         file: &src,
         model: &model,
+        tree: None,
+        ts_language: None,
     };
     let findings = ErrorHandlingAnalyzer::default().analyze(&ctx);
     let unwrap_findings: Vec<_> = findings
@@ -56,6 +58,8 @@ fn bad() {
     let ctx = AnalysisContext {
         file: &src,
         model: &model,
+        tree: None,
+        ts_language: None,
     };
     let findings = ErrorHandlingAnalyzer::default().analyze(&ctx);
     let unwraps: Vec<_> = findings
@@ -92,6 +96,8 @@ fn ok() {
     let ctx = AnalysisContext {
         file: &src,
         model: &model,
+        tree: None,
+        ts_language: None,
     };
     let findings = ErrorHandlingAnalyzer::default().analyze(&ctx);
     assert!(
@@ -114,6 +120,8 @@ fn chained() {
     let ctx = AnalysisContext {
         file: &src,
         model: &model,
+        tree: None,
+        ts_language: None,
     };
     let findings = ErrorHandlingAnalyzer::default().analyze(&ctx);
     let unwraps: Vec<_> = findings

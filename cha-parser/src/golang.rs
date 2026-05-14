@@ -13,6 +13,10 @@ impl LanguageParser for GolangParser {
         "go"
     }
 
+    fn ts_language(&self) -> tree_sitter::Language {
+        tree_sitter_go::LANGUAGE.into()
+    }
+
     fn parse(&self, file: &SourceFile) -> Option<SourceModel> {
         let mut parser = Parser::new();
         parser.set_language(&tree_sitter_go::LANGUAGE.into()).ok()?;

@@ -1,3 +1,4 @@
+// cha:ignore large_file
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -11,6 +12,10 @@ pub struct RustParser;
 impl LanguageParser for RustParser {
     fn language_name(&self) -> &str {
         "rust"
+    }
+
+    fn ts_language(&self) -> tree_sitter::Language {
+        tree_sitter_rust::LANGUAGE.into()
     }
 
     fn parse(&self, file: &SourceFile) -> Option<SourceModel> {

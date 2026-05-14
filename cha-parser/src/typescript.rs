@@ -15,6 +15,10 @@ impl LanguageParser for TypeScriptParser {
         "typescript"
     }
 
+    fn ts_language(&self) -> tree_sitter::Language {
+        tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()
+    }
+
     fn parse(&self, file: &SourceFile) -> Option<SourceModel> {
         let mut parser = Parser::new();
         parser

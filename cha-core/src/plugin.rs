@@ -70,6 +70,8 @@ pub struct Finding {
 pub struct AnalysisContext<'a> {
     pub file: &'a SourceFile,
     pub model: &'a SourceModel,
+    pub tree: Option<&'a tree_sitter::Tree>,
+    pub ts_language: Option<&'a tree_sitter::Language>,
 }
 
 /// Core trait that all analyzers implement.

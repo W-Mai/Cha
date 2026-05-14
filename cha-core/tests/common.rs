@@ -98,6 +98,11 @@ pub fn tref_ext(name: &str, module: &str) -> TypeRef {
 
 pub fn analyze(plugin: &dyn Plugin, model: &SourceModel) -> Vec<Finding> {
     let file = make_file();
-    let ctx = AnalysisContext { file: &file, model };
+    let ctx = AnalysisContext {
+        file: &file,
+        model,
+        tree: None,
+        ts_language: None,
+    };
     plugin.analyze(&ctx)
 }

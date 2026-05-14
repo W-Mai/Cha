@@ -135,7 +135,12 @@ fn resolve_findings(
     }
     let content = content.unwrap_or_else(|| std::fs::read_to_string(path).unwrap_or_default());
     let file = SourceFile::new(path.to_path_buf(), content);
-    let ctx = AnalysisContext { file: &file, model };
+    let ctx = AnalysisContext {
+        file: &file,
+        model,
+        tree: None,
+        ts_language: None,
+    };
     let findings: Vec<Finding> = registry
         .plugins()
         .iter()

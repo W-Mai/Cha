@@ -1,4 +1,4 @@
-package cha:plugin@0.1.0;
+package cha:plugin@0.2.0;
 
 /// Data types shared between host and guest.
 interface types {
@@ -63,6 +63,14 @@ interface types {
         threshold: option<f64>,
     }
 
+    /// Switch/match arm value type.
+    variant arm-value {
+        str-lit(string),
+        int-lit(s64),
+        char-lit(u32),
+        other,
+    }
+
     /// Function info from parsed source.
     record function-info {
         name: string,
@@ -74,8 +82,10 @@ interface types {
         complexity: u32,
         parameter-count: u32,
         parameter-types: list<type-ref>,
+        parameter-names: list<string>,
         chain-depth: u32,
         switch-arms: u32,
+        switch-arm-values: list<arm-value>,
         external-refs: list<string>,
         is-delegating: bool,
         is-exported: bool,
@@ -118,6 +128,22 @@ interface types {
         source: string,
         line: u32,
         col: u32,
+        is-module-decl: bool,
+    }
+
+    /// File role inferred by the host from path patterns.
+    enum file-role {
+        source,
+        test,
+        doc,
+        config,
+        generated,
+    }
+
+    /// Comment info from parsed source.
+    record comment-info {
+        text: string,
+        line: u32,
     }
 
     /// Typed option value for plugin configuration.
@@ -135,16 +161,50 @@ interface types {
         content: string,
         language: string,
         total-lines: u32,
+        role: file-role,
         functions: list<function-info>,
         classes: list<class-info>,
         imports: list<import-info>,
+        comments: list<comment-info>,
+        type-aliases: list<tuple<string, string>>,
         options: list<tuple<string, option-value>>,
     }
+}
+
+/// AST query interface provided by the host.
+/// Plugins can import this to execute tree-sitter queries against the current file's AST.
+interface tree-query {
+    /// A single capture from a query match.
+    record query-match {
+        capture-name: string,
+        node-kind: string,
+        text: string,
+        start-line: u32,
+        start-col: u32,
+        end-line: u32,
+        end-col: u32,
+    }
+
+    /// Execute a tree-sitter query pattern against the current file's AST.
+    /// Returns list of matches; each match is a list of captures.
+    run-query: func(pattern: string) -> list<list<query-match>>;
+
+    /// Execute multiple query patterns in one call, reducing cross-boundary overhead.
+    /// Returns results in the same order as the input patterns.
+    run-queries: func(patterns: list<string>) -> list<list<list<query-match>>>;
+
+    /// Get the AST node at a specific position.
+    node-at: func(line: u32, col: u32) -> option<query-match>;
+
+    /// Get all named top-level child nodes within a line range.
+    nodes-in-range: func(start-line: u32, end-line: u32) -> list<query-match>;
 }
 
 /// The world that WASM plugins must implement.
 world analyzer {
     use types.{analysis-input, finding};
+
+    import tree-query;
 
     /// Return the plugin name (matches [plugins.<name>] in .cha.toml).
     export name: func() -> string;

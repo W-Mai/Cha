@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use wasmtime::component::{Component, Linker};
+use streaming_iterator::StreamingIterator;
+use wasmtime::component::{Component, HasSelf, Linker};
 use wasmtime::{Engine, Store};
 use wasmtime_wasi::{ResourceTable, WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
 
+use crate::model::ArmValue;
 use crate::plugin::{Finding, Location, Severity, SmellCategory};
 use crate::{AnalysisContext, Plugin};
 
@@ -16,11 +18,16 @@ mod bindings {
 }
 
 use bindings::Analyzer;
+use bindings::cha::plugin::tree_query;
 pub use bindings::cha::plugin::types as wit;
 
 struct HostState {
     wasi: WasiCtx,
     table: ResourceTable,
+    tree: Option<tree_sitter::Tree>,
+    source: Vec<u8>,
+    ts_language: Option<tree_sitter::Language>,
+    query_cache: HashMap<String, tree_sitter::Query>,
 }
 
 impl WasiView for HostState {
@@ -32,11 +39,113 @@ impl WasiView for HostState {
     }
 }
 
-fn new_host_state() -> HostState {
+fn new_host_state(
+    tree: Option<tree_sitter::Tree>,
+    source: Vec<u8>,
+    ts_language: Option<tree_sitter::Language>,
+) -> HostState {
     let wasi = WasiCtxBuilder::new().build();
     HostState {
         wasi,
         table: ResourceTable::new(),
+        tree,
+        source,
+        ts_language,
+        query_cache: HashMap::new(),
+    }
+}
+
+impl bindings::cha::plugin::types::Host for HostState {}
+
+impl tree_query::Host for HostState {
+    fn run_query(&mut self, pattern: String) -> Vec<Vec<tree_query::QueryMatch>> {
+        self.execute_query(&pattern)
+    }
+
+    fn run_queries(&mut self, patterns: Vec<String>) -> Vec<Vec<Vec<tree_query::QueryMatch>>> {
+        patterns.iter().map(|p| self.execute_query(p)).collect()
+    }
+
+    fn node_at(&mut self, line: u32, col: u32) -> Option<tree_query::QueryMatch> {
+        let tree = self.tree.as_ref()?;
+        let point = tree_sitter::Point::new(line as usize, col as usize);
+        let node = tree.root_node().descendant_for_point_range(point, point)?;
+        Some(node_to_query_match(&node, &self.source, ""))
+    }
+
+    fn nodes_in_range(&mut self, start_line: u32, end_line: u32) -> Vec<tree_query::QueryMatch> {
+        let tree = match &self.tree {
+            Some(t) => t,
+            None => return vec![],
+        };
+        let mut results = vec![];
+        let mut cursor = tree.root_node().walk();
+        for child in tree.root_node().children(&mut cursor) {
+            let node_start = child.start_position().row as u32;
+            let node_end = child.end_position().row as u32;
+            if node_end < start_line {
+                continue;
+            }
+            if node_start > end_line {
+                break;
+            }
+            if child.is_named() {
+                results.push(node_to_query_match(&child, &self.source, ""));
+            }
+        }
+        results
+    }
+}
+
+impl HostState {
+    fn execute_query(&mut self, pattern: &str) -> Vec<Vec<tree_query::QueryMatch>> {
+        let (tree, ts_lang) = match (&self.tree, &self.ts_language) {
+            (Some(t), Some(l)) => (t, l),
+            _ => return vec![],
+        };
+
+        if !self.query_cache.contains_key(pattern) {
+            let q = match tree_sitter::Query::new(ts_lang, pattern) {
+                Ok(q) => q,
+                Err(_) => return vec![],
+            };
+            self.query_cache.insert(pattern.to_string(), q);
+        }
+        let query = self.query_cache.get(pattern).unwrap();
+        let capture_names: Vec<&str> = query.capture_names().to_vec();
+
+        let mut cursor = tree_sitter::QueryCursor::new();
+        let mut results = vec![];
+        let mut matches = cursor.matches(query, tree.root_node(), self.source.as_slice());
+        while let Some(m) = StreamingIterator::next(&mut matches) {
+            let captures: Vec<_> = m
+                .captures
+                .iter()
+                .map(|c| {
+                    let name: &str = capture_names.get(c.index as usize).copied().unwrap_or("");
+                    node_to_query_match(&c.node, &self.source, name)
+                })
+                .collect();
+            results.push(captures);
+        }
+        results
+    }
+}
+
+fn node_to_query_match(
+    node: &tree_sitter::Node,
+    source: &[u8],
+    capture_name: &str,
+) -> tree_query::QueryMatch {
+    let text = node.utf8_text(source).unwrap_or("").to_string();
+    tree_query::QueryMatch {
+        capture_name: capture_name.to_string(),
+        node_kind: node.kind().to_string(),
+        text,
+        start_line: node.start_position().row as u32,
+        start_col: node.start_position().column as u32,
+        end_line: node.end_position().row as u32,
+        end_col: node.end_position().column as u32,
     }
 }
 
@@ -60,8 +169,9 @@ impl WasmPlugin {
 
         let mut linker = Linker::<HostState>::new(&engine);
         wasmtime_wasi::p2::add_to_linker_sync(&mut linker)?;
+        Analyzer::add_to_linker::<HostState, HasSelf<HostState>>(&mut linker, |s| s)?;
 
-        let mut store = Store::new(&engine, new_host_state());
+        let mut store = Store::new(&engine, new_host_state(None, vec![], None));
         let instance = Analyzer::instantiate(&mut store, &component, &linker)?;
         let name = instance.call_name(&mut store)?;
         let version = instance.call_version(&mut store)?;
@@ -112,8 +222,14 @@ impl Plugin for WasmPlugin {
         let result = (|| -> wasmtime::Result<Vec<Finding>> {
             let mut linker = Linker::<HostState>::new(&self.engine);
             wasmtime_wasi::p2::add_to_linker_sync(&mut linker)?;
+            Analyzer::add_to_linker::<HostState, HasSelf<HostState>>(&mut linker, |s| s)?;
 
-            let mut store = Store::new(&self.engine, new_host_state());
+            let (tree, ts_lang) = match (ctx.tree, ctx.ts_language) {
+                (Some(t), Some(l)) => (Some(t.clone()), Some(l.clone())),
+                _ => (None, None),
+            };
+            let source = ctx.file.content.as_bytes().to_vec();
+            let mut store = Store::new(&self.engine, new_host_state(tree, source, ts_lang));
             let instance = Analyzer::instantiate(&mut store, &self.component, &linker)?;
             let input = to_wit_input(ctx, &self.options);
             let results = instance.call_analyze(&mut store, &input)?;
@@ -136,11 +252,36 @@ fn to_wit_input(
         content: ctx.file.content.clone(),
         language: ctx.model.language.clone(),
         total_lines: ctx.model.total_lines as u32,
+        role: infer_file_role(&ctx.file.path),
         functions: convert_functions(&ctx.model.functions),
         classes: convert_classes(&ctx.model.classes),
         imports: convert_imports(&ctx.model.imports),
+        comments: convert_comments(&ctx.model.comments),
+        type_aliases: ctx
+            .model
+            .type_aliases
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect(),
         options: options.to_vec(),
     }
+}
+
+fn infer_file_role(path: &Path) -> wit::FileRole {
+    let s = path.to_string_lossy();
+    if s.contains("/test") || s.contains("_test.") || s.contains("/tests/") || s.contains("/spec/")
+    {
+        return wit::FileRole::Test;
+    }
+    if s.contains("/generated/") || s.contains(".generated.") || s.contains(".gen.") {
+        return wit::FileRole::Generated;
+    }
+    match path.extension().and_then(|e| e.to_str()) {
+        Some("md" | "txt" | "rst" | "adoc") => return wit::FileRole::Doc,
+        Some("toml" | "json" | "yaml" | "yml" | "ini" | "cfg") => return wit::FileRole::Config,
+        _ => {}
+    }
+    wit::FileRole::Source
 }
 
 /// Generic slice converter to avoid duplicate map-collect patterns.
@@ -159,8 +300,10 @@ fn convert_functions(funcs: &[crate::model::FunctionInfo]) -> Vec<wit::FunctionI
         complexity: f.complexity as u32,
         parameter_count: f.parameter_count as u32,
         parameter_types: f.parameter_types.iter().map(to_wit_type_ref).collect(),
+        parameter_names: f.parameter_names.clone(),
         chain_depth: f.chain_depth as u32,
         switch_arms: f.switch_arms as u32,
+        switch_arm_values: f.switch_arm_values.iter().map(to_wit_arm_value).collect(),
         external_refs: f.external_refs.clone(),
         is_delegating: f.is_delegating,
         is_exported: f.is_exported,
@@ -174,6 +317,15 @@ fn convert_functions(funcs: &[crate::model::FunctionInfo]) -> Vec<wit::FunctionI
         body_hash: f.body_hash.map(|h| format!("{h:016x}")),
         return_type: f.return_type.as_ref().map(to_wit_type_ref),
     })
+}
+
+fn to_wit_arm_value(v: &ArmValue) -> wit::ArmValue {
+    match v {
+        ArmValue::Str(s) => wit::ArmValue::StrLit(s.clone()),
+        ArmValue::Int(i) => wit::ArmValue::IntLit(*i),
+        ArmValue::Char(c) => wit::ArmValue::CharLit(*c as u32),
+        ArmValue::Other => wit::ArmValue::Other,
+    }
 }
 
 fn to_wit_type_ref(t: &crate::model::TypeRef) -> wit::TypeRef {
@@ -218,6 +370,14 @@ fn convert_imports(imports: &[crate::model::ImportInfo]) -> Vec<wit::ImportInfo>
         source: i.source.clone(),
         line: i.line as u32,
         col: i.col as u32,
+        is_module_decl: i.is_module_decl,
+    })
+}
+
+fn convert_comments(comments: &[crate::model::CommentInfo]) -> Vec<wit::CommentInfo> {
+    convert_slice(comments, |c| wit::CommentInfo {
+        text: c.text.clone(),
+        line: c.line as u32,
     })
 }
 

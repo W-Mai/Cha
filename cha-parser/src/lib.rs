@@ -22,13 +22,49 @@ pub use typescript::TypeScriptParser;
 
 use cha_core::SourceFile;
 
+/// Result of parsing a file, including the tree-sitter tree for downstream AST queries.
+pub struct ParseResult {
+    pub model: SourceModel,
+    pub tree: tree_sitter::Tree,
+    pub ts_language: tree_sitter::Language,
+}
+
 /// Trait for language-specific parsers.
 pub trait LanguageParser: Send + Sync {
     fn language_name(&self) -> &str;
     fn parse(&self, file: &SourceFile) -> Option<SourceModel>;
+    fn ts_language(&self) -> tree_sitter::Language;
+    fn parse_tree(&self, content: &str) -> Option<tree_sitter::Tree> {
+        let mut parser = tree_sitter::Parser::new();
+        parser.set_language(&self.ts_language()).ok()?;
+        parser.parse(content, None)
+    }
 }
 
-/// Detect language from file extension and parse.
+/// Detect language from file extension and parse, returning model + tree.
+pub fn parse_file_full(file: &SourceFile) -> Option<ParseResult> {
+    let ext = file.path.extension()?.to_str()?;
+    let parser: Box<dyn LanguageParser> = match ext {
+        "ts" | "tsx" => Box::new(TypeScriptParser),
+        "rs" => Box::new(RustParser),
+        "py" => Box::new(PythonParser),
+        "go" => Box::new(GolangParser),
+        "h" if looks_like_cpp(&file.content) => Box::new(CppParser),
+        "c" | "h" => Box::new(CParser),
+        "cpp" | "cc" | "cxx" | "hpp" | "hxx" => Box::new(CppParser),
+        _ => return None,
+    };
+    let model = parser.parse(file)?;
+    let tree = parser.parse_tree(&file.content)?;
+    let ts_language = parser.ts_language();
+    Some(ParseResult {
+        model,
+        tree,
+        ts_language,
+    })
+}
+
+/// Detect language from file extension and parse (legacy API, no tree returned).
 pub fn parse_file(file: &SourceFile) -> Option<SourceModel> {
     let ext = file.path.extension()?.to_str()?;
     let parser: Box<dyn LanguageParser> = match ext {

@@ -13,6 +13,10 @@ impl LanguageParser for PythonParser {
         "python"
     }
 
+    fn ts_language(&self) -> tree_sitter::Language {
+        tree_sitter_python::LANGUAGE.into()
+    }
+
     fn parse(&self, file: &SourceFile) -> Option<SourceModel> {
         let mut parser = Parser::new();
         parser

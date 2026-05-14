@@ -471,17 +471,17 @@ fn analyze_file_with_content(
     plugin_filter: &[String],
 ) -> (Vec<Finding>, Vec<String>) {
     let file = SourceFile::new(path.to_path_buf(), content.to_string());
-    let model = match cha_parser::parse_file(&file) {
-        Some(m) => m,
+    let parse_result = match cha_parser::parse_file_full(&file) {
+        Some(r) => r,
         None => return (vec![], vec![]),
     };
+    let model = parse_result.model;
     let imports: Vec<String> = model.imports.iter().map(|i| i.source.clone()).collect();
     let mut config =
         Config::load_for_file(path, project_root).resolve_for_language(&model.language);
     if let Some(s) = STRICTNESS_OVERRIDE.get() {
         config.set_strictness(s.clone());
     }
-    // Apply calibration thresholds as fallback (lower priority than .cha.toml)
     if let Some((lines, cx, cog)) = crate::calibrate::load_calibration(project_root) {
         config.set_calibration_defaults(lines, cx, cog);
     }
@@ -489,6 +489,8 @@ fn analyze_file_with_content(
     let ctx = AnalysisContext {
         file: &file,
         model: &model,
+        tree: Some(&parse_result.tree),
+        ts_language: Some(&parse_result.ts_language),
     };
     let findings: Vec<Finding> = registry
         .plugins()

@@ -175,6 +175,8 @@ mod tests {
         let ctx = AnalysisContext {
             file: &file,
             model: &model,
+            tree: None,
+            ts_language: None,
         };
         AsyncCallbackLeakAnalyzer.analyze(&ctx)
     }
