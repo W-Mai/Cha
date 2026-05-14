@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-05-14
+
 ### Added
 - **Plugin AST Query API** — WASM plugins can now execute tree-sitter queries against the current file's AST via the `tree-query` host import interface (`run-query`, `run-queries`, `node-at`, `nodes-in-range`). Enables plugins to do custom structural pattern matching without reimplementing parsing.
 - **`file-role` enum** in `analysis-input` — host infers whether a file is `source`, `test`, `doc`, `config`, or `generated` from its path, allowing plugins to apply differential detection strategies.
