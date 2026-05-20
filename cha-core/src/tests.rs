@@ -165,7 +165,7 @@ proptest! {
     fn plugins_never_panic(model in arb_source_model()) {
         let content = "fn main() {}\n".repeat(model.total_lines.max(1));
         let file = SourceFile::new(PathBuf::from("test.rs"), content);
-        let ctx = AnalysisContext { file: &file, model: &model, tree: None, ts_language: None };
+        let ctx = AnalysisContext { file: &file, model: &model, tree: None, ts_language: None, project: None };
 
         for plugin in all_plugins() {
             let findings = plugin.analyze(&ctx);
@@ -182,7 +182,7 @@ proptest! {
     fn plugin_finding_count_bounded(model in arb_source_model()) {
         let content = "fn main() {}\n".repeat(model.total_lines.max(1));
         let file = SourceFile::new(PathBuf::from("test.rs"), content);
-        let ctx = AnalysisContext { file: &file, model: &model, tree: None, ts_language: None };
+        let ctx = AnalysisContext { file: &file, model: &model, tree: None, ts_language: None, project: None };
 
         let max_items = model.functions.len() + model.classes.len() + 1;
         let length = LengthAnalyzer::default();

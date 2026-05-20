@@ -140,6 +140,7 @@ fn resolve_findings(
         model,
         tree: None,
         ts_language: None,
+        project: None,
     };
     let findings: Vec<Finding> = registry
         .plugins()

@@ -16,6 +16,7 @@ fn layer_violation_triggers() {
         model: &model,
         tree: None,
         ts_language: None,
+        project: None,
     };
     let findings = analyzer.analyze(&ctx);
     assert_eq!(findings.len(), 1);
@@ -32,6 +33,7 @@ fn layer_violation_same_layer_ok() {
         model: &model,
         tree: None,
         ts_language: None,
+        project: None,
     };
     let findings = analyzer.analyze(&ctx);
     assert!(findings.is_empty());

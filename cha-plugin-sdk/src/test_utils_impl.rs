@@ -94,7 +94,7 @@ pub mod test_utils {
                 comments: vec![],
                 type_aliases: vec![],
             });
-            let ctx = AnalysisContext { file: &file, model: &model, tree: None, ts_language: None };
+            let ctx = AnalysisContext { file: &file, model: &model, tree: None, ts_language: None, project: None };
             plugin.analyze(&ctx)
         }
 

@@ -52,6 +52,7 @@ fn foo() {
         model: &model,
         tree: None,
         ts_language: None,
+        project: None,
     };
     let findings = SwitchStatementAnalyzer::default().analyze(&ctx);
     assert_eq!(findings.len(), 1);
@@ -75,6 +76,7 @@ fn switch_statement_falls_back_when_keyword_not_found() {
         model: &model,
         tree: None,
         ts_language: None,
+        project: None,
     };
     let findings = SwitchStatementAnalyzer::default().analyze(&ctx);
     assert_eq!(findings.len(), 1);

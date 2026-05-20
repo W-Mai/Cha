@@ -142,6 +142,7 @@ mod tests {
             model,
             tree: None,
             ts_language: None,
+            project: None,
         }
     }
 

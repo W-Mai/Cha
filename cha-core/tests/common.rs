@@ -103,6 +103,7 @@ pub fn analyze(plugin: &dyn Plugin, model: &SourceModel) -> Vec<Finding> {
         model,
         tree: None,
         ts_language: None,
+        project: None,
     };
     plugin.analyze(&ctx)
 }

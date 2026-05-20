@@ -43,14 +43,6 @@ pub(crate) fn cmd_analyze(opts: &AnalyzeOpts) -> i32 {
     let cache = cache.unwrap_or_else(|| std::sync::Mutex::new(crate::open_project_cache(&cwd)));
     all_findings.extend(run_post_analysis(&files, &cwd, opts.plugin_filter, &cache));
 
-    // Drop dead_code findings whose target is actually called from another file
-    // — single-file text search misses cross-file callers (callbacks registered
-    // in dispatch tables, trait method names referenced via Type::method, etc.)
-    if all_findings.iter().any(|f| f.smell_name == "dead_code") {
-        let call_set = crate::dead_code_filter::build_call_set_from_files(&files, &cwd, &cache);
-        all_findings = crate::dead_code_filter::filter_dead_code(all_findings, &call_set);
-    }
-
     if let Ok(c) = cache.into_inner() {
         c.flush();
     }
@@ -390,11 +382,20 @@ pub(crate) fn run_analysis(
 ) {
     let cache = open_cache(project_root, !plugin_filter.is_empty());
 
+    // Build ProjectIndex once so per-file plugins can query cross-file data
+    // (callers, project types, workspace siblings, etc.) via ctx.project.
+    let project_index = cache
+        .as_ref()
+        .map(|c| crate::project_index::ProjectIndex::parse(files, project_root, c));
+    let project: Option<&dyn cha_core::ProjectQuery> = project_index
+        .as_ref()
+        .map(|idx| idx as &dyn cha_core::ProjectQuery);
+
     let pb = crate::new_progress_bar(files.len() as u64);
     let results: Vec<Finding> = files
         .par_iter()
         .flat_map(|path| {
-            let findings = analyze_one(path, project_root, plugin_filter, &cache);
+            let findings = analyze_one(path, project_root, plugin_filter, &cache, project);
             pb.inc(1);
             findings
         })
@@ -428,6 +429,7 @@ fn analyze_one(
     project_root: &Path,
     plugin_filter: &[String],
     cache: &Option<std::sync::Mutex<cha_core::ProjectCache>>,
+    project: Option<&dyn cha_core::ProjectQuery>,
 ) -> Vec<Finding> {
     let rel = path
         .strip_prefix(project_root)
@@ -458,7 +460,7 @@ fn analyze_one(
     }
 
     let (findings, imports) =
-        analyze_file_with_content(path, &content, project_root, plugin_filter);
+        analyze_file_with_content(path, &content, project_root, plugin_filter, project);
 
     if let Some(cache) = cache
         && let Ok(mut c) = cache.lock()
@@ -474,6 +476,7 @@ fn analyze_file_with_content(
     content: &str,
     project_root: &Path,
     plugin_filter: &[String],
+    project: Option<&dyn cha_core::ProjectQuery>,
 ) -> (Vec<Finding>, Vec<String>) {
     let file = SourceFile::new(path.to_path_buf(), content.to_string());
     let parse_result = match cha_parser::parse_file_full(&file) {
@@ -496,6 +499,7 @@ fn analyze_file_with_content(
         model: &model,
         tree: Some(&parse_result.tree),
         ts_language: Some(&parse_result.ts_language),
+        project,
     };
     let findings: Vec<Finding> = registry
         .plugins()

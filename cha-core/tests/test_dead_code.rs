@@ -18,6 +18,7 @@ fn dead_code_unexported_unreferenced() {
         model: &model,
         tree: None,
         ts_language: None,
+        project: None,
     };
     let findings = DeadCodeAnalyzer.analyze(&ctx);
     assert_eq!(findings.len(), 1);

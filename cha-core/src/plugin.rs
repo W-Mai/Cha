@@ -1,8 +1,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use crate::{SourceFile, SourceModel};
+use crate::{FunctionInfo, SourceFile, SourceModel, TypeRef};
 
 /// Severity level for a finding.
 #[derive(
@@ -66,12 +66,74 @@ pub struct Finding {
     pub risk_score: Option<f64>,
 }
 
+/// Project-level queries available to all plugins (built-in + WASM).
+///
+/// Methods return owned/cheap-to-copy types (`PathBuf`/`Vec`) so WASM host
+/// imports can wrap them directly without borrow gymnastics. For built-in
+/// plugins needing bulk access (iterate every model), use the
+/// `ProjectQueryBulk` extension trait via downcast.
+pub trait ProjectQuery: Send + Sync {
+    // === Reference relations ===
+
+    /// True if `name` is called from any file other than `exclude_path`.
+    fn is_called_externally(&self, name: &str, exclude_path: &Path) -> bool;
+
+    /// All files that reference `name` (excluding self-references).
+    fn callers_of(&self, name: &str) -> Vec<PathBuf>;
+
+    /// Pre-computed cross-file call counts: `((caller, callee), count)`.
+    fn cross_file_call_counts(&self) -> Vec<((PathBuf, PathBuf), u32)>;
+
+    // === Symbol location ===
+
+    /// First file that declared this function.
+    fn function_home(&self, name: &str) -> Option<PathBuf>;
+
+    /// First `(file, FunctionInfo)` tuple — fuller than `function_home`.
+    fn function_by_name(&self, name: &str) -> Option<(PathBuf, FunctionInfo)>;
+
+    /// First file that declared this class/struct.
+    fn class_home(&self, name: &str) -> Option<PathBuf>;
+
+    /// O(1) model lookup by path.
+    fn model_by_path(&self, path: &Path) -> Option<SourceModel>;
+
+    // === Type system ===
+
+    /// True if `name` is declared somewhere in the project.
+    fn is_project_type(&self, name: &str) -> bool;
+
+    /// True if the type is a genuine third-party dependency
+    /// (External origin AND not stdlib AND not workspace sibling).
+    fn is_third_party(&self, type_ref: &TypeRef) -> bool;
+
+    /// Workspace sibling crate names (Rust workspace) — empty otherwise.
+    fn workspace_crate_names(&self) -> Vec<String>;
+
+    // === Path shape ===
+
+    /// True if path looks like a test file or sits inside a test directory.
+    fn is_test_path(&self, path: &Path) -> bool;
+
+    // === Project metadata ===
+
+    /// Total count of analyzed files.
+    fn file_count(&self) -> usize;
+}
+
+/// Bulk access for in-process plugins. WASM plugins cannot reach this trait —
+/// they're stuck with point queries from `ProjectQuery`.
+pub trait ProjectQueryBulk: ProjectQuery {
+    fn iter_models(&self) -> Box<dyn Iterator<Item = (&Path, &SourceModel)> + '_>;
+}
+
 /// Analysis context passed to plugins.
 pub struct AnalysisContext<'a> {
     pub file: &'a SourceFile,
     pub model: &'a SourceModel,
     pub tree: Option<&'a tree_sitter::Tree>,
     pub ts_language: Option<&'a tree_sitter::Language>,
+    pub project: Option<&'a dyn ProjectQuery>,
 }
 
 /// Core trait that all analyzers implement.

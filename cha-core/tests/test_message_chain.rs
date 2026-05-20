@@ -51,6 +51,7 @@ fn deep() {
         model: &model,
         tree: None,
         ts_language: None,
+        project: None,
     };
     let findings = MessageChainAnalyzer::default().analyze(&ctx);
     assert_eq!(findings.len(), 1);
@@ -76,6 +77,7 @@ fn message_chain_falls_back_when_no_chain_text() {
         model: &model,
         tree: None,
         ts_language: None,
+        project: None,
     };
     let findings = MessageChainAnalyzer::default().analyze(&ctx);
     assert_eq!(findings.len(), 1);
