@@ -52,8 +52,8 @@ fn external_type_set_collects_params_and_returns() {
         func("c", vec![tref_local("LocalThing")], None),
     ]);
     let idx = ProjectIndex::from_models(vec![(PathBuf::from("some-crate/f.rs"), m)]);
-    let ws = workspace_crate_names(&idx);
-    let out = build_external_type_index(&idx, &ws);
+
+    let out = build_external_type_index(&idx);
     let set = out.get(&PathBuf::from("some-crate/f.rs")).unwrap();
     assert!(set.contains("serde_json::Value"));
     assert!(set.contains("tree_sitter::Node"));
@@ -68,8 +68,8 @@ fn external_type_set_collects_params_and_returns() {
 fn files_without_external_types_are_omitted() {
     let m = model(vec![func("a", vec![tref_local("T")], None)]);
     let idx = ProjectIndex::from_models(vec![(PathBuf::from("f.rs"), m)]);
-    let ws = workspace_crate_names(&idx);
-    let out = build_external_type_index(&idx, &ws);
+
+    let out = build_external_type_index(&idx);
     assert!(
         out.is_empty(),
         "purely-local file should not enter the index"
@@ -87,8 +87,8 @@ fn workspace_sibling_crate_skipped() {
         (PathBuf::from("cha-parser/src/lib.rs"), parser_model),
         (PathBuf::from("cha-core/src/lib.rs"), core_model),
     ]);
-    let ws = workspace_crate_names(&idx);
-    let out = build_external_type_index(&idx, &ws);
+
+    let out = build_external_type_index(&idx);
     assert!(
         out.is_empty(),
         "workspace-sibling type references should not count as external"

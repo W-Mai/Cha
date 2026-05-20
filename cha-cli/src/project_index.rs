@@ -164,8 +164,10 @@ impl ProjectQuery for ProjectIndex {
 
     fn is_third_party(&self, type_ref: &TypeRef) -> bool {
         match &type_ref.origin {
-            TypeOrigin::External(crate_name) => {
-                !is_stdlib_crate(crate_name) && !self.workspace_crates.contains(crate_name)
+            TypeOrigin::External(module) => {
+                let root = module.split("::").next().unwrap_or(module);
+                let root = root.split('.').next().unwrap_or(root);
+                !is_stdlib_crate(root) && !self.workspace_crates.contains(root)
             }
             _ => false,
         }
@@ -176,7 +178,7 @@ impl ProjectQuery for ProjectIndex {
     }
 
     fn is_test_path(&self, path: &Path) -> bool {
-        is_test_path_impl(path)
+        cha_core::is_test_path(path)
     }
 
     fn file_count(&self) -> usize {
@@ -193,27 +195,10 @@ impl ProjectQueryBulk for ProjectIndex {
 /// Stdlib / standard crate names that are never "third-party" leaks.
 /// Mirrors what leaky_public::is_external_leak considered stdlib.
 fn is_stdlib_crate(name: &str) -> bool {
-    matches!(name, "std" | "core" | "alloc" | "test" | "proc_macro")
-}
-
-/// Shared "is this path under a test directory?" predicate.
-/// Used to live as private fns in boundary_leak and module_envy with
-/// identical implementations.
-fn is_test_path_impl(path: &Path) -> bool {
-    const TEST_DIRS: &[&str] = &["test", "tests", "__tests__", "__mocks__"];
-    let lossy = path.to_string_lossy();
-    if TEST_DIRS
-        .iter()
-        .any(|d| lossy.contains(&format!("/{}/", d)) || lossy.contains(&format!("/{}\\", d)))
-    {
-        return true;
-    }
-    if let Some(stem) = path.file_stem().and_then(|s| s.to_str())
-        && (stem.ends_with("_test") || stem.starts_with("test_"))
-    {
-        return true;
-    }
-    false
+    matches!(
+        name,
+        "std" | "core" | "alloc" | "test" | "typing" | "builtins" | "proc_macro" | "proc_macro2"
+    )
 }
 
 fn build_function_home(models: &[(PathBuf, SourceModel)]) -> HashMap<String, PathBuf> {
@@ -299,10 +284,13 @@ fn build_cross_file_calls(
 fn build_workspace_crates(models: &[(PathBuf, SourceModel)]) -> HashSet<String> {
     let mut crates = HashSet::new();
     for (path, _) in models {
-        if let Some(first) = path.iter().next()
-            && let Some(s) = first.to_str()
+        if let Some(first) = path
+            .components()
+            .filter_map(|c| c.as_os_str().to_str())
+            .find(|s| *s != "." && *s != "..")
         {
-            crates.insert(s.to_string());
+            // Cargo "package" → Rust "crate" via `replace('-', '_')`.
+            crates.insert(first.replace('-', "_"));
         }
     }
     crates

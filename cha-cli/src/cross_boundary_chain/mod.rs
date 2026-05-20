@@ -11,10 +11,11 @@
 //! Inputs: `chain_depth`, `parameter_types` + `parameter_names`,
 //! `external_refs`. Zero parser changes.
 
-use std::collections::HashSet;
 use std::path::Path;
 
-use cha_core::{Finding, FunctionInfo, Location, Severity, SmellCategory, TypeOrigin};
+use cha_core::{
+    Finding, FunctionInfo, Location, ProjectQuery, Severity, SmellCategory, TypeOrigin,
+};
 
 use crate::project_index::ProjectIndex;
 
@@ -22,15 +23,13 @@ const SMELL: &str = "cross_boundary_chain";
 const MIN_DEPTH: usize = 3;
 
 pub fn detect(index: &ProjectIndex) -> Vec<Finding> {
-    let workspace_crates = workspace_crate_names(index);
     let mut findings = Vec::new();
     for (path, model) in index.models() {
         for f in &model.functions {
             if f.chain_depth < MIN_DEPTH {
                 continue;
             }
-            let Some((param_name, module)) = find_external_traversed_param(f, &workspace_crates)
-            else {
+            let Some((param_name, module)) = find_external_traversed_param(f, index) else {
                 continue;
             };
             findings.push(build_finding(path, f, param_name, module, f.chain_depth));
@@ -39,46 +38,24 @@ pub fn detect(index: &ProjectIndex) -> Vec<Finding> {
     findings
 }
 
-/// Derive workspace-internal crate names from every model path, so
-/// deep access into a sibling project crate (`cha_core::Finding`) is
-/// not flagged as a third-party boundary crossing. Shares the
-/// convention used by `leaky_public_signature`.
-fn workspace_crate_names(index: &ProjectIndex) -> HashSet<String> {
-    let mut names = HashSet::new();
-    for (path, _) in index.models() {
-        let Some(first) = path
-            .components()
-            .filter_map(|c| c.as_os_str().to_str())
-            .find(|s| *s != "." && *s != "..")
-        else {
-            continue;
-        };
-        names.insert(first.replace('-', "_"));
-    }
-    names
-}
-
 /// Return the first (name, module) pair for a parameter that is both
 /// externally-typed **and** referenced by name in the function body.
 /// Requiring the body reference cuts the false positives where an
 /// external param simply exists in the signature but isn't touched.
 fn find_external_traversed_param<'a>(
     f: &'a FunctionInfo,
-    workspace_crates: &HashSet<String>,
+    index: &ProjectIndex,
 ) -> Option<(&'a str, &'a str)> {
     for (name, ty) in f.parameter_names.iter().zip(f.parameter_types.iter()) {
-        let TypeOrigin::External(module) = &ty.origin else {
-            continue;
-        };
         if name.is_empty() {
             continue;
         }
-        // Workspace-internal crates (e.g. `cha_core` inside the Cha
-        // repo) are not a third-party boundary — skip.
-        let root = module.split("::").next().unwrap_or(module);
-        if workspace_crates.contains(root) {
+        if !index.is_third_party(ty) {
             continue;
         }
+        let TypeOrigin::External(module) = &ty.origin else {
+            continue;
+        };
         if !f.external_refs.iter().any(|r| r == name) {
             continue;
         }

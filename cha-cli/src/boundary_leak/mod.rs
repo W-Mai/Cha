@@ -18,7 +18,9 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use cha_core::{Finding, FunctionInfo, Location, Severity, SmellCategory, TypeOrigin, TypeRef};
+use cha_core::{
+    Finding, FunctionInfo, Location, Severity, SmellCategory, TypeOrigin, TypeRef, is_test_path,
+};
 
 const ABL_SMELL: &str = "abstraction_boundary_leak";
 const RTL_SMELL: &str = "return_type_leak";
@@ -59,33 +61,8 @@ fn detect_from_models(
     findings
 }
 
-/// Path-based heuristic for "this file is test scaffolding": common patterns
-/// across Rust/TypeScript/Python/Go/C test layouts.
-fn is_test_path(path: &Path) -> bool {
-    if path_has_test_segment(path) {
-        return true;
-    }
-    let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
-        return false;
-    };
-    stem.starts_with("test_")
-        || stem.ends_with("_test")
-        || stem.ends_with(".test")
-        || stem.ends_with(".spec")
-        || stem.ends_with("_spec")
-}
-
-/// Walk the path segment-by-segment; match any directory literally called
-/// `tests`, `test`, `__tests__`, `spec`, or `specs`. Handles leading and
-/// intermediate positions alike, unlike substring matching.
-fn path_has_test_segment(path: &Path) -> bool {
-    const TEST_DIRS: &[&str] = &["tests", "test", "__tests__", "spec", "specs"];
-    path.components().any(|c| {
-        c.as_os_str()
-            .to_str()
-            .is_some_and(|s| TEST_DIRS.contains(&s))
-    })
-}
+// Path-based test detection moved to `cha_core::is_test_path` —
+// previously duplicated here and in `module_envy`.
 
 /// Build the set of type names declared **only in test files** — i.e. a
 /// class/struct/typedef that appears in at least one test file and in no

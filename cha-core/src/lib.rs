@@ -6,6 +6,7 @@ mod health;
 pub mod html_reporter;
 mod ignore;
 mod model;
+mod path_shape;
 mod plugin;
 pub mod plugins;
 mod registry;
@@ -22,6 +23,7 @@ pub use config::{
 pub use health::{Grade, HealthScore, score_files};
 pub use ignore::filter_ignored;
 pub use model::*;
+pub use path_shape::is_test_path;
 pub use plugin::*;
 pub use registry::PluginRegistry;
 pub use reporter::{JsonReporter, LlmContextReporter, Reporter, SarifReporter, TerminalReporter};

@@ -15,7 +15,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use cha_core::{Finding, Location, Severity, SmellCategory, TypeOrigin};
+use cha_core::{Finding, Location, ProjectQuery, Severity, SmellCategory, TypeOrigin};
 
 use crate::project_index::ProjectIndex;
 
@@ -24,8 +24,7 @@ const MIN_CO_CHANGES: usize = 5;
 const MAX_COMMITS: usize = 100;
 
 pub fn detect(index: &ProjectIndex) -> Vec<Finding> {
-    let workspace_crates = workspace_crate_names(index);
-    let external_types = build_external_type_index(index, &workspace_crates);
+    let external_types = build_external_type_index(index);
     if external_types.is_empty() {
         return Vec::new();
     }
@@ -67,21 +66,18 @@ pub fn detect(index: &ProjectIndex) -> Vec<Finding> {
 /// workspace. Sibling project crates (e.g. `cha_core` inside Cha itself)
 /// aren't the "third-party boundary" we want to flag; they're internal
 /// dependencies.
-fn build_external_type_index(
-    index: &ProjectIndex,
-    workspace_crates: &HashSet<String>,
-) -> HashMap<PathBuf, HashSet<String>> {
+fn build_external_type_index(index: &ProjectIndex) -> HashMap<PathBuf, HashSet<String>> {
     let mut out: HashMap<PathBuf, HashSet<String>> = HashMap::new();
     for (path, model) in index.models() {
         let mut set = HashSet::new();
         for f in &model.functions {
             for t in &f.parameter_types {
-                if let Some(entry) = external_entry(t, workspace_crates) {
+                if let Some(entry) = external_entry(t, index) {
                     set.insert(entry);
                 }
             }
             if let Some(rt) = &f.return_type
-                && let Some(entry) = external_entry(rt, workspace_crates)
+                && let Some(entry) = external_entry(rt, index)
             {
                 set.insert(entry);
             }
@@ -93,30 +89,14 @@ fn build_external_type_index(
     out
 }
 
-fn external_entry(t: &cha_core::TypeRef, workspace_crates: &HashSet<String>) -> Option<String> {
+fn external_entry(t: &cha_core::TypeRef, index: &ProjectIndex) -> Option<String> {
+    if !index.is_third_party(t) {
+        return None;
+    }
     let TypeOrigin::External(module) = &t.origin else {
         return None;
     };
-    let root = module.split("::").next().unwrap_or(module);
-    if workspace_crates.contains(root) {
-        return None;
-    }
     Some(format!("{module}::{}", t.name))
-}
-
-fn workspace_crate_names(index: &ProjectIndex) -> HashSet<String> {
-    let mut names = HashSet::new();
-    for (path, _) in index.models() {
-        let Some(first) = path
-            .components()
-            .filter_map(|c| c.as_os_str().to_str())
-            .find(|s| *s != "." && *s != "..")
-        else {
-            continue;
-        };
-        names.insert(first.replace('-', "_"));
-    }
-    names
 }
 
 /// Parse `git log --name-only -N` into per-file-pair co-change counts.

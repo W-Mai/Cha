@@ -10,7 +10,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use cha_core::{Finding, FunctionInfo, Location, Severity, SmellCategory};
+use cha_core::{Finding, FunctionInfo, Location, Severity, SmellCategory, is_test_path};
 
 use crate::project_index::ProjectIndex;
 
@@ -74,24 +74,7 @@ fn check_envy(
     Some(build_finding(self_path, f, top_file, *top_count, own_count))
 }
 
-fn is_test_path(path: &Path) -> bool {
-    const TEST_DIRS: &[&str] = &["tests", "test", "__tests__", "spec", "specs"];
-    if path.components().any(|c| {
-        c.as_os_str()
-            .to_str()
-            .is_some_and(|s| TEST_DIRS.contains(&s))
-    }) {
-        return true;
-    }
-    let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
-        return false;
-    };
-    stem.starts_with("test_")
-        || stem.ends_with("_test")
-        || stem.ends_with(".test")
-        || stem.ends_with(".spec")
-        || stem.ends_with("_spec")
-}
+// is_test_path centralized to cha_core::is_test_path
 
 fn is_shared_helper_path(path: &Path) -> bool {
     const HELPERS: &[&str] = &[
