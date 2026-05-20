@@ -42,10 +42,15 @@ pub(crate) fn cmd_analyze(opts: &AnalyzeOpts) -> i32 {
     let (mut all_findings, cache) = run_analysis(&files, &cwd, opts.plugin_filter);
     let cache = cache.unwrap_or_else(|| std::sync::Mutex::new(crate::open_project_cache(&cwd)));
     all_findings.extend(run_post_analysis(&files, &cwd, opts.plugin_filter, &cache));
-    // (Old `c_oop_filter` post-hoc filter replaced by `c_oop_enrich` running
-    // inside ProjectIndex::parse — models arrive at detectors with correct
-    // method_count / has_behavior, so lazy_class / data_class don't produce
-    // false positives in the first place on C structs with methods.)
+
+    // Drop dead_code findings whose target is actually called from another file
+    // — single-file text search misses cross-file callers (callbacks registered
+    // in dispatch tables, trait method names referenced via Type::method, etc.)
+    if all_findings.iter().any(|f| f.smell_name == "dead_code") {
+        let call_set = crate::dead_code_filter::build_call_set_from_files(&files, &cwd, &cache);
+        all_findings = crate::dead_code_filter::filter_dead_code(all_findings, &call_set);
+    }
+
     if let Ok(c) = cache.into_inner() {
         c.flush();
     }

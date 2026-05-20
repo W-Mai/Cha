@@ -86,6 +86,20 @@ fn apply_usize(config: &Config, plugin: &str, key: &str, target: &mut usize) {
     }
 }
 
+/// Apply a f64 config option to a field if present.
+fn apply_f64(config: &Config, plugin: &str, key: &str, target: &mut f64) {
+    if let Some(v) = config.get_f64(plugin, key) {
+        *target = v;
+    }
+}
+
+/// Apply a bool config option to a field if present.
+fn apply_bool(config: &Config, plugin: &str, key: &str, target: &mut bool) {
+    if let Some(v) = config.get_bool(plugin, key) {
+        *target = v;
+    }
+}
+
 /// Generic helper: register a plugin only if enabled.
 fn register_if_enabled(
     plugins: &mut Vec<Box<dyn Plugin>>,
@@ -126,6 +140,30 @@ fn register_classic_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config)
             "api_surface",
             "max_exported_count",
             &mut p.max_exported_count,
+        );
+        apply_f64(
+            config,
+            "api_surface",
+            "max_exported_ratio",
+            &mut p.max_exported_ratio,
+        );
+        apply_usize(
+            config,
+            "api_surface",
+            "c_max_exported_count",
+            &mut p.c_max_exported_count,
+        );
+        apply_f64(
+            config,
+            "api_surface",
+            "c_max_exported_ratio",
+            &mut p.c_max_exported_ratio,
+        );
+        apply_bool(
+            config,
+            "api_surface",
+            "skip_c_headers",
+            &mut p.skip_c_headers,
         );
         Box::new(p)
     });

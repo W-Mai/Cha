@@ -166,7 +166,7 @@ pub struct CommentInfo {
 }
 
 /// Unified source model produced by parsing.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct SourceModel {
     pub language: String,
     pub total_lines: usize,

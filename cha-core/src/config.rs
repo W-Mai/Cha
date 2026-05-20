@@ -316,6 +316,17 @@ impl Config {
             .map(|s| s.to_string())
     }
 
+    /// Get a f64 option for a plugin (no strictness scaling — ratios stay as user wrote them).
+    pub fn get_f64(&self, plugin: &str, key: &str) -> Option<f64> {
+        let v = self.plugins.get(plugin)?.options.get(key)?;
+        v.as_float().or_else(|| v.as_integer().map(|i| i as f64))
+    }
+
+    /// Get a bool option for a plugin.
+    pub fn get_bool(&self, plugin: &str, key: &str) -> Option<bool> {
+        self.plugins.get(plugin)?.options.get(key)?.as_bool()
+    }
+
     /// Override strictness (e.g. from CLI --strictness flag).
     pub fn set_strictness(&mut self, s: Strictness) {
         self.strictness = s;

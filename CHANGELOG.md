@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **`large_api_surface` C/C++ heuristics** — `.h/.hpp` headers are now skipped (their 100% public surface is by design); `.c/.cpp` implementation files use a higher count threshold (30, configurable as `c_max_exported_count`) and the ratio gate is effectively off (configurable as `c_max_exported_ratio`). lvgl baseline: 393 → 34 findings (-91%).
+- **`dead_code` cross-file awareness** — A new post-analysis pass drops `dead_code` findings whose target name is referenced from another file's `called_functions`. Plus a token-concat macro heuristic (`#define ... ##`) skips C/C++ files where dispatch tables hide function references from text/AST search. lvgl baseline: 67 → 6 findings (-91%).
+
+### Added
+- New `.cha.toml` config keys for `api_surface`: `max_exported_ratio`, `c_max_exported_count`, `c_max_exported_ratio`, `skip_c_headers`. All language-aware defaults preserved.
+
 ## [1.14.0] - 2026-05-14
 
 ### Added
