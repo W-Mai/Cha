@@ -18,9 +18,13 @@ mod bindings {
 }
 
 use bindings::Analyzer;
+use bindings::cha::plugin::project_query;
 use bindings::cha::plugin::tree_query;
 pub use bindings::cha::plugin::types as wit;
 
+use crate::ProjectQuery;
+
+// cha:ignore large_class
 struct HostState {
     wasi: WasiCtx,
     table: ResourceTable,
@@ -28,6 +32,7 @@ struct HostState {
     source: Vec<u8>,
     ts_language: Option<tree_sitter::Language>,
     query_cache: HashMap<String, tree_sitter::Query>,
+    project: Option<std::sync::Arc<dyn ProjectQuery>>,
 }
 
 impl WasiView for HostState {
@@ -43,6 +48,7 @@ fn new_host_state(
     tree: Option<tree_sitter::Tree>,
     source: Vec<u8>,
     ts_language: Option<tree_sitter::Language>,
+    project: Option<std::sync::Arc<dyn ProjectQuery>>,
 ) -> HostState {
     let wasi = WasiCtxBuilder::new().build();
     HostState {
@@ -52,10 +58,149 @@ fn new_host_state(
         source,
         ts_language,
         query_cache: HashMap::new(),
+        project,
     }
 }
 
 impl bindings::cha::plugin::types::Host for HostState {}
+
+impl project_query::Host for HostState {
+    fn is_called_externally(&mut self, name: String, exclude_path: String) -> bool {
+        self.project
+            .as_ref()
+            .is_some_and(|p| p.is_called_externally(&name, std::path::Path::new(&exclude_path)))
+    }
+
+    fn callers_of(&mut self, name: String) -> Vec<String> {
+        self.project
+            .as_ref()
+            .map(|p| {
+                p.callers_of(&name)
+                    .into_iter()
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn cross_file_call_counts(&mut self) -> Vec<(String, String, u32)> {
+        self.project
+            .as_ref()
+            .map(|p| {
+                p.cross_file_call_counts()
+                    .into_iter()
+                    .map(|((a, b), c)| {
+                        (
+                            a.to_string_lossy().into_owned(),
+                            b.to_string_lossy().into_owned(),
+                            c,
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn function_home(&mut self, name: String) -> Option<String> {
+        self.project
+            .as_ref()
+            .and_then(|p| p.function_home(&name))
+            .map(|p| p.to_string_lossy().into_owned())
+    }
+
+    fn function_by_name(&mut self, name: String) -> Option<(String, wit::FunctionInfo)> {
+        let p = self.project.as_ref()?;
+        let (path, info) = p.function_by_name(&name)?;
+        Some((
+            path.to_string_lossy().into_owned(),
+            convert_function_info(&info),
+        ))
+    }
+
+    fn class_home(&mut self, name: String) -> Option<String> {
+        self.project
+            .as_ref()
+            .and_then(|p| p.class_home(&name))
+            .map(|p| p.to_string_lossy().into_owned())
+    }
+
+    fn is_project_type(&mut self, name: String) -> bool {
+        self.project
+            .as_ref()
+            .is_some_and(|p| p.is_project_type(&name))
+    }
+
+    fn is_third_party(&mut self, type_ref: wit::TypeRef) -> bool {
+        let core_ref = wit_to_core_type_ref(&type_ref);
+        self.project
+            .as_ref()
+            .is_some_and(|p| p.is_third_party(&core_ref))
+    }
+
+    fn workspace_crate_names(&mut self) -> Vec<String> {
+        self.project
+            .as_ref()
+            .map(|p| p.workspace_crate_names())
+            .unwrap_or_default()
+    }
+
+    fn is_test_path(&mut self, path: String) -> bool {
+        self.project
+            .as_ref()
+            .is_some_and(|p| p.is_test_path(std::path::Path::new(&path)))
+    }
+
+    fn file_count(&mut self) -> u32 {
+        self.project
+            .as_ref()
+            .map(|p| p.file_count() as u32)
+            .unwrap_or(0)
+    }
+}
+
+fn wit_to_core_type_ref(t: &wit::TypeRef) -> crate::model::TypeRef {
+    crate::model::TypeRef {
+        name: t.name.clone(),
+        raw: t.raw.clone(),
+        origin: match &t.origin {
+            wit::TypeOrigin::ProjectLocal => crate::model::TypeOrigin::Local,
+            wit::TypeOrigin::External(s) => crate::model::TypeOrigin::External(s.clone()),
+            wit::TypeOrigin::Primitive => crate::model::TypeOrigin::Primitive,
+            wit::TypeOrigin::Unknown => crate::model::TypeOrigin::Unknown,
+        },
+    }
+}
+
+/// Convert a core FunctionInfo to its WIT counterpart for project_query callbacks.
+fn convert_function_info(f: &crate::model::FunctionInfo) -> wit::FunctionInfo {
+    wit::FunctionInfo {
+        name: f.name.clone(),
+        start_line: f.start_line as u32,
+        end_line: f.end_line as u32,
+        name_col: f.name_col as u32,
+        name_end_col: f.name_end_col as u32,
+        line_count: f.line_count as u32,
+        complexity: f.complexity as u32,
+        parameter_count: f.parameter_count as u32,
+        parameter_types: f.parameter_types.iter().map(to_wit_type_ref).collect(),
+        parameter_names: f.parameter_names.clone(),
+        chain_depth: f.chain_depth as u32,
+        switch_arms: f.switch_arms as u32,
+        switch_arm_values: f.switch_arm_values.iter().map(to_wit_arm_value).collect(),
+        external_refs: f.external_refs.clone(),
+        is_delegating: f.is_delegating,
+        is_exported: f.is_exported,
+        comment_lines: f.comment_lines as u32,
+        referenced_fields: f.referenced_fields.clone(),
+        null_check_fields: f.null_check_fields.clone(),
+        switch_dispatch_target: f.switch_dispatch_target.clone(),
+        optional_param_count: f.optional_param_count as u32,
+        called_functions: f.called_functions.clone(),
+        cognitive_complexity: f.cognitive_complexity as u32,
+        body_hash: f.body_hash.map(|h| format!("{h:016x}")),
+        return_type: f.return_type.as_ref().map(to_wit_type_ref),
+    }
+}
 
 impl tree_query::Host for HostState {
     fn run_query(&mut self, pattern: String) -> Vec<Vec<tree_query::QueryMatch>> {
@@ -171,7 +316,7 @@ impl WasmPlugin {
         wasmtime_wasi::p2::add_to_linker_sync(&mut linker)?;
         Analyzer::add_to_linker::<HostState, HasSelf<HostState>>(&mut linker, |s| s)?;
 
-        let mut store = Store::new(&engine, new_host_state(None, vec![], None));
+        let mut store = Store::new(&engine, new_host_state(None, vec![], None, None));
         let instance = Analyzer::instantiate(&mut store, &component, &linker)?;
         let name = instance.call_name(&mut store)?;
         let version = instance.call_version(&mut store)?;
@@ -229,7 +374,9 @@ impl Plugin for WasmPlugin {
                 _ => (None, None),
             };
             let source = ctx.file.content.as_bytes().to_vec();
-            let mut store = Store::new(&self.engine, new_host_state(tree, source, ts_lang));
+            let project = ctx.project.cloned();
+            let mut store =
+                Store::new(&self.engine, new_host_state(tree, source, ts_lang, project));
             let instance = Analyzer::instantiate(&mut store, &self.component, &linker)?;
             let input = to_wit_input(ctx, &self.options);
             let results = instance.call_analyze(&mut store, &input)?;

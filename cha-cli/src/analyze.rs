@@ -384,12 +384,12 @@ pub(crate) fn run_analysis(
 
     // Build ProjectIndex once so per-file plugins can query cross-file data
     // (callers, project types, workspace siblings, etc.) via ctx.project.
-    let project_index = cache
-        .as_ref()
-        .map(|c| crate::project_index::ProjectIndex::parse(files, project_root, c));
-    let project: Option<&dyn cha_core::ProjectQuery> = project_index
-        .as_ref()
-        .map(|idx| idx as &dyn cha_core::ProjectQuery);
+    // Wrap in Arc<dyn ProjectQuery> so WASM HostState can take owned ownership.
+    let project_arc: Option<std::sync::Arc<dyn cha_core::ProjectQuery>> = cache.as_ref().map(|c| {
+        let idx = crate::project_index::ProjectIndex::parse(files, project_root, c);
+        std::sync::Arc::new(idx) as std::sync::Arc<dyn cha_core::ProjectQuery>
+    });
+    let project = project_arc.as_ref();
 
     let pb = crate::new_progress_bar(files.len() as u64);
     let results: Vec<Finding> = files
@@ -429,7 +429,7 @@ fn analyze_one(
     project_root: &Path,
     plugin_filter: &[String],
     cache: &Option<std::sync::Mutex<cha_core::ProjectCache>>,
-    project: Option<&dyn cha_core::ProjectQuery>,
+    project: Option<&std::sync::Arc<dyn cha_core::ProjectQuery>>,
 ) -> Vec<Finding> {
     let rel = path
         .strip_prefix(project_root)
@@ -476,7 +476,7 @@ fn analyze_file_with_content(
     content: &str,
     project_root: &Path,
     plugin_filter: &[String],
-    project: Option<&dyn cha_core::ProjectQuery>,
+    project: Option<&std::sync::Arc<dyn cha_core::ProjectQuery>>,
 ) -> (Vec<Finding>, Vec<String>) {
     let file = SourceFile::new(path.to_path_buf(), content.to_string());
     let parse_result = match cha_parser::parse_file_full(&file) {

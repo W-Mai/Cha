@@ -36,7 +36,7 @@ pub fn plugin(input: TokenStream) -> TokenStream {
             Location, OptionValue, Severity, SmellCategory,
         };
         #[allow(unused_imports)]
-        pub use cha::plugin::tree_query;
+        pub use cha::plugin::{project_query, tree_query};
 
         /// Implement this trait in your plugin struct.
         /// `version`, `description`, `authors`, `smells` all have default impls.

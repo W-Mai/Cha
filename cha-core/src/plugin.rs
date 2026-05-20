@@ -133,7 +133,9 @@ pub struct AnalysisContext<'a> {
     pub model: &'a SourceModel,
     pub tree: Option<&'a tree_sitter::Tree>,
     pub ts_language: Option<&'a tree_sitter::Language>,
-    pub project: Option<&'a dyn ProjectQuery>,
+    /// Project-level query interface. Wrapped in Arc so WASM hosts can take
+    /// owned ownership for store lifetime; built-in plugins deref through `&`.
+    pub project: Option<&'a std::sync::Arc<dyn ProjectQuery>>,
 }
 
 /// Core trait that all analyzers implement.

@@ -1,4 +1,4 @@
-package cha:plugin@0.2.0;
+package cha:plugin@0.3.0;
 
 /// Data types shared between host and guest.
 interface types {
@@ -200,11 +200,53 @@ interface tree-query {
     nodes-in-range: func(start-line: u32, end-line: u32) -> list<query-match>;
 }
 
+/// Project-wide query interface provided by the host.
+/// Plugins call these methods to access cross-file data without needing
+/// the entire project model serialized over the WASM boundary.
+interface project-query {
+    use types.{type-ref, function-info};
+
+    /// True if `name` is called from any file other than `exclude-path`.
+    is-called-externally: func(name: string, exclude-path: string) -> bool;
+
+    /// All paths (as strings) that reference `name`.
+    callers-of: func(name: string) -> list<string>;
+
+    /// Cross-file call counts: each tuple is (caller-path, callee-path, count).
+    cross-file-call-counts: func() -> list<tuple<string, string, u32>>;
+
+    /// First file (as string) that declared this function.
+    function-home: func(name: string) -> option<string>;
+
+    /// First (file, function-info) tuple for this function name.
+    function-by-name: func(name: string) -> option<tuple<string, function-info>>;
+
+    /// First file (as string) that declared this class/struct.
+    class-home: func(name: string) -> option<string>;
+
+    /// True if `name` is declared somewhere in the project.
+    is-project-type: func(name: string) -> bool;
+
+    /// True if the type is a genuine third-party dependency
+    /// (External origin AND not stdlib AND not workspace sibling).
+    is-third-party: func(type-ref: type-ref) -> bool;
+
+    /// Workspace sibling crate names (Rust workspace) — empty otherwise.
+    workspace-crate-names: func() -> list<string>;
+
+    /// True if path looks like a test file or sits inside a test directory.
+    is-test-path: func(path: string) -> bool;
+
+    /// Total count of analyzed files.
+    file-count: func() -> u32;
+}
+
 /// The world that WASM plugins must implement.
 world analyzer {
     use types.{analysis-input, finding};
 
     import tree-query;
+    import project-query;
 
     /// Return the plugin name (matches [plugins.<name>] in .cha.toml).
     export name: func() -> string;

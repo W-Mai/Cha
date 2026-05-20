@@ -8,7 +8,11 @@ impl PluginImpl for ExamplePlugin {
     }
 
     fn smells() -> Vec<String> {
-        vec!["suspicious_name".into(), "unsafe_block".into()]
+        vec![
+            "suspicious_name".into(),
+            "unsafe_block".into(),
+            "unused_helper".into(),
+        ]
     }
 
     fn analyze(input: AnalysisInput) -> Vec<Finding> {
@@ -44,6 +48,7 @@ impl PluginImpl for ExamplePlugin {
             return findings;
         }
 
+        // unsafe_block — uses tree-query host import
         let matches = tree_query::run_query("(unsafe_block) @unsafe");
         for m in &matches {
             for capture in m {
@@ -61,6 +66,39 @@ impl PluginImpl for ExamplePlugin {
                     },
                     message: "unsafe block detected — review for soundness".into(),
                     suggested_refactorings: vec!["Encapsulate unsafe in a safe wrapper".into()],
+                    actual_value: None,
+                    threshold: None,
+                });
+            }
+        }
+
+        // unused_helper — uses project-query host import.
+        // A function whose name starts with `_` (private convention) AND
+        // has no callers anywhere in the project (including its own file).
+        for f in &input.functions {
+            if !f.name.starts_with('_') || f.is_exported {
+                continue;
+            }
+            // callers_of gives the full set across the project, including
+            // same-file callers. Empty means truly unused.
+            if project_query::callers_of(&f.name).is_empty() {
+                findings.push(Finding {
+                    smell_name: "unused_helper".into(),
+                    category: SmellCategory::Dispensables,
+                    severity: Severity::Hint,
+                    location: Location {
+                        path: input.path.clone(),
+                        start_line: f.start_line,
+                        start_col: f.name_col,
+                        end_line: f.start_line,
+                        end_col: f.name_end_col,
+                        name: Some(f.name.clone()),
+                    },
+                    message: format!(
+                        "Helper `{}` (underscore-prefixed) has no callers in the project",
+                        f.name
+                    ),
+                    suggested_refactorings: vec!["Remove dead code".into()],
                     actual_value: None,
                     threshold: None,
                 });
