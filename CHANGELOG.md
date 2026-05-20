@@ -7,9 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`ProjectQuery` trait** in `cha-core` — plugins now access cross-file data through a typed interface on `AnalysisContext.project` instead of host-side post-hoc string-matched filtering. 12 methods cover the project-level queries existing post-analysis passes need: `is_called_externally`, `callers_of`, `function_home`/`function_by_name`/`class_home`, `is_third_party`, `workspace_crate_names`, `is_test_path`, etc. WASM plugins also gain access via the `project-query` host import.
+- **`ProjectQueryBulk` trait** extends `ProjectQuery` for in-process iteration (`iter_models`); not exposed to WASM.
+- **`cha_core::is_test_path`** — public utility consolidating two duplicated implementations.
+- **example-wasm `unused_helper` smell** — demonstrates `project_query::callers_of` callback.
+
 ### Changed
+- **WIT bumped to `cha:plugin@0.3.0`** (breaking) — adds `project-query` host import. External plugins compiled against `0.2.0` must rebuild.
 - **`large_api_surface` C/C++ heuristics** — `.h/.hpp` headers are now skipped (their 100% public surface is by design); `.c/.cpp` implementation files use a higher count threshold (30, configurable as `c_max_exported_count`) and the ratio gate is effectively off (configurable as `c_max_exported_ratio`). lvgl baseline: 393 → 34 findings (-91%).
-- **`dead_code` cross-file awareness** — A new post-analysis pass drops `dead_code` findings whose target name is referenced from another file's `called_functions`. Plus a token-concat macro heuristic (`#define ... ##`) skips C/C++ files where dispatch tables hide function references from text/AST search. lvgl baseline: 67 → 6 findings (-91%).
+- **`dead_code` is now project-aware** — uses `ProjectQuery::is_called_externally` to confirm cross-file usage; the per-file text search is just an early shortcut. The token-concat macro heuristic (`#define ... ##`) remains because parsers don't macro-expand. lvgl baseline: 67 → 6 findings (-91%).
+
+### Removed
+- **`Plugin::cross_file_aware_smells`** trait method — replaced by typed query through `AnalysisContext.project`.
+- **`cha-cli::cross_file_filter` module** — the post-hoc string-matched filter is gone; plugins produce final findings using the typed trait.
+- **3 duplicated `workspace_crate_names` impls** + 3 duplicated `is_third_party`/`is_external_leak` impls + 2 duplicated `is_test_path` impls — all consolidated.
 
 ### Added
 - New `.cha.toml` config keys for `api_surface`: `max_exported_ratio`, `c_max_exported_count`, `c_max_exported_ratio`, `skip_c_headers`. All language-aware defaults preserved.
