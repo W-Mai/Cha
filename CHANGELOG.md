@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-05-14
+
 ### Added
 - **`ProjectQuery` trait** in `cha-core` — plugins now access cross-file data through a typed interface on `AnalysisContext.project` instead of host-side post-hoc string-matched filtering. 12 methods cover the project-level queries existing post-analysis passes need: `is_called_externally`, `callers_of`, `function_home`/`function_by_name`/`class_home`, `is_third_party`, `workspace_crate_names`, `is_test_path`, etc. WASM plugins also gain access via the `project-query` host import.
 - **`ProjectQueryBulk` trait** extends `ProjectQuery` for in-process iteration (`iter_models`); not exposed to WASM.
