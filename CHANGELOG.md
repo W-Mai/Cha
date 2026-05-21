@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-05-21
+
+### Added
+- **`TsxParser`** in `cha-parser` — `.tsx` files now route to a parser using `tree_sitter_typescript::LANGUAGE_TSX`, so JSX nodes (`jsx_element`, `jsx_attribute`, `jsx_self_closing_element`) are first-class AST citizens. WASM plugins can now match them via `tree_query::run_query`.
+- **`examples/wasm-plugin-react-hooks`** — example WASM plugin demonstrating `tree_query` integration. Detects 5 React Rules of Hooks violations: hooks called from non-component functions, hooks in conditionals, hooks in loops, hooks after early return, and hooks in nested callbacks.
+- **`examples/wasm-plugin-todo-tracker`** — example WASM plugin demonstrating extended TODO comment tracking beyond the builtin `todo_tracker`. Adds 5 new smells: extended tag set (BUG/WIP/OPTIMIZE/PERF/DEPRECATED + user-configurable extras), `(by:YYYY-MM-DD)` expiration, priority escalation (`!`/`!!`/`!!!`), per-file TODO hotspot detection, and required-attribution policy.
+
+### Notes
+- WIT unchanged at `cha:plugin@0.3.0` (no breaking change).
+- Routing for `.ts` / `.mts` / `.cts` continues to use `LANGUAGE_TYPESCRIPT`. Only `.tsx` switched.
+
 ## [1.15.0] - 2026-05-14
 
 ### Added
