@@ -18,7 +18,7 @@ pub use cha_core::{ClassInfo, CommentInfo, FunctionInfo, ImportInfo, SourceModel
 pub use golang::GolangParser;
 pub use python::PythonParser;
 pub use rust_lang::RustParser;
-pub use typescript::TypeScriptParser;
+pub use typescript::{TsxParser, TypeScriptParser};
 
 use cha_core::SourceFile;
 
@@ -44,8 +44,10 @@ pub trait LanguageParser: Send + Sync {
 /// Detect language from file extension and parse, returning model + tree.
 pub fn parse_file_full(file: &SourceFile) -> Option<ParseResult> {
     let ext = file.path.extension()?.to_str()?;
+    // cha:ignore switch_statement
     let parser: Box<dyn LanguageParser> = match ext {
-        "ts" | "tsx" => Box::new(TypeScriptParser),
+        "tsx" => Box::new(TsxParser),
+        "ts" | "mts" | "cts" => Box::new(TypeScriptParser),
         "rs" => Box::new(RustParser),
         "py" => Box::new(PythonParser),
         "go" => Box::new(GolangParser),
@@ -67,8 +69,10 @@ pub fn parse_file_full(file: &SourceFile) -> Option<ParseResult> {
 /// Detect language from file extension and parse (legacy API, no tree returned).
 pub fn parse_file(file: &SourceFile) -> Option<SourceModel> {
     let ext = file.path.extension()?.to_str()?;
+    // cha:ignore switch_statement
     let parser: Box<dyn LanguageParser> = match ext {
-        "ts" | "tsx" => Box::new(TypeScriptParser),
+        "tsx" => Box::new(TsxParser),
+        "ts" | "mts" | "cts" => Box::new(TypeScriptParser),
         "rs" => Box::new(RustParser),
         "py" => Box::new(PythonParser),
         "go" => Box::new(GolangParser),
@@ -99,6 +103,51 @@ mod tests {
     use super::*;
     use proptest::prelude::*;
     use std::path::PathBuf;
+
+    #[test]
+    fn tsx_grammar_produces_jsx_nodes() {
+        let src = "function App() { return <div>hi</div>; }".to_string();
+        let file = SourceFile::new(PathBuf::from("foo.tsx"), src);
+        let result = parse_file_full(&file).expect("tsx parse");
+        // Walk the tree and confirm at least one node kind contains "jsx".
+        let mut found = false;
+        fn walk(node: tree_sitter::Node, found: &mut bool) {
+            if node.kind().contains("jsx") {
+                *found = true;
+            }
+            let mut c = node.walk();
+            for child in node.children(&mut c) {
+                walk(child, found);
+            }
+        }
+        walk(result.tree.root_node(), &mut found);
+        assert!(
+            found,
+            "TsxParser should produce jsx_* nodes via LANGUAGE_TSX"
+        );
+    }
+
+    #[test]
+    fn ts_grammar_does_not_produce_jsx_nodes() {
+        // Plain .ts goes through TypeScriptParser using LANGUAGE_TYPESCRIPT,
+        // which doesn't recognize JSX. Make sure the routing distinction
+        // holds (the file would be parsed but JSX appears as ERROR).
+        let src = "type X = number; function f(): X { return 1; }".to_string();
+        let file = SourceFile::new(PathBuf::from("foo.ts"), src);
+        let result = parse_file_full(&file).expect("ts parse");
+        let mut found = false;
+        fn walk(node: tree_sitter::Node, found: &mut bool) {
+            if node.kind().contains("jsx") {
+                *found = true;
+            }
+            let mut c = node.walk();
+            for child in node.children(&mut c) {
+                walk(child, found);
+            }
+        }
+        walk(result.tree.root_node(), &mut found);
+        assert!(!found, "TypeScriptParser should not produce jsx_* nodes");
+    }
 
     proptest! {
         #[test]

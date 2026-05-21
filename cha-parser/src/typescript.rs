@@ -9,6 +9,7 @@ use crate::LanguageParser;
 use crate::type_aliases::typescript as extract_type_alias;
 
 pub struct TypeScriptParser;
+pub struct TsxParser;
 
 impl LanguageParser for TypeScriptParser {
     fn language_name(&self) -> &str {
@@ -20,28 +21,48 @@ impl LanguageParser for TypeScriptParser {
     }
 
     fn parse(&self, file: &SourceFile) -> Option<SourceModel> {
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into())
-            .ok()?;
-        let tree = parser.parse(&file.content, None)?;
-        let root = tree.root_node();
-        let src = file.content.as_bytes();
-
-        let imports_map = crate::typescript_imports::build(root, src);
-        let mut ctx = ParseContext::new(src, imports_map);
-        ctx.collect_nodes(root, false);
-
-        Some(SourceModel {
-            language: "typescript".into(),
-            total_lines: file.line_count(),
-            functions: ctx.col.functions,
-            classes: ctx.col.classes,
-            imports: ctx.col.imports,
-            comments: collect_comments(root, src),
-            type_aliases: ctx.col.type_aliases,
-        })
+        parse_with_grammar(file, tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into())
     }
+}
+
+impl LanguageParser for TsxParser {
+    fn language_name(&self) -> &str {
+        "typescript"
+    }
+
+    fn ts_language(&self) -> tree_sitter::Language {
+        tree_sitter_typescript::LANGUAGE_TSX.into()
+    }
+
+    fn parse(&self, file: &SourceFile) -> Option<SourceModel> {
+        parse_with_grammar(file, tree_sitter_typescript::LANGUAGE_TSX.into())
+    }
+}
+
+/// Shared parse pipeline — TypeScript and TSX use the same tree-shape
+/// extraction; only the grammar differs (TSX additionally produces
+/// `jsx_element` / `jsx_attribute` etc. nodes that downstream WASM
+/// plugins can query via `tree_query`).
+fn parse_with_grammar(file: &SourceFile, language: tree_sitter::Language) -> Option<SourceModel> {
+    let mut parser = Parser::new();
+    parser.set_language(&language).ok()?;
+    let tree = parser.parse(&file.content, None)?;
+    let root = tree.root_node();
+    let src = file.content.as_bytes();
+
+    let imports_map = crate::typescript_imports::build(root, src);
+    let mut ctx = ParseContext::new(src, imports_map);
+    ctx.collect_nodes(root, false);
+
+    Some(SourceModel {
+        language: "typescript".into(),
+        total_lines: file.line_count(),
+        functions: ctx.col.functions,
+        classes: ctx.col.classes,
+        imports: ctx.col.imports,
+        comments: collect_comments(root, src),
+        type_aliases: ctx.col.type_aliases,
+    })
 }
 
 /// Accumulator for collected AST items.
