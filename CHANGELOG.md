@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-05-21
+
+### Added
+- **`project_query::function_at(path, line, col)`** — new host import returning the `FunctionInfo` whose body contains the given position. Useful for tree-query–driven detectors that need to disambiguate which declared function a queried position belongs to.
+- **`WasmPluginTest::option_list / option_bool / option_int / option_float`** — list and typed option setters in the test harness, replacing the previous string-only `option()`.
+
+### Changed (breaking for WASM plugins)
+- **`tree_query::QueryMatch.start_line` / `end_line` are now 1-based** (was 0-based). Aligns with `FunctionInfo` / `ClassInfo` / `CommentInfo` line numbering — no more per-plugin off-by-one conversion. Inputs to `node_at(line, col)` and `nodes_in_range(start, end)` are likewise 1-based now.
+- Existing plugins compiled against the pre-1.17 WIT will need to be rebuilt against the new SDK; instantiation will fail loudly otherwise.
+
+### Fixed
+- **`react-hooks` example plugin** — false positives on `hook_after_early_return` (in sibling components and inside return expressions like `return useState()`) eliminated by switching to `project_query::function_at` for host-function disambiguation. Now reports 5 true positives / 0 false positives on the 6-component .tsx fixture (was 5 / 2).
+
+### Documentation
+- `docs/plugin-development.md`: added Line/Column convention note, Project Query API section, WASM Compatibility Cheatsheet (regex panics, no clock, no FS), `cha plugin build` vs `cargo build` distinction, and new option helpers in Testing.
+
 ## [1.16.0] - 2026-05-21
 
 ### Added
