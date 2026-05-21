@@ -156,6 +156,12 @@ impl project_query::Host for HostState {
             .map(|p| p.file_count() as u32)
             .unwrap_or(0)
     }
+
+    fn function_at(&mut self, path: String, line: u32, col: u32) -> Option<wit::FunctionInfo> {
+        let p = self.project.as_ref()?;
+        let info = p.function_at(std::path::Path::new(&path), line, col)?;
+        Some(convert_function_info(&info))
+    }
 }
 
 fn wit_to_core_type_ref(t: &wit::TypeRef) -> crate::model::TypeRef {
@@ -212,26 +218,33 @@ impl tree_query::Host for HostState {
     }
 
     fn node_at(&mut self, line: u32, col: u32) -> Option<tree_query::QueryMatch> {
+        // Inputs are 1-based to match FunctionInfo / ClassInfo lines;
+        // tree-sitter Point is 0-based.
         let tree = self.tree.as_ref()?;
-        let point = tree_sitter::Point::new(line as usize, col as usize);
+        let row = (line.saturating_sub(1)) as usize;
+        let point = tree_sitter::Point::new(row, col as usize);
         let node = tree.root_node().descendant_for_point_range(point, point)?;
         Some(node_to_query_match(&node, &self.source, ""))
     }
 
     fn nodes_in_range(&mut self, start_line: u32, end_line: u32) -> Vec<tree_query::QueryMatch> {
+        // Inputs are 1-based; compare against tree-sitter rows (0-based) by
+        // subtracting 1.
         let tree = match &self.tree {
             Some(t) => t,
             None => return vec![],
         };
+        let start_row = start_line.saturating_sub(1);
+        let end_row = end_line.saturating_sub(1);
         let mut results = vec![];
         let mut cursor = tree.root_node().walk();
         for child in tree.root_node().children(&mut cursor) {
             let node_start = child.start_position().row as u32;
             let node_end = child.end_position().row as u32;
-            if node_end < start_line {
+            if node_end < start_row {
                 continue;
             }
-            if node_start > end_line {
+            if node_start > end_row {
                 break;
             }
             if child.is_named() {
@@ -282,14 +295,16 @@ fn node_to_query_match(
     source: &[u8],
     capture_name: &str,
 ) -> tree_query::QueryMatch {
+    // Lines are 1-based to match FunctionInfo / ClassInfo / CommentInfo;
+    // tree-sitter `row` is 0-based so +1.
     let text = node.utf8_text(source).unwrap_or("").to_string();
     tree_query::QueryMatch {
         capture_name: capture_name.to_string(),
         node_kind: node.kind().to_string(),
         text,
-        start_line: node.start_position().row as u32,
+        start_line: (node.start_position().row as u32) + 1,
         start_col: node.start_position().column as u32,
-        end_line: node.end_position().row as u32,
+        end_line: (node.end_position().row as u32) + 1,
         end_col: node.end_position().column as u32,
     }
 }

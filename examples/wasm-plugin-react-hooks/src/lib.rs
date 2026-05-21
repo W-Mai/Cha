@@ -279,58 +279,39 @@ fn find_innermost(ranges: &[Range], hook: &HookCallSite) -> Option<Range> {
 }
 
 fn is_after_return(input: &AnalysisInput, hook: &HookCallSite, returns: &[Range]) -> bool {
-    // Find the declared function this hook belongs to, then check whether
-    // any return/throw appears earlier inside *that same function's* body
-    // range. Without this, a return in function A would falsely trigger
-    // a hook violation in function B.
-    //
-    // Note: input.functions uses 1-based lines; tree_query results are
-    // 0-based (tree-sitter row). Convert host's 1-based bounds to 0-based
-    // for comparison with raw query positions.
-    let host = input
-        .functions
-        .iter()
-        .find(|f| (f.start_line as u32) <= hook.line + 1 && (f.end_line as u32) >= hook.line + 1);
-    let Some(host) = host else {
+    // Resolve the declared function this hook lives in via the host —
+    // function_at handles nested + multi-function disambiguation that
+    // input.functions alone can't.
+    let Some(host) = project_query::function_at(&input.path, hook.line, hook.col) else {
         return false;
     };
-    // Convert host 1-based bounds to 0-based for raw query-position comparison.
-    let host_start_0b = (host.start_line as u32).saturating_sub(1);
-    let host_end_0b = (host.end_line as u32).saturating_sub(1);
+    let host_start = host.start_line;
+    let host_end = host.end_line;
     returns.iter().any(|r| {
-        r.start_line >= host_start_0b
-            && r.end_line <= host_end_0b
-            && (r.start_line, r.start_col) < (hook.line, hook.col)
+        // Return must be inside the host function (1-based)...
+        r.start_line >= host_start
+            && r.end_line <= host_end
+            // ...and the entire return statement must end BEFORE the hook
+            // starts. Otherwise the hook is inside the return expression
+            // itself (e.g. `return useState(0)` or `return <div>{useState()}</div>`),
+            // which is not an early-return violation.
+            && (r.end_line, r.end_col) < (hook.line, hook.col)
     })
 }
 
-fn is_in_nested_fn(
-    input: &AnalysisInput,
-    hook: &HookCallSite,
-    nested: &[Range],
-) -> bool {
-    // A hook is "nested" if its call sits inside an arrow/function-expression
-    // whose range is strictly inside the analyzed function. tree-sitter rows
-    // are 0-based; FunctionInfo lines are 1-based — convert when comparing.
-    let hook_line_1b = hook.line + 1;
-    let host = input
-        .functions
-        .iter()
-        .find(|f| (f.start_line as u32) <= hook_line_1b && (f.end_line as u32) >= hook_line_1b);
-    let Some(host) = host else {
+fn is_in_nested_fn(input: &AnalysisInput, hook: &HookCallSite, nested: &[Range]) -> bool {
+    // A hook is "nested" if its call sits inside an arrow / function-expression
+    // strictly contained in the host function — i.e. a callback, not the
+    // host's own body.
+    let Some(host) = project_query::function_at(&input.path, hook.line, hook.col) else {
         return false;
     };
-    let host_start_1b = host.start_line as u32;
-    let host_end_1b = host.end_line as u32;
     for nf in nested {
         if !nf.contains_call(hook) {
             continue;
         }
-        let nf_start_1b = nf.start_line + 1;
-        let nf_end_1b = nf.end_line + 1;
-        // The nested fn must not be the host's own declared body —
-        // i.e. it's strictly contained within the host.
-        if nf_start_1b > host_start_1b || nf_end_1b < host_end_1b {
+        // Strictly inside host: starts after host start OR ends before host end.
+        if nf.start_line > host.start_line || nf.end_line < host.end_line {
             return true;
         }
     }

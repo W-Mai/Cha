@@ -173,8 +173,13 @@ interface types {
 
 /// AST query interface provided by the host.
 /// Plugins can import this to execute tree-sitter queries against the current file's AST.
+///
+/// Line numbers are 1-based to match function-info / class-info / comment-info.
+/// Columns are 0-based (tree-sitter byte column).
 interface tree-query {
     /// A single capture from a query match.
+    /// `start-line` / `end-line` are 1-based.
+    /// `start-col` / `end-col` are 0-based byte columns.
     record query-match {
         capture-name: string,
         node-kind: string,
@@ -239,6 +244,12 @@ interface project-query {
 
     /// Total count of analyzed files.
     file-count: func() -> u32;
+
+    /// Find the function in `path` whose body contains the given (line, col)
+    /// position. Lines are 1-based, columns are 0-based — same convention as
+    /// tree-query. Returns the innermost matching function (smallest line range).
+    /// Plugins typically pass `input.path` here.
+    function-at: func(path: string, line: u32, col: u32) -> option<function-info>;
 }
 
 /// The world that WASM plugins must implement.

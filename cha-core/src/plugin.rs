@@ -119,6 +119,11 @@ pub trait ProjectQuery: Send + Sync {
 
     /// Total count of analyzed files.
     fn file_count(&self) -> usize;
+
+    /// Find the function whose body contains the given (line, col) position
+    /// in `path`. Lines are 1-based, columns are 0-based.
+    /// Returns the innermost matching function (smallest line range).
+    fn function_at(&self, path: &Path, line: u32, col: u32) -> Option<FunctionInfo>;
 }
 
 /// Bulk access for in-process plugins. WASM plugins cannot reach this trait —

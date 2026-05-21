@@ -166,7 +166,42 @@ Each `QueryMatch` contains:
 - `capture_name` — the `@name` from the pattern
 - `node_kind` — tree-sitter node type (e.g. `"function_definition"`)
 - `text` — the matched source text
-- `start_line`, `start_col`, `end_line`, `end_col` — 0-based positions
+- `start_line`, `end_line` — **1-based** line numbers (matching `FunctionInfo.start_line`, `ClassInfo.start_line`, etc.)
+- `start_col`, `end_col` — **0-based** byte columns
+
+> **Line/column convention**: All line numbers in the SDK (functions, classes, comments, tree-query matches) are 1-based. Columns are 0-based byte offsets. Mixing the two is a common bug source — always read which axis you're on.
+
+### Project Query API (`project_query`)
+
+For cross-file analysis (callers, type origin, function bodies in other files), plugins call `project_query` host functions:
+
+```rust
+fn analyze(input: AnalysisInput) -> Vec<Finding> {
+    // Is this name called from any file other than the current one?
+    let unused = !project_query::is_called_externally(&fn_name, &input.path);
+
+    // Which files reference this function?
+    let callers = project_query::callers_of(&fn_name);
+
+    // Find which function declaration contains a position
+    // (1-based line, 0-based col — same as tree_query)
+    if let Some(host_fn) = project_query::function_at(&input.path, line, col) {
+        // host_fn.start_line, host_fn.end_line — both 1-based
+    }
+
+    // Type origin classification
+    if project_query::is_third_party(&type_ref) {
+        // External crate, not stdlib, not workspace sibling
+    }
+
+    // Path shape
+    if project_query::is_test_path(&input.path) { /* ... */ }
+
+    vec![]
+}
+```
+
+`function_at` is especially useful for tree-query–driven detectors that need to know which declared function a queried position belongs to (e.g. distinguishing "early-return + later hook" between sibling components in the same file).
 
 ### FunctionInfo Fields
 
@@ -255,6 +290,25 @@ cha plugin build
 
 This runs `cargo build --target wasm32-wasip1 --release` and automatically converts the output to a WASM Component using the embedded WASI adapter. The result is `<name>.wasm` in the current directory.
 
+> **Don't use `cargo build` directly** for releases. The raw `.wasm` produced by Cargo is a core module, not a component — Cha's host won't load it. `cha plugin build` wraps `cargo build` with the component-encoding step (`wasm-tools component new` + WASI adapter).
+>
+> If you must use `cargo build` (e.g. for testing during development), run `cha plugin build` once afterwards before reinstalling, otherwise the host loads the previous version.
+
+### WASM Compatibility Cheatsheet
+
+The plugin runs in `wasm32-wasip1` with the WASI Reactor adapter. Some Rust crates do not work in this environment, even if they "compile":
+
+| Crate / API | Status | Notes |
+|---|---|---|
+| `regex` | ❌ panics at runtime | `Regex::new()` fails inside `wasmtime 44 + reactor` adapter. Use hand-rolled char scanning instead — for typical plugin patterns it's ~50 LOC and safer. |
+| `std::time::SystemTime::now()` | ❌ unreliable / panics | WASI clock support varies across hosts. If you need "today's date", expose a `today` `.cha.toml` option instead. |
+| `serde_json` | ✅ works | Heavy but no surprises. |
+| `tree-sitter` (the Rust crate) | ❌ don't try | Plugins run inside WASM; tree-sitter would need a recursive embedding. Use the `tree_query` host import. |
+| Filesystem access | ❌ disabled | `std::fs::read_to_string(&input.path)` returns empty. Use `input.content`. |
+| `git` / network | ❌ disabled | No subprocess, no sockets. |
+
+When in doubt: keep dependencies minimal, prefer hand-rolled parsing for small patterns, and pass time/external state in via plugin options.
+
 ## Installing
 
 ```bash
@@ -322,8 +376,23 @@ mod tests {
             .option("DOMAIN", "example.com")
             .assert_finding("hardcoded_string");
     }
+
+    #[test]
+    fn list_options_work() {
+        WasmPluginTest::new()
+            .source("typescript", "// REVIEW: needs second look")
+            .option_list("extra_tags", &["REVIEW"])
+            .assert_finding("extended_todo_tag");
+    }
 }
 ```
+
+Available option setters:
+- `.option(key, value)` — string
+- `.option_list(key, &[values])` — list of strings
+- `.option_bool(key, true_or_false)`
+- `.option_int(key, integer)`
+- `.option_float(key, float)`
 
 Run with:
 

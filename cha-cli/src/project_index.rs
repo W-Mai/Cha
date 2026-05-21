@@ -184,6 +184,21 @@ impl ProjectQuery for ProjectIndex {
     fn file_count(&self) -> usize {
         self.models.len()
     }
+
+    fn function_at(&self, path: &Path, line: u32, col: u32) -> Option<FunctionInfo> {
+        let idx = *self.model_index.get(path)?;
+        let model = &self.models[idx].1;
+        // Pick the innermost (smallest range) function whose [start_line,
+        // end_line] contains the given line. Column unused for now since
+        // FunctionInfo doesn't expose body column ranges.
+        let _ = col;
+        model
+            .functions
+            .iter()
+            .filter(|f| (f.start_line as u32) <= line && line <= (f.end_line as u32))
+            .min_by_key(|f| f.end_line - f.start_line)
+            .cloned()
+    }
 }
 
 impl ProjectQueryBulk for ProjectIndex {

@@ -18,7 +18,7 @@ pub mod test_utils {
         wasm_path: PathBuf,
         language: String,
         source: String,
-        options: Vec<(String, String)>,
+        options: Vec<(String, toml::Value)>,
     }
 
     impl WasmPluginTest {
@@ -52,7 +52,35 @@ pub mod test_utils {
 
         /// Add a string option passed to the plugin.
         pub fn option(mut self, key: &str, value: &str) -> Self {
-            self.options.push((key.into(), value.into()));
+            self.options.push((key.into(), toml::Value::String(value.into())));
+            self
+        }
+
+        /// Add a list-of-string option (`option_list_str!` on the plugin side).
+        pub fn option_list(mut self, key: &str, values: &[&str]) -> Self {
+            let arr = values
+                .iter()
+                .map(|s| toml::Value::String((*s).into()))
+                .collect();
+            self.options.push((key.into(), toml::Value::Array(arr)));
+            self
+        }
+
+        /// Add a boolean option.
+        pub fn option_bool(mut self, key: &str, value: bool) -> Self {
+            self.options.push((key.into(), toml::Value::Boolean(value)));
+            self
+        }
+
+        /// Add an integer option.
+        pub fn option_int(mut self, key: &str, value: i64) -> Self {
+            self.options.push((key.into(), toml::Value::Integer(value)));
+            self
+        }
+
+        /// Add a float option.
+        pub fn option_float(mut self, key: &str, value: f64) -> Self {
+            self.options.push((key.into(), toml::Value::Float(value)));
             self
         }
 
@@ -67,8 +95,7 @@ pub mod test_utils {
             if !self.options.is_empty() {
                 use cha_core::wasm::toml_to_option_value;
                 let opts = self.options.iter().filter_map(|(k, v)| {
-                    let tv = toml::Value::String(v.clone());
-                    toml_to_option_value(&tv).map(|ov| (k.clone(), ov))
+                    toml_to_option_value(v).map(|ov| (k.clone(), ov))
                 }).collect();
                 plugin.set_options(opts);
             }
