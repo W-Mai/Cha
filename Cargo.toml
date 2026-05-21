@@ -4,6 +4,7 @@ exclude = [
     "examples/wasm-plugin-example",
     "examples/wasm-plugin-hardcoded",
     "examples/wasm-plugin-react-hooks",
+    "examples/wasm-plugin-todo-tracker",
     "cha-plugin-sdk",
 ]
 resolver = "2"
