@@ -172,6 +172,28 @@ pub trait Plugin: Send + Sync {
 
     /// Run analysis on a single file and return findings.
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding>;
+
+    /// Try to produce a Patch that fixes `finding`. Returning `None` means
+    /// either no safe automatic fix exists or this plugin doesn't own the
+    /// smell. Only one plugin produces edits per finding (registry order);
+    /// overlapping edits across plugins are undefined.
+    fn try_fix(&self, finding: &Finding, ctx: &AnalysisContext) -> Option<Patch> {
+        let _ = (finding, ctx);
+        None
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Patch {
+    pub file: PathBuf,
+    pub edits: Vec<TextEdit>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TextEdit {
+    pub start_byte: usize,
+    pub end_byte: usize,
+    pub new_text: String,
 }
 
 /// Build a Location pointing at a function's name identifier.

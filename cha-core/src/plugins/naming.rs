@@ -1,4 +1,4 @@
-use crate::{AnalysisContext, Finding, Location, Plugin, Severity, SmellCategory};
+use crate::{AnalysisContext, Finding, Location, Patch, Plugin, Severity, SmellCategory, TextEdit};
 
 /// Check naming conventions for functions and classes.
 pub struct NamingAnalyzer {
@@ -37,6 +37,61 @@ impl Plugin for NamingAnalyzer {
         self.check_functions(ctx, &mut findings);
         self.check_classes(ctx, &mut findings);
         findings
+    }
+
+    fn try_fix(&self, finding: &Finding, ctx: &AnalysisContext) -> Option<Patch> {
+        if finding.smell_name != "naming_convention" {
+            return None;
+        }
+        let name = finding.location.name.as_ref()?;
+        let new_name = to_pascal_case(name);
+        if new_name == *name {
+            return None;
+        }
+        let tree = ctx.tree?;
+        let source = ctx.file.content.as_bytes();
+        let mut edits = Vec::new();
+        collect_identifier_edits(tree.root_node(), source, name, &new_name, &mut edits);
+        if edits.is_empty() {
+            return None;
+        }
+        Some(Patch {
+            file: ctx.file.path.clone(),
+            edits,
+        })
+    }
+}
+
+fn to_pascal_case(name: &str) -> String {
+    let mut chars = name.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+    }
+}
+
+fn collect_identifier_edits(
+    node: tree_sitter::Node,
+    source: &[u8],
+    target: &str,
+    new_text: &str,
+    out: &mut Vec<TextEdit>,
+) {
+    if matches!(
+        node.kind(),
+        "identifier" | "type_identifier" | "field_identifier" | "property_identifier"
+    ) && let Ok(text) = node.utf8_text(source)
+        && text == target
+    {
+        out.push(TextEdit {
+            start_byte: node.start_byte(),
+            end_byte: node.end_byte(),
+            new_text: new_text.to_string(),
+        });
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_identifier_edits(child, source, target, new_text, out);
     }
 }
 

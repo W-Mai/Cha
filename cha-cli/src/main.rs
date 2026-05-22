@@ -719,20 +719,19 @@ fn cmd_fix(paths: &[String], diff: bool, dry_run: bool) {
         return;
     }
     let project_root = std::env::current_dir().unwrap_or_default();
-    let filter = vec!["naming".to_string()];
-    let (findings, _) = analyze::run_analysis(&files, &project_root, &filter);
+    let (findings, _) = analyze::run_analysis(&files, &project_root, &[]);
 
-    let fixable: Vec<&Finding> = findings
-        .iter()
-        .filter(|f| f.smell_name == "naming_convention")
-        .collect();
-
-    if fixable.is_empty() {
+    if findings.is_empty() {
         println!("Nothing to fix.");
         return;
     }
 
-    let fixed: usize = fixable.iter().filter_map(|f| apply_fix(f, dry_run)).count();
+    let mut fixed = 0usize;
+    for path in &files {
+        let count = apply_file_fixes(path, &findings, &project_root, dry_run);
+        fixed += count;
+    }
+
     let label = if dry_run {
         "would be applied"
     } else {
@@ -741,81 +740,86 @@ fn cmd_fix(paths: &[String], diff: bool, dry_run: bool) {
     println!("{fixed} fix(es) {label}.");
 }
 
-/// AST-aware: only identifier nodes are rewritten, not occurrences inside
-/// strings or comments.
-fn apply_fix(finding: &Finding, dry_run: bool) -> Option<()> {
-    let name = finding.location.name.as_ref()?;
-    let new_name = to_pascal_case(name);
-    if new_name == *name {
-        return None;
+/// Apply edits in reverse byte-offset order so earlier offsets stay valid.
+// cha:ignore brain_method
+fn apply_file_fixes(
+    path: &Path,
+    findings: &[Finding],
+    project_root: &Path,
+    dry_run: bool,
+) -> usize {
+    let path_findings: Vec<&Finding> = findings
+        .iter()
+        .filter(|f| f.location.path == path)
+        .collect();
+    if path_findings.is_empty() {
+        return 0;
     }
-    let path = &finding.location.path;
-    let content = std::fs::read_to_string(path).ok()?;
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return 0;
+    };
+    let file = cha_core::SourceFile::new(path.to_path_buf(), content.clone());
+    let Some(parse_result) = cha_parser::parse_file_full(&file) else {
+        return 0;
+    };
 
-    let file = cha_core::SourceFile::new(path.clone(), content.clone());
-    let parse_result = cha_parser::parse_file_full(&file)?;
-    let source = content.as_bytes();
+    let config = load_config(project_root).resolve_for_language(&parse_result.model.language);
+    let registry = PluginRegistry::from_config_for_language(
+        &config,
+        project_root,
+        &parse_result.model.language,
+    );
 
-    let mut ranges: Vec<(usize, usize)> = Vec::new();
-    collect_identifier_ranges(parse_result.tree.root_node(), source, name, &mut ranges);
+    let ctx = cha_core::AnalysisContext {
+        file: &file,
+        model: &parse_result.model,
+        tree: Some(&parse_result.tree),
+        ts_language: Some(&parse_result.ts_language),
+        project: None,
+    };
 
-    if ranges.is_empty() {
-        return None;
+    let mut all_edits: Vec<cha_core::TextEdit> = Vec::new();
+    let mut applied = 0usize;
+    for finding in path_findings {
+        for plugin in registry.plugins() {
+            if let Some(patch) = plugin.try_fix(finding, &ctx) {
+                all_edits.extend(patch.edits);
+                applied += 1;
+                break;
+            }
+        }
     }
 
-    // Right-to-left so earlier byte offsets stay valid.
-    ranges.sort_by_key(|(start, _)| std::cmp::Reverse(*start));
-    let mut replaced = content.into_bytes();
-    for (start, end) in &ranges {
-        replaced.splice(*start..*end, new_name.bytes());
+    if all_edits.is_empty() {
+        return 0;
     }
-    let replaced = String::from_utf8(replaced).ok()?;
+
+    all_edits.sort_by_key(|e| std::cmp::Reverse(e.start_byte));
+    let mut bytes = content.into_bytes();
+    for e in &all_edits {
+        bytes.splice(e.start_byte..e.end_byte, e.new_text.bytes());
+    }
+    let Ok(replaced) = String::from_utf8(bytes) else {
+        return 0;
+    };
 
     if dry_run {
         println!(
-            "  {name} → {new_name} in {} ({} site(s))",
+            "  {} ({} edit(s) across {} finding(s))",
             path.display(),
-            ranges.len()
+            all_edits.len(),
+            applied
         );
-    } else {
-        std::fs::write(path, &replaced).ok()?;
+    } else if std::fs::write(path, &replaced).is_ok() {
         println!(
-            "  Fixed: {name} → {new_name} in {} ({} site(s))",
+            "  Fixed: {} ({} edit(s) across {} finding(s))",
             path.display(),
-            ranges.len()
+            all_edits.len(),
+            applied
         );
     }
-    Some(())
-}
 
-fn collect_identifier_ranges(
-    node: tree_sitter::Node,
-    source: &[u8],
-    target: &str,
-    out: &mut Vec<(usize, usize)>,
-) {
-    let kind = node.kind();
-    if matches!(
-        kind,
-        "identifier" | "type_identifier" | "field_identifier" | "property_identifier"
-    ) && let Ok(text) = node.utf8_text(source)
-        && text == target
-    {
-        out.push((node.start_byte(), node.end_byte()));
-    }
-    let mut child_cursor = node.walk();
-    for child in node.children(&mut child_cursor) {
-        collect_identifier_ranges(child, source, target, out);
-    }
-}
-
-/// Convert a name to PascalCase by uppercasing the first character.
-fn to_pascal_case(name: &str) -> String {
-    let mut chars = name.chars();
-    match chars.next() {
-        None => String::new(),
-        Some(c) => c.to_uppercase().to_string() + chars.as_str(),
-    }
+    applied
 }
 
 fn plugin_candidates() -> Vec<clap_complete::CompletionCandidate> {
