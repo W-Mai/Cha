@@ -91,8 +91,10 @@ fn resolve_import(base: &str, import: &str) -> String {
         .parent()
         .unwrap_or(std::path::Path::new(""));
     let resolved = base_dir.join(import);
-    // Try common extensions
-    for ext in &["", ".ts", ".tsx", ".rs"] {
+    for ext in &[
+        "", ".ts", ".tsx", ".rs", ".py", ".go", ".cpp", ".cc", ".cxx", ".c", ".h", ".hpp", ".hxx",
+        ".js", ".jsx", ".mts", ".cts",
+    ] {
         let with_ext = format!("{}{}", resolved.to_string_lossy(), ext);
         if std::path::Path::new(&with_ext).exists() {
             return normalize_path(&with_ext);

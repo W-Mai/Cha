@@ -59,24 +59,18 @@ fn print_stats(lines: &[usize], cx: &[usize], cog: &[usize], file_count: usize) 
         "Metric", "Warning(P90)", "Error(P95)"
     );
     println!("{}", "─".repeat(48));
-    println!(
-        "{:<25} {:>10} {:>10}",
-        "long_method",
-        pct(lines, 90),
-        pct(lines, 95)
-    );
-    println!(
-        "{:<25} {:>10} {:>10}",
-        "high_complexity",
-        pct(cx, 90),
-        pct(cx, 95)
-    );
-    println!(
-        "{:<25} {:>10} {:>10}",
-        "cognitive_complexity",
-        pct(cog, 90),
-        pct(cog, 95)
-    );
+    for (label, samples) in [
+        ("long_method", lines),
+        ("high_complexity", cx),
+        ("cognitive_complexity", cog),
+    ] {
+        println!(
+            "{:<25} {:>10} {:>10}",
+            label,
+            pct(samples, 90),
+            pct(samples, 95)
+        );
+    }
 }
 
 fn write_calibration(

@@ -223,6 +223,7 @@ fn register_smell_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) {
     register_extended_smell_plugins(plugins, config);
 }
 
+// cha:ignore brain_method,high_complexity,long_method
 fn register_extended_smell_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) {
     register_if_enabled(plugins, config, "comments", || {
         Box::new(CommentsAnalyzer::default())
@@ -237,7 +238,84 @@ fn register_extended_smell_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &
         Box::new(AsyncCallbackLeakAnalyzer)
     });
     register_if_enabled(plugins, config, "design_pattern", || {
-        Box::new(DesignPatternAdvisor)
+        let mut p = DesignPatternAdvisor::default();
+        apply_usize(
+            config,
+            "design_pattern",
+            "strategy_min_arms",
+            &mut p.strategy_min_arms,
+        );
+        apply_usize(
+            config,
+            "design_pattern",
+            "state_min_arms",
+            &mut p.state_min_arms,
+        );
+        apply_usize(
+            config,
+            "design_pattern",
+            "builder_min_params",
+            &mut p.builder_min_params,
+        );
+        apply_usize(
+            config,
+            "design_pattern",
+            "builder_alt_min_params",
+            &mut p.builder_alt_min_params,
+        );
+        apply_usize(
+            config,
+            "design_pattern",
+            "builder_alt_min_optional",
+            &mut p.builder_alt_min_optional,
+        );
+        apply_usize(
+            config,
+            "design_pattern",
+            "null_object_min_count",
+            &mut p.null_object_min_count,
+        );
+        apply_usize(
+            config,
+            "design_pattern",
+            "template_min_self_calls",
+            &mut p.template_min_self_calls,
+        );
+        apply_usize(
+            config,
+            "design_pattern",
+            "template_min_methods",
+            &mut p.template_min_methods,
+        );
+        if let Some(list) = config
+            .plugins
+            .get("design_pattern")
+            .and_then(|pc| pc.options.get("type_field_keywords"))
+            .and_then(|v| v.as_array())
+        {
+            let names: Vec<String> = list
+                .iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect();
+            if !names.is_empty() {
+                p.type_field_keywords = names;
+            }
+        }
+        if let Some(list) = config
+            .plugins
+            .get("design_pattern")
+            .and_then(|pc| pc.options.get("state_field_keywords"))
+            .and_then(|v| v.as_array())
+        {
+            let names: Vec<String> = list
+                .iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect();
+            if !names.is_empty() {
+                p.state_field_keywords = names;
+            }
+        }
+        Box::new(p)
     });
     register_if_enabled(plugins, config, "temporary_field", || {
         Box::new(TemporaryFieldAnalyzer::default())
@@ -288,6 +366,7 @@ fn register_advanced_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config
             &mut p.max_external_refs,
         );
         apply_usize(config, "god_class", "min_wmc", &mut p.min_wmc);
+        apply_f64(config, "god_class", "min_tcc", &mut p.min_tcc);
         Box::new(p)
     });
     register_if_enabled(plugins, config, "brain_method", || {

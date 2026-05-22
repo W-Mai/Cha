@@ -1,11 +1,36 @@
 use crate::{AnalysisContext, Finding, Location, Plugin, Severity, SmellCategory};
 
-/// Suggest design patterns based on AST structural signals.
-pub struct DesignPatternAdvisor;
+// cha:ignore large_class
+pub struct DesignPatternAdvisor {
+    pub strategy_min_arms: usize,
+    pub state_min_arms: usize,
+    pub builder_min_params: usize,
+    pub builder_alt_min_params: usize,
+    pub builder_alt_min_optional: usize,
+    pub null_object_min_count: usize,
+    pub template_min_self_calls: usize,
+    pub template_min_methods: usize,
+    pub type_field_keywords: Vec<String>,
+    pub state_field_keywords: Vec<String>,
+}
 
 impl Default for DesignPatternAdvisor {
     fn default() -> Self {
-        Self
+        Self {
+            strategy_min_arms: 4,
+            state_min_arms: 3,
+            builder_min_params: 7,
+            builder_alt_min_params: 5,
+            builder_alt_min_optional: 3,
+            null_object_min_count: 3,
+            template_min_self_calls: 3,
+            template_min_methods: 4,
+            type_field_keywords: ["type", "kind", "role", "action", "mode"]
+                .iter()
+                .map(|s| (*s).into())
+                .collect(),
+            state_field_keywords: ["state", "status"].iter().map(|s| (*s).into()).collect(),
+        }
     }
 }
 
@@ -31,107 +56,124 @@ impl Plugin for DesignPatternAdvisor {
 
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let mut findings = Vec::new();
-        check_strategy(ctx, &mut findings);
-        check_state(ctx, &mut findings);
-        check_builder(ctx, &mut findings);
-        check_null_object(ctx, &mut findings);
-        check_template_method(ctx, &mut findings);
+        self.check_strategy(ctx, &mut findings);
+        self.check_state(ctx, &mut findings);
+        self.check_builder(ctx, &mut findings);
+        self.check_null_object(ctx, &mut findings);
+        self.check_template_method(ctx, &mut findings);
         check_observer(ctx, &mut findings);
         findings
     }
 }
 
-/// Strategy: function dispatches on a type/kind field with many arms.
-fn check_strategy(ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
-    for f in &ctx.model.functions {
-        let target = match f.switch_dispatch_target.as_deref() {
-            Some(t) if f.switch_arms >= 4 && is_type_field(t) => t,
-            _ => continue,
-        };
-        findings.push(hint(
-            ctx,
-            (f.start_line, f.name_col, f.name_end_col, Some(&f.name)),
-            "strategy_pattern",
-            format!(
-                "Function `{}` dispatches on `{}` with {} arms — consider Strategy pattern",
-                f.name, target, f.switch_arms
-            ),
-        ));
+impl DesignPatternAdvisor {
+    fn matches_keyword(name: &str, keywords: &[String]) -> bool {
+        let l = name.to_lowercase();
+        keywords.iter().any(|k| l.contains(k.as_str()))
     }
-}
 
-/// State: switch/match on a state/status field.
-fn check_state(ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
-    for f in &ctx.model.functions {
-        let target = match f.switch_dispatch_target.as_deref() {
-            Some(t) if f.switch_arms >= 3 && is_state_field(t) => t,
-            _ => continue,
-        };
-        findings.push(hint(
-            ctx,
-            (f.start_line, f.name_col, f.name_end_col, Some(&f.name)),
-            "state_pattern",
-            format!(
-                "Function `{}` dispatches on `{}` — consider State pattern",
-                f.name, target
-            ),
-        ));
-    }
-}
-
-/// Builder: function with many parameters, especially optional ones.
-fn check_builder(ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
-    for f in &ctx.model.functions {
-        if f.parameter_count >= 7 || (f.parameter_count >= 5 && f.optional_param_count >= 3) {
+    fn check_strategy(&self, ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
+        for f in &ctx.model.functions {
+            let target = match f.switch_dispatch_target.as_deref() {
+                Some(t)
+                    if f.switch_arms >= self.strategy_min_arms
+                        && Self::matches_keyword(t, &self.type_field_keywords) =>
+                {
+                    t
+                }
+                _ => continue,
+            };
             findings.push(hint(
                 ctx,
                 (f.start_line, f.name_col, f.name_end_col, Some(&f.name)),
-                "builder_pattern",
+                "strategy_pattern",
                 format!(
-                    "Function `{}` has {} params ({} optional) — consider Builder pattern",
-                    f.name, f.parameter_count, f.optional_param_count
+                    "Function `{}` dispatches on `{}` with {} arms — consider Strategy pattern",
+                    f.name, target, f.switch_arms
                 ),
             ));
         }
     }
-}
 
-/// Null Object: repeated null checks on the same field across functions.
-fn check_null_object(ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
-    let mut counts: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
-    for f in &ctx.model.functions {
-        for field in &f.null_check_fields {
-            *counts.entry(field).or_default() += 1;
-        }
-    }
-    for (field, count) in &counts {
-        if *count >= 3 {
+    fn check_state(&self, ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
+        for f in &ctx.model.functions {
+            let target = match f.switch_dispatch_target.as_deref() {
+                Some(t)
+                    if f.switch_arms >= self.state_min_arms
+                        && Self::matches_keyword(t, &self.state_field_keywords) =>
+                {
+                    t
+                }
+                _ => continue,
+            };
             findings.push(hint(
                 ctx,
-                (1, 0, 0, None),
-                "null_object_pattern",
+                (f.start_line, f.name_col, f.name_end_col, Some(&f.name)),
+                "state_pattern",
                 format!(
-                    "Field `{}` is null-checked in {} functions — consider Null Object pattern",
-                    field, count
+                    "Function `{}` dispatches on `{}` — consider State pattern",
+                    f.name, target
                 ),
             ));
         }
     }
-}
 
-/// Template Method: class has a method calling many self-methods.
-fn check_template_method(ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
-    for c in &ctx.model.classes {
-        if c.self_call_count >= 3 && c.method_count >= 4 {
-            findings.push(hint(
-                ctx,
-                (c.start_line, c.name_col, c.name_end_col, Some(&c.name)),
-                "template_method_pattern",
-                format!(
-                    "Class `{}` has a method calling {} self-methods — consider Template Method",
-                    c.name, c.self_call_count
-                ),
-            ));
+    fn check_builder(&self, ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
+        for f in &ctx.model.functions {
+            if f.parameter_count >= self.builder_min_params
+                || (f.parameter_count >= self.builder_alt_min_params
+                    && f.optional_param_count >= self.builder_alt_min_optional)
+            {
+                findings.push(hint(
+                    ctx,
+                    (f.start_line, f.name_col, f.name_end_col, Some(&f.name)),
+                    "builder_pattern",
+                    format!(
+                        "Function `{}` has {} params ({} optional) — consider Builder pattern",
+                        f.name, f.parameter_count, f.optional_param_count
+                    ),
+                ));
+            }
+        }
+    }
+
+    fn check_null_object(&self, ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
+        let mut counts: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+        for f in &ctx.model.functions {
+            for field in &f.null_check_fields {
+                *counts.entry(field).or_default() += 1;
+            }
+        }
+        for (field, count) in &counts {
+            if *count >= self.null_object_min_count {
+                findings.push(hint(
+                    ctx,
+                    (1, 0, 0, None),
+                    "null_object_pattern",
+                    format!(
+                        "Field `{}` is null-checked in {} functions — consider Null Object pattern",
+                        field, count
+                    ),
+                ));
+            }
+        }
+    }
+
+    fn check_template_method(&self, ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
+        for c in &ctx.model.classes {
+            if c.self_call_count >= self.template_min_self_calls
+                && c.method_count >= self.template_min_methods
+            {
+                findings.push(hint(
+                    ctx,
+                    (c.start_line, c.name_col, c.name_end_col, Some(&c.name)),
+                    "template_method_pattern",
+                    format!(
+                        "Class `{}` has a method calling {} self-methods — consider Template Method",
+                        c.name, c.self_call_count
+                    ),
+                ));
+            }
         }
     }
 }
@@ -157,20 +199,6 @@ fn check_observer(ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
             msg,
         ));
     }
-}
-
-fn is_type_field(name: &str) -> bool {
-    let l = name.to_lowercase();
-    l.contains("type")
-        || l.contains("kind")
-        || l.contains("role")
-        || l.contains("action")
-        || l.contains("mode")
-}
-
-fn is_state_field(name: &str) -> bool {
-    let l = name.to_lowercase();
-    l.contains("state") || l.contains("status")
 }
 
 fn hint(

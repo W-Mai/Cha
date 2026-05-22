@@ -58,7 +58,7 @@ fn hash_all_configs(dir: &Path, h: &mut impl std::hash::Hasher) {
         if path.is_dir() {
             let name = entry.file_name();
             let s = name.to_string_lossy();
-            if !s.starts_with('.') && !matches!(s.as_ref(), "target" | "node_modules" | "dist") {
+            if !s.starts_with('.') && !is_skip_dir(&s) {
                 hash_all_configs(&path, h);
             }
         }
@@ -67,6 +67,21 @@ fn hash_all_configs(dir: &Path, h: &mut impl std::hash::Hasher) {
 
 fn cache_dir(root: &Path) -> PathBuf {
     root.join(".cha/cache")
+}
+
+fn is_skip_dir(name: &str) -> bool {
+    matches!(
+        name,
+        "target"
+            | "node_modules"
+            | "dist"
+            | "build"
+            | "out"
+            | "__pycache__"
+            | "venv"
+            | ".venv"
+            | "vendor"
+    )
 }
 
 fn content_hash(content: &str) -> u64 {

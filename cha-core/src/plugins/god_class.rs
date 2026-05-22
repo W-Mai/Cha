@@ -20,6 +20,8 @@ pub struct GodClassAnalyzer {
     pub max_external_refs: usize,
     /// WMC threshold: Weighted Method Count (VeryHigh = 47)
     pub min_wmc: usize,
+    /// TCC threshold: Tight Class Cohesion (Lanza-Marinescu's 1/3)
+    pub min_tcc: f64,
 }
 
 impl Default for GodClassAnalyzer {
@@ -27,6 +29,7 @@ impl Default for GodClassAnalyzer {
         Self {
             max_external_refs: 5,
             min_wmc: 47,
+            min_tcc: 0.33,
         }
     }
 }
@@ -62,7 +65,7 @@ impl GodClassAnalyzer {
         let atfd = count_atfd(&methods);
         let wmc: usize = methods.iter().map(|f| f.complexity).sum();
         let tcc = compute_tcc(&methods);
-        if atfd <= self.max_external_refs || wmc < self.min_wmc || tcc >= 0.33 {
+        if atfd <= self.max_external_refs || wmc < self.min_wmc || tcc >= self.min_tcc {
             return None;
         }
         Some(Finding {
