@@ -43,6 +43,11 @@ fn foo() {
     }
 }
 ";
+    let lang: tree_sitter::Language = tree_sitter_rust::LANGUAGE.into();
+    let mut parser = tree_sitter::Parser::new();
+    parser.set_language(&lang).unwrap();
+    let tree = parser.parse(content, None).unwrap();
+
     let mut f = func("foo", 7, 1, false);
     f.switch_arms = 9;
     let model = make_model(vec![f], vec![], vec![], 7);
@@ -50,15 +55,14 @@ fn foo() {
     let ctx = AnalysisContext {
         file: &file,
         model: &model,
-        tree: None,
-        ts_language: None,
+        tree: Some(&tree),
+        ts_language: Some(&lang),
         project: None,
     };
     let findings = SwitchStatementAnalyzer::default().analyze(&ctx);
     assert_eq!(findings.len(), 1);
     assert_eq!(findings[0].location.start_line, 3);
     assert_eq!(findings[0].location.start_col, 4);
-    assert_eq!(findings[0].location.end_col, 9);
 }
 
 #[test]

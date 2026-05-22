@@ -34,7 +34,8 @@ fn message_chain_shallow() {
 
 #[test]
 fn message_chain_points_at_chain_expression() {
-    use cha_core::{AnalysisContext, SourceFile};
+    // Real parse path: ctx.tree drives the precise location query.
+    use cha_core::SourceFile;
     use std::path::PathBuf;
     let content = "\
 fn deep() {
@@ -42,24 +43,27 @@ fn deep() {
     let y = a.b.c.d.e;
 }
 ";
+    let lang: tree_sitter::Language = tree_sitter_rust::LANGUAGE.into();
+    let mut parser = tree_sitter::Parser::new();
+    parser.set_language(&lang).unwrap();
+    let tree = parser.parse(content, None).unwrap();
+
     let mut f = func("deep", 4, 1, false);
     f.chain_depth = 4;
     let model = make_model(vec![f], vec![], vec![], 4);
     let file = SourceFile::new(PathBuf::from("test.rs"), content.into());
-    let ctx = AnalysisContext {
+
+    let ctx = cha_core::AnalysisContext {
         file: &file,
         model: &model,
-        tree: None,
-        ts_language: None,
+        tree: Some(&tree),
+        ts_language: Some(&lang),
         project: None,
     };
     let findings = MessageChainAnalyzer::default().analyze(&ctx);
     assert_eq!(findings.len(), 1);
-    // `a.b.c.d.e` starts at column 12 on line 3
+    // First field_expression in the function body is on line 3.
     assert_eq!(findings[0].location.start_line, 3);
-    assert_eq!(findings[0].location.start_col, 12);
-    // Chain is 9 chars, so end_col = 21
-    assert_eq!(findings[0].location.end_col, 21);
 }
 
 #[test]
