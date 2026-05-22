@@ -407,11 +407,10 @@ fn to_wit_input(
 }
 
 fn infer_file_role(path: &Path) -> wit::FileRole {
-    let s = path.to_string_lossy();
-    if s.contains("/test") || s.contains("_test.") || s.contains("/tests/") || s.contains("/spec/")
-    {
+    if crate::is_test_path(path) {
         return wit::FileRole::Test;
     }
+    let s = path.to_string_lossy();
     if s.contains("/generated/") || s.contains(".generated.") || s.contains(".gen.") {
         return wit::FileRole::Generated;
     }

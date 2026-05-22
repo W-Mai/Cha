@@ -154,7 +154,7 @@ fn all_plugins() -> Vec<Box<dyn Plugin>> {
         Box::new(DuplicateCodeAnalyzer),
         Box::new(CouplingAnalyzer::default()),
         Box::new(NamingAnalyzer::default()),
-        Box::new(DeadCodeAnalyzer),
+        Box::new(DeadCodeAnalyzer::default()),
         Box::new(ApiSurfaceAnalyzer::default()),
         Box::new(LayerViolationAnalyzer::default()),
     ]

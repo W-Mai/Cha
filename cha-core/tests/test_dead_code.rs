@@ -20,7 +20,7 @@ fn dead_code_unexported_unreferenced() {
         ts_language: None,
         project: None,
     };
-    let findings = DeadCodeAnalyzer.analyze(&ctx);
+    let findings = DeadCodeAnalyzer::default().analyze(&ctx);
     assert_eq!(findings.len(), 1);
     assert_eq!(findings[0].smell_name, "dead_code");
 }
@@ -28,13 +28,13 @@ fn dead_code_unexported_unreferenced() {
 #[test]
 fn dead_code_exported_no_trigger() {
     let model = make_model(vec![func("public_fn", 3, 1, true)], vec![], vec![], 3);
-    let findings = analyze(&DeadCodeAnalyzer, &model);
+    let findings = analyze(&DeadCodeAnalyzer::default(), &model);
     assert!(findings.is_empty());
 }
 
 #[test]
 fn dead_code_main_no_trigger() {
     let model = make_model(vec![func("main", 3, 1, false)], vec![], vec![], 3);
-    let findings = analyze(&DeadCodeAnalyzer, &model);
+    let findings = analyze(&DeadCodeAnalyzer::default(), &model);
     assert!(findings.is_empty());
 }

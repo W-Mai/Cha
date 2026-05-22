@@ -37,11 +37,7 @@ impl Plugin for UnsafeApiAnalyzer {
         let mut findings = Vec::new();
         for (pattern, label, msg) in patterns {
             for matches in crate::query::run_query(tree, lang, source, pattern) {
-                let Some(cap) = matches
-                    .iter()
-                    .find(|c| c.capture_name == "site")
-                    .or_else(|| matches.first())
-                else {
+                let Some(cap) = matches.iter().find(|c| c.capture_name == "site") else {
                     continue;
                 };
                 findings.push(Finding {

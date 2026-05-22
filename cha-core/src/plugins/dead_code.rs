@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::{AnalysisContext, Finding, Location, Plugin, Severity, SmellCategory};
 
@@ -17,7 +17,48 @@ use crate::{AnalysisContext, Finding, Location, Plugin, Severity, SmellCategory}
 ///   better than the previous "any `#define ##` skips the whole file" nuke.
 ///
 /// When `ctx.tree` is unavailable, falls back to the legacy substring scan.
-pub struct DeadCodeAnalyzer;
+pub struct DeadCodeAnalyzer {
+    /// Names treated as entry points / framework callbacks. Functions with
+    /// these names are never reported as dead, even when nothing else
+    /// references them.
+    pub entry_points: Vec<String>,
+}
+
+impl Default for DeadCodeAnalyzer {
+    fn default() -> Self {
+        Self {
+            entry_points: default_entry_points(),
+        }
+    }
+}
+
+fn default_entry_points() -> Vec<String> {
+    [
+        // Rust
+        "main",
+        "new",
+        "default",
+        "drop",
+        "fmt",
+        // Python
+        "__init__",
+        "__new__",
+        "__call__",
+        "__enter__",
+        "__exit__",
+        "__del__",
+        // Go
+        "init",
+        // C
+        "_start",
+        // Tokio / async runtimes
+        "tokio_main",
+        "main_async",
+    ]
+    .iter()
+    .map(|s| (*s).to_string())
+    .collect()
+}
 
 impl Plugin for DeadCodeAnalyzer {
     fn name(&self) -> &str {
@@ -35,29 +76,22 @@ impl Plugin for DeadCodeAnalyzer {
     fn analyze(&self, ctx: &AnalysisContext) -> Vec<Finding> {
         let positions = build_identifier_positions(ctx);
         let mut findings = Vec::new();
-        check_dead_functions(ctx, &positions, &mut findings);
+        check_dead_functions(ctx, &positions, &self.entry_points, &mut findings);
         check_dead_classes(ctx, &positions, &mut findings);
         findings
     }
 }
 
-/// Build a map: identifier name → list of (line, col) positions where the
-/// identifier appears. We use this to check if a symbol is referenced anywhere
-/// outside its own definition — substring matches in strings/comments don't
-/// count because we walk AST nodes.
-///
-/// Returns `None` when AST is unavailable so callers fall back to legacy
-/// substring scan.
+/// Substring matches in strings/comments don't count because we walk AST nodes.
+/// Returns `None` when AST is unavailable so callers fall back to legacy scan.
 fn build_identifier_positions(ctx: &AnalysisContext) -> Option<IdentifierPositions> {
     let tree = ctx.tree?;
     let lang = ctx.ts_language?;
     let source = ctx.file.content.as_bytes();
 
-    let mut positions: HashSet<(String, u32, u32)> = HashSet::new();
-    // Capture all identifier-like nodes regardless of context. The
-    // dead-code check then asks: "is `name` mentioned anywhere outside
-    // [def_start, def_end]?" — function-pointer assignments, struct
-    // initializers, type references, calls all count.
+    // Capture all identifier-like nodes — function-pointer assignments, struct
+    // initializers, type references, calls all count as references.
+    let mut by_name: HashMap<String, Vec<u32>> = HashMap::new();
     for pat in [
         "(identifier) @x",
         "(type_identifier) @x",
@@ -66,7 +100,7 @@ fn build_identifier_positions(ctx: &AnalysisContext) -> Option<IdentifierPositio
     ] {
         for matches in crate::query::run_query(tree, lang, source, pat) {
             for cap in matches {
-                positions.insert((cap.text, cap.start_line, cap.end_col));
+                by_name.entry(cap.text).or_default().push(cap.start_line);
             }
         }
     }
@@ -76,28 +110,27 @@ fn build_identifier_positions(ctx: &AnalysisContext) -> Option<IdentifierPositio
         tokens.extend(collect_token_concat_targets(&ctx.file.content));
     }
 
-    Some(IdentifierPositions { positions, tokens })
+    Some(IdentifierPositions { by_name, tokens })
 }
 
 struct IdentifierPositions {
-    /// (name, line, end_col) for every identifier node we found.
-    positions: HashSet<(String, u32, u32)>,
+    /// name → 1-based line numbers where the identifier appears.
+    by_name: HashMap<String, Vec<u32>>,
     /// Names plausibly produced by token-concat macros (C/C++ only).
     tokens: HashSet<String>,
 }
 
 impl IdentifierPositions {
-    /// True if `name` appears as an identifier anywhere outside the
-    /// [def_start, def_end] line range. Token-concat targets count as
-    /// referenced regardless of position.
+    /// Token-concat targets count as referenced regardless of position
+    /// because parsers don't macro-expand.
     fn referenced(&self, name: &str, def_start: usize, def_end: usize) -> bool {
         if self.tokens.contains(name) {
             return true;
         }
-        for (text, line, _) in &self.positions {
-            if text != name {
-                continue;
-            }
+        let Some(lines) = self.by_name.get(name) else {
+            return false;
+        };
+        for line in lines {
             let l = *line as usize;
             if l < def_start || l > def_end {
                 return true;
@@ -147,7 +180,6 @@ fn find_concat_define_templates(content: &str) -> Vec<ConcatTemplate> {
     for line in content.lines() {
         let t = line.trim_start();
         if let Some(rest) = t.strip_prefix("#define ") {
-            // Extract name + parameter list.
             let (name_part, body) = match rest.split_once(')') {
                 Some(pair) => pair,
                 None => continue,
@@ -166,7 +198,6 @@ fn find_concat_define_templates(content: &str) -> Vec<ConcatTemplate> {
         }
         let line_continues = line.trim_end().ends_with('\\');
         if !line_continues && let Some((name, body)) = current_define.take() {
-            // Done collecting this define. Pull paste slots.
             let slots = extract_paste_slots(&body);
             if !slots.is_empty() {
                 out.push(ConcatTemplate {
@@ -190,7 +221,6 @@ fn extract_paste_slots(body: &str) -> Vec<(String, String)> {
     let mut i = 0;
     while i + 2 < bytes.len() {
         if &bytes[i..i + 2] == b"##" {
-            // Walk back for prefix (identifier-ish characters).
             let mut start = i;
             while start > 0 && is_ident_byte(bytes[start - 1]) {
                 start -= 1;
@@ -198,12 +228,10 @@ fn extract_paste_slots(body: &str) -> Vec<(String, String)> {
             let prefix = std::str::from_utf8(&bytes[start..i])
                 .unwrap_or("")
                 .to_string();
-            // Skip the parameter name between ## ...
             let mut mid = i + 2;
             while mid < bytes.len() && is_ident_byte(bytes[mid]) {
                 mid += 1;
             }
-            // Optional trailing ## suffix.
             let mut suffix = String::new();
             if mid + 2 <= bytes.len() && &bytes[mid..mid + 2] == b"##" {
                 let mut end = mid + 2;
@@ -235,6 +263,7 @@ fn is_ident_byte(b: u8) -> bool {
 /// in `content`. Each invocation produces `Vec<String>` (one per arg position).
 /// Args that aren't bare identifiers (literals, complex expressions) are
 /// dropped — they wouldn't survive `##` paste anyway.
+// cha:ignore high_complexity
 fn find_macro_invocation_args(content: &str, macro_name: &str) -> Vec<Vec<String>> {
     let mut out = Vec::new();
     for line in content.lines() {
@@ -243,6 +272,14 @@ fn find_macro_invocation_args(content: &str, macro_name: &str) -> Vec<Vec<String
             continue;
         }
         let rest = &t[macro_name.len()..];
+        // Word boundary: STYLE_DEF must not match STYLE_DEFINE.
+        if rest
+            .as_bytes()
+            .first()
+            .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_')
+        {
+            continue;
+        }
         if !rest.trim_start().starts_with('(') {
             continue;
         }
@@ -270,10 +307,11 @@ fn find_macro_invocation_args(content: &str, macro_name: &str) -> Vec<Vec<String
 fn check_dead_functions(
     ctx: &AnalysisContext,
     positions: &Option<IdentifierPositions>,
+    entry_points: &[String],
     findings: &mut Vec<Finding>,
 ) {
     for f in &ctx.model.functions {
-        if f.is_exported || is_entry_point(&f.name) {
+        if f.is_exported || entry_points.iter().any(|e| e == &f.name) {
             continue;
         }
         if is_referenced(
@@ -397,11 +435,6 @@ fn is_in_file_referenced_legacy(
         }
     }
     false
-}
-
-/// Names that are entry points or framework callbacks, not dead code.
-fn is_entry_point(name: &str) -> bool {
-    matches!(name, "main" | "new" | "default" | "drop" | "fmt")
 }
 
 #[cfg(test)]

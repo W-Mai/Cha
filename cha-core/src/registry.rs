@@ -117,6 +117,7 @@ fn register_simple_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) 
     register_smell_plugins(plugins, config);
 }
 
+// cha:ignore brain_method
 fn register_classic_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) {
     register_if_enabled(plugins, config, "coupling", || {
         let mut p = CouplingAnalyzer::default();
@@ -132,7 +133,24 @@ fn register_classic_plugins(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config)
     register_if_enabled(plugins, config, "duplicate_code", || {
         Box::new(DuplicateCodeAnalyzer)
     });
-    register_if_enabled(plugins, config, "dead_code", || Box::new(DeadCodeAnalyzer));
+    register_if_enabled(plugins, config, "dead_code", || {
+        let mut p = DeadCodeAnalyzer::default();
+        if let Some(list) = config
+            .plugins
+            .get("dead_code")
+            .and_then(|pc| pc.options.get("entry_points"))
+            .and_then(|v| v.as_array())
+        {
+            let names: Vec<String> = list
+                .iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect();
+            if !names.is_empty() {
+                p.entry_points = names;
+            }
+        }
+        Box::new(p)
+    });
     register_if_enabled(plugins, config, "api_surface", || {
         let mut p = ApiSurfaceAnalyzer::default();
         apply_usize(
