@@ -322,6 +322,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tree-sitter",
  "wasi-preview1-component-adapter-provider",
  "wit-component 0.246.2",
 ]

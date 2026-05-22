@@ -214,7 +214,7 @@ pub fn check_test_ratio(files: &[PathBuf]) -> Vec<Finding> {
         let lines = std::fs::read_to_string(f)
             .map(|c| c.lines().count())
             .unwrap_or(0);
-        if f.to_string_lossy().contains("test") || f.to_string_lossy().contains("spec") {
+        if cha_core::is_test_path(f) {
             test_lines += lines;
         } else {
             prod_lines += lines;

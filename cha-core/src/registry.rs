@@ -328,6 +328,12 @@ fn register_length(plugins: &mut Vec<Box<dyn Plugin>>, config: &Config) {
     if let Some(v) = config.get_usize("length", "max_file_lines") {
         p.max_file_lines = v;
     }
+    apply_f64(
+        config,
+        "length",
+        "complexity_factor_threshold",
+        &mut p.complexity_factor_threshold,
+    );
     plugins.push(Box::new(p));
 }
 

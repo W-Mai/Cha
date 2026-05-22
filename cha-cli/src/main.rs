@@ -1,3 +1,4 @@
+// cha:ignore large_file
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -740,7 +741,8 @@ fn cmd_fix(paths: &[String], diff: bool, dry_run: bool) {
     println!("{fixed} fix(es) {label}.");
 }
 
-/// Apply a single naming convention fix. Returns Some(()) if applied.
+/// AST-aware: only identifier nodes are rewritten, not occurrences inside
+/// strings or comments.
 fn apply_fix(finding: &Finding, dry_run: bool) -> Option<()> {
     let name = finding.location.name.as_ref()?;
     let new_name = to_pascal_case(name);
@@ -749,17 +751,70 @@ fn apply_fix(finding: &Finding, dry_run: bool) -> Option<()> {
     }
     let path = &finding.location.path;
     let content = std::fs::read_to_string(path).ok()?;
-    let replaced = content.replace(name.as_str(), &new_name);
-    if replaced == content {
+
+    let file = cha_core::SourceFile::new(path.clone(), content.clone());
+    let parse_result = cha_parser::parse_file_full(&file)?;
+    let source = content.as_bytes();
+
+    let mut ranges: Vec<(usize, usize)> = Vec::new();
+    let mut cursor = parse_result.tree.root_node().walk();
+    collect_identifier_ranges(
+        parse_result.tree.root_node(),
+        &mut cursor,
+        source,
+        name,
+        &mut ranges,
+    );
+
+    if ranges.is_empty() {
         return None;
     }
+
+    // Right-to-left so earlier byte offsets stay valid.
+    ranges.sort_by(|a, b| b.0.cmp(&a.0));
+    let mut replaced = content.into_bytes();
+    for (start, end) in &ranges {
+        replaced.splice(*start..*end, new_name.bytes());
+    }
+    let replaced = String::from_utf8(replaced).ok()?;
+
     if dry_run {
-        println!("  {name} → {new_name} in {}", path.display());
+        println!(
+            "  {name} → {new_name} in {} ({} site(s))",
+            path.display(),
+            ranges.len()
+        );
     } else {
         std::fs::write(path, &replaced).ok()?;
-        println!("  Fixed: {name} → {new_name} in {}", path.display());
+        println!(
+            "  Fixed: {name} → {new_name} in {} ({} site(s))",
+            path.display(),
+            ranges.len()
+        );
     }
     Some(())
+}
+
+fn collect_identifier_ranges(
+    node: tree_sitter::Node,
+    cursor: &mut tree_sitter::TreeCursor,
+    source: &[u8],
+    target: &str,
+    out: &mut Vec<(usize, usize)>,
+) {
+    let kind = node.kind();
+    if matches!(
+        kind,
+        "identifier" | "type_identifier" | "field_identifier" | "property_identifier"
+    ) && let Ok(text) = node.utf8_text(source)
+        && text == target
+    {
+        out.push((node.start_byte(), node.end_byte()));
+    }
+    let mut child_cursor = node.walk();
+    for child in node.children(&mut child_cursor) {
+        collect_identifier_ranges(child, cursor, source, target, out);
+    }
 }
 
 /// Convert a name to PascalCase by uppercasing the first character.

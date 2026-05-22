@@ -6,6 +6,7 @@ pub struct LengthAnalyzer {
     pub max_class_methods: usize,
     pub max_class_lines: usize,
     pub max_file_lines: usize,
+    pub complexity_factor_threshold: f64,
 }
 
 impl Default for LengthAnalyzer {
@@ -15,6 +16,7 @@ impl Default for LengthAnalyzer {
             max_class_methods: 10,
             max_class_lines: 200,
             max_file_lines: 500,
+            complexity_factor_threshold: 10.0,
         }
     }
 }
@@ -47,10 +49,10 @@ impl Plugin for LengthAnalyzer {
 
 impl LengthAnalyzer {
     fn check_functions(&self, ctx: &AnalysisContext, findings: &mut Vec<Finding>) {
-        let complexity_threshold = 10.0_f64; // default warning threshold
         for f in &ctx.model.functions {
             let line_ratio = f.line_count as f64 / self.max_function_lines as f64;
-            let complexity_factor = (f.complexity as f64 / complexity_threshold).max(1.0);
+            let complexity_factor =
+                (f.complexity as f64 / self.complexity_factor_threshold).max(1.0);
             let risk = line_ratio * complexity_factor;
             if risk < 1.0 {
                 continue;
