@@ -339,6 +339,7 @@ dependencies = [
  "streaming-iterator",
  "toml 0.8.23",
  "tree-sitter",
+ "tree-sitter-rust",
  "wasmtime",
  "wasmtime-wasi",
 ]

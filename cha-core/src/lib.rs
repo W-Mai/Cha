@@ -9,6 +9,7 @@ mod model;
 mod path_shape;
 mod plugin;
 pub mod plugins;
+pub mod query;
 mod registry;
 pub mod reporter;
 mod source;

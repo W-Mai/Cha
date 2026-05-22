@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use streaming_iterator::StreamingIterator;
 use wasmtime::component::{Component, HasSelf, Linker};
 use wasmtime::{Engine, Store};
 use wasmtime_wasi::{ResourceTable, WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
@@ -31,7 +30,6 @@ struct HostState {
     tree: Option<tree_sitter::Tree>,
     source: Vec<u8>,
     ts_language: Option<tree_sitter::Language>,
-    query_cache: HashMap<String, tree_sitter::Query>,
     project: Option<std::sync::Arc<dyn ProjectQuery>>,
 }
 
@@ -57,7 +55,6 @@ fn new_host_state(
         tree,
         source,
         ts_language,
-        query_cache: HashMap::new(),
         project,
     }
 }
@@ -224,7 +221,11 @@ impl tree_query::Host for HostState {
         let row = (line.saturating_sub(1)) as usize;
         let point = tree_sitter::Point::new(row, col as usize);
         let node = tree.root_node().descendant_for_point_range(point, point)?;
-        Some(node_to_query_match(&node, &self.source, ""))
+        Some(core_match_to_wit(crate::query::node_to_match(
+            &node,
+            &self.source,
+            "",
+        )))
     }
 
     fn nodes_in_range(&mut self, start_line: u32, end_line: u32) -> Vec<tree_query::QueryMatch> {
@@ -248,7 +249,11 @@ impl tree_query::Host for HostState {
                 break;
             }
             if child.is_named() {
-                results.push(node_to_query_match(&child, &self.source, ""));
+                results.push(core_match_to_wit(crate::query::node_to_match(
+                    &child,
+                    &self.source,
+                    "",
+                )));
             }
         }
         results
@@ -261,51 +266,23 @@ impl HostState {
             (Some(t), Some(l)) => (t, l),
             _ => return vec![],
         };
-
-        if !self.query_cache.contains_key(pattern) {
-            let q = match tree_sitter::Query::new(ts_lang, pattern) {
-                Ok(q) => q,
-                Err(_) => return vec![],
-            };
-            self.query_cache.insert(pattern.to_string(), q);
-        }
-        let query = self.query_cache.get(pattern).unwrap();
-        let capture_names: Vec<&str> = query.capture_names().to_vec();
-
-        let mut cursor = tree_sitter::QueryCursor::new();
-        let mut results = vec![];
-        let mut matches = cursor.matches(query, tree.root_node(), self.source.as_slice());
-        while let Some(m) = StreamingIterator::next(&mut matches) {
-            let captures: Vec<_> = m
-                .captures
-                .iter()
-                .map(|c| {
-                    let name: &str = capture_names.get(c.index as usize).copied().unwrap_or("");
-                    node_to_query_match(&c.node, &self.source, name)
-                })
-                .collect();
-            results.push(captures);
-        }
-        results
+        let core_results = crate::query::run_query(tree, ts_lang, &self.source, pattern);
+        core_results
+            .into_iter()
+            .map(|caps| caps.into_iter().map(core_match_to_wit).collect())
+            .collect()
     }
 }
 
-fn node_to_query_match(
-    node: &tree_sitter::Node,
-    source: &[u8],
-    capture_name: &str,
-) -> tree_query::QueryMatch {
-    // Lines are 1-based to match FunctionInfo / ClassInfo / CommentInfo;
-    // tree-sitter `row` is 0-based so +1.
-    let text = node.utf8_text(source).unwrap_or("").to_string();
+fn core_match_to_wit(m: crate::query::QueryMatch) -> tree_query::QueryMatch {
     tree_query::QueryMatch {
-        capture_name: capture_name.to_string(),
-        node_kind: node.kind().to_string(),
-        text,
-        start_line: (node.start_position().row as u32) + 1,
-        start_col: node.start_position().column as u32,
-        end_line: (node.end_position().row as u32) + 1,
-        end_col: node.end_position().column as u32,
+        capture_name: m.capture_name,
+        node_kind: m.node_kind,
+        text: m.text,
+        start_line: m.start_line,
+        start_col: m.start_col,
+        end_line: m.end_line,
+        end_col: m.end_col,
     }
 }
 
