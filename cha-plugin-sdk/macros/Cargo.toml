@@ -1,6 +1,6 @@
 [package]
 name = "cha-plugin-sdk-macros"
-version = "1.18.0"
+version = "1.19.0"
 edition = "2024"
 description = "Proc-macro internals for cha-plugin-sdk"
 license = "MIT"

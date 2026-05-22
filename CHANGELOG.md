@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-05-22
+
+Hardcoded thresholds and keyword lists become plugin config; `cha fix` stops hardcoding smell names; the last two text-scanning detectors switch to AST queries.
+
+### Added
+- **`Plugin::try_fix(finding, ctx) -> Option<Patch>`** — every plugin can now contribute auto-fixes. `cha fix` walks all enabled plugins and asks each one. Adding fix support for a new smell is one trait override, not a host-side `if smell_name == ...` patch.
+- **`cha_core::Patch` / `cha_core::TextEdit`** — public byte-range edit types for plugin authors. Edits within a single finding are applied in reverse byte-offset order.
+- **`DesignPatternAdvisor` config** — 8 magic-number thresholds (`strategy_min_arms`, `state_min_arms`, `builder_min_params`, `builder_alt_min_params`, `builder_alt_min_optional`, `null_object_min_count`, `template_min_self_calls`, `template_min_methods`) and 2 keyword lists (`type_field_keywords`, `state_field_keywords`) are now overridable via `[plugins.design_pattern]`.
+- **`GodClassAnalyzer::min_tcc`** — Tight Class Cohesion threshold (Lanza-Marinescu's 1/3) is configurable.
+- **`cache.rs` walker skip-dirs** — extended from `{target, node_modules, dist}` to also skip `build`, `out`, `__pycache__`, `venv`, `.venv`, `vendor`. Reduces unnecessary `.cha.toml` discovery work in polyglot repos.
+
+### Fixed
+- **`switch_statement` / `message_chain`**: replaced bespoke text scanners (`find_switch_keyword`, `walk_chain` and ~140 lines of hand-rolled tokenization) with tree-sitter queries against `switch_statement` / `match_expression` / `field_expression` / `member_expression` / `selector_expression`. Smell counts unchanged, but keyword positions are now sourced from the AST. No more false positives on keywords inside strings.
+- **`inappropriate_intimacy` import resolution**: extension probe expanded from `{.ts, .tsx, .rs}` to also include `.py`, `.go`, `.cpp`, `.cc`, `.cxx`, `.c`, `.h`, `.hpp`, `.hxx`, `.js`, `.jsx`, `.mts`, `.cts`. Sibling-file lookups in non-JS/Rust projects no longer silently fail.
+- **`calibrate.rs` table rendering**: 3 metric labels were hardcoded across 3 separate `println` blocks. Adding a calibration metric now means one entry in a `(label, samples)` array.
+
+### Changed
+- **`cha fix`** delegates to `Plugin::try_fix` for every finding — no more `filter(|f| f.smell_name == "naming_convention")` on the host. Existing behavior preserved (NamingAnalyzer fixes `naming_convention` PascalCase violations); other plugins return `None` until they opt in.
+
 ## [1.18.0] - 2026-05-22
 
 Built-in detectors now use AST queries instead of text scanning. Several core plugins previously did substring matches that misfired on strings, comments, and unrelated identifiers.
