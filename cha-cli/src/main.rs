@@ -757,21 +757,14 @@ fn apply_fix(finding: &Finding, dry_run: bool) -> Option<()> {
     let source = content.as_bytes();
 
     let mut ranges: Vec<(usize, usize)> = Vec::new();
-    let mut cursor = parse_result.tree.root_node().walk();
-    collect_identifier_ranges(
-        parse_result.tree.root_node(),
-        &mut cursor,
-        source,
-        name,
-        &mut ranges,
-    );
+    collect_identifier_ranges(parse_result.tree.root_node(), source, name, &mut ranges);
 
     if ranges.is_empty() {
         return None;
     }
 
     // Right-to-left so earlier byte offsets stay valid.
-    ranges.sort_by(|a, b| b.0.cmp(&a.0));
+    ranges.sort_by_key(|(start, _)| std::cmp::Reverse(*start));
     let mut replaced = content.into_bytes();
     for (start, end) in &ranges {
         replaced.splice(*start..*end, new_name.bytes());
@@ -797,7 +790,6 @@ fn apply_fix(finding: &Finding, dry_run: bool) -> Option<()> {
 
 fn collect_identifier_ranges(
     node: tree_sitter::Node,
-    cursor: &mut tree_sitter::TreeCursor,
     source: &[u8],
     target: &str,
     out: &mut Vec<(usize, usize)>,
@@ -813,7 +805,7 @@ fn collect_identifier_ranges(
     }
     let mut child_cursor = node.walk();
     for child in node.children(&mut child_cursor) {
-        collect_identifier_ranges(child, cursor, source, target, out);
+        collect_identifier_ranges(child, source, target, out);
     }
 }
 

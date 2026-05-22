@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-05-22
+
+Built-in detectors now use AST queries instead of text scanning. Several core plugins previously did substring matches that misfired on strings, comments, and unrelated identifiers.
+
+### Added
+- **`cha_core::query`** — host-side tree-sitter query helper (`run_query` / `run_queries` / `node_to_match`). Both built-in plugins and the WASM `tree_query` host import now go through this single API.
+- **`DeadCodeAnalyzer::entry_points`** — entry-point names are now configurable via `[plugins.dead_code] entry_points = [...]`. Default list expanded from Rust-only (5 names) to multi-language (Rust + Python `__init__` etc + Go `init` + C `_start` + tokio).
+- **`LengthAnalyzer::complexity_factor_threshold`** — was hardcoded `10.0`, now configurable via `[plugins.length]`.
+
+### Fixed
+- **`unsafe_api`**: rewritten from line-based `line.contains` + odd-quote-count heuristic to per-language tree-sitter queries. Picks up real `sprintf`/`strcpy`/`strcat`/`system` call sites that the line-based heuristic missed. Comments and string literals containing keywords like `unsafe` no longer false-positive.
+- **`dead_code`**: substring `is_in_file_referenced` replaced with AST identifier scan. Token-concat macro detection rewritten — instead of nuking the entire file when any `#define ... ##` exists, parse define bodies for `prefix##X##suffix` slots, scan call sites for invocation arguments, synthesize plausible expansion names, and add them to the reference set. X-macro dispatch tables (e.g. `STYLE_DEF`) no longer hide every dispatch function. `IdentifierPositions` lookup is now O(1) per symbol via `HashMap<name, Vec<line>>`.
+- **`error_handling`**: `unwrap_abuse` uses tree-sitter (`(call_expression field_expression unwrap|expect)`); empty-catch detection is per-language (Rust skipped, TS `catch_clause`, Python `except_clause`). String literals and comments containing the substring `unwrap` or `catch` no longer trigger.
+- **`hardcoded_secret`**: regex matches now run against `string_literal` node text only, not full source lines. Comments and identifier names with secret-like substrings no longer false-positive.
+- **`cha fix`**: `String::replace` whole-content substitution replaced with tree-sitter identifier-node range collection + byte-offset reverse substitution. The previous implementation could rewrite identifier names inside string literals and comments, corrupting source files.
+- **`git_metrics::check_test_ratio`**: `f.contains("test") || f.contains("spec")` replaced with `cha_core::is_test_path`. The substring check wrongly counted `request.rs` / `spectrum.rs` etc. as test files, polluting the test-to-production ratio that drives `low_test_ratio`.
+- **`wasm.rs::infer_file_role`**: replaced duplicate test-path heuristics with `cha_core::is_test_path`. WASM plugins' `FileRole::Test` classification now matches the canonical convention used elsewhere (`__tests__/`, `__mocks__/`, `.test.ts`, `.spec.ts`).
+- **`find_macro_invocation_args`**: word-boundary check added — `STYLE_DEF` no longer matches `STYLE_DEFINE` invocations.
+
+### Removed
+- **`unsafe_api` `is_in_string` heuristic** — superseded by tree-sitter queries that distinguish string literals at the AST level.
+- **`error_handling` line-based `detect_empty_catch`** — replaced with grammar-aware queries.
+- **`HostState::query_cache`** — query compilation now lives in `cha_core::query` (compile-on-demand; LRU caching to be added if measurement warrants).
+
 ## [1.17.0] - 2026-05-21
 
 ### Added
