@@ -157,6 +157,8 @@ See [cha.to01.icu](https://cha.to01.icu) for all platforms and download options.
 
 34 plugins, 45 smells. A handful of plugins (`length`, `naming`, `error_handling`, `design_pattern`) emit more than one smell from a single detector. Plugins are grouped below by `SmellCategory`, the same grouping used by CLI output, JSON reports, and `--focus`.
 
+The table below is a quick lookup — **click any plugin name to jump to its full description in [`docs/plugins.md`](docs/plugins.md)**, where each detector's behaviour, threshold meanings, and a triggering example are written out in full.
+
 All plugins are enabled by default. Disable individually with `enabled = false` under `[plugins.<name>]`. The C language preset turns off `naming`, `lazy_class`, `data_class`, and `design_pattern`.
 
 Defaults below are the values in `Default for <Analyzer>`; every threshold scales by the global `strictness` factor and can be overridden per-plugin in `.cha.toml` or per-item via inline `cha:set` directives.
@@ -165,65 +167,65 @@ Defaults below are the values in `Default for <Analyzer>`; every threshold scale
 
 | Plugin | Smells | Default thresholds | Severity |
 |--------|--------|--------------------|----------|
-| `length` | `long_method`, `large_class`, `large_file` | `max_function_lines=50`, `max_class_methods=10`, `max_class_lines=200`, `max_file_lines=500`, `complexity_factor_threshold=10.0` | Hint / Warning / Error (scales by how far over the limit) |
-| `complexity` | `high_complexity` | `warn_threshold=10`, `error_threshold=20` | Warning / Error |
-| `cognitive_complexity` | `cognitive_complexity` | `threshold=15` (penalises nesting depth on top of the basic complexity count) | Warning / Error |
-| `long_parameter_list` | `long_parameter_list` | `max_params=5` | Warning |
-| `primitive_obsession` | `primitive_obsession` | `min_params=3`, `primitive_ratio=0.8` | Hint |
-| `data_clumps` | `data_clumps` | `min_clump_size=3`, `min_occurrences=3` | Hint |
-| `naming` | `naming_convention`, `naming_too_short`, `naming_too_long` | `min_name_length=2`, `max_name_length=50` | Hint / Warning |
-| `api_surface` | `large_api_surface` | `max_exported_ratio=0.8`, `max_exported_count=20`; for C: `c_max_exported_ratio=1.01`, `c_max_exported_count=30`, `skip_c_headers=true` | Warning |
-| `god_class` | `god_class` | `max_external_refs=5` (ATFD — access to foreign data), `min_wmc=47` (weighted method count), `min_tcc=0.33` (tight class cohesion) | Warning |
-| `brain_method` | `brain_method` | `min_lines=65`, `min_complexity=4`, `min_external_refs=7` | Warning |
+| [`length`](docs/plugins.md#length) | `long_method`, `large_class`, `large_file` | `max_function_lines=50`, `max_class_methods=10`, `max_class_lines=200`, `max_file_lines=500`, `complexity_factor_threshold=10.0` | Hint / Warning / Error (scales by how far over the limit) |
+| [`complexity`](docs/plugins.md#complexity) | `high_complexity` | `warn_threshold=10`, `error_threshold=20` | Warning / Error |
+| [`cognitive_complexity`](docs/plugins.md#cognitive_complexity) | `cognitive_complexity` | `threshold=15` (penalises nesting depth on top of the basic complexity count) | Warning / Error |
+| [`long_parameter_list`](docs/plugins.md#long_parameter_list) | `long_parameter_list` | `max_params=5` | Warning |
+| [`primitive_obsession`](docs/plugins.md#primitive_obsession) | `primitive_obsession` | `min_params=3`, `primitive_ratio=0.8` | Hint |
+| [`data_clumps`](docs/plugins.md#data_clumps) | `data_clumps` | `min_clump_size=3`, `min_occurrences=3` | Hint |
+| [`naming`](docs/plugins.md#naming) | `naming_convention`, `naming_too_short`, `naming_too_long` | `min_name_length=2`, `max_name_length=50` | Hint / Warning |
+| [`api_surface`](docs/plugins.md#api_surface) | `large_api_surface` | `max_exported_ratio=0.8`, `max_exported_count=20`; for C: `c_max_exported_ratio=1.01`, `c_max_exported_count=30`, `skip_c_headers=true` | Warning |
+| [`god_class`](docs/plugins.md#god_class) | `god_class` | `max_external_refs=5` (ATFD — access to foreign data), `min_wmc=47` (weighted method count), `min_tcc=0.33` (tight class cohesion) | Warning |
+| [`brain_method`](docs/plugins.md#brain_method) | `brain_method` | `min_lines=65`, `min_complexity=4`, `min_external_refs=7` | Warning |
 
 ### Couplers — modules that depend too tightly on each other
 
 | Plugin | Smells | Default thresholds | Severity |
 |--------|--------|--------------------|----------|
-| `coupling` | `high_coupling` | `max_imports=15`; promotes to Error above `2 × max_imports` | Warning / Error |
-| `hub_like_dependency` | `hub_like_dependency` | `max_imports=20` | Warning |
-| `feature_envy` | `feature_envy` | `min_refs=3`, `external_ratio=0.7` | Hint |
-| `middle_man` | `middle_man` | `min_methods=3`, `delegation_ratio=0.5` | Hint |
-| `message_chain` | `message_chain` | `max_depth=3` (e.g. `a.b.c.d` triggers) | Warning |
-| `inappropriate_intimacy` | `inappropriate_intimacy` | Detects bidirectional imports between two files | Warning |
-| `layer_violation` | `layer_violation` | Layers configured via `layers = "domain:0,service:1,..."`; lower-rank may not import higher-rank | Error |
-| `async_callback_leak` | `async_callback_leak` | Function signatures leaking raw `JoinHandle` / `Future` / `Channel` types | Hint |
+| [`coupling`](docs/plugins.md#coupling) | `high_coupling` | `max_imports=15`; promotes to Error above `2 × max_imports` | Warning / Error |
+| [`hub_like_dependency`](docs/plugins.md#hub_like_dependency) | `hub_like_dependency` | `max_imports=20` | Warning |
+| [`feature_envy`](docs/plugins.md#feature_envy) | `feature_envy` | `min_refs=3`, `external_ratio=0.7` | Hint |
+| [`middle_man`](docs/plugins.md#middle_man) | `middle_man` | `min_methods=3`, `delegation_ratio=0.5` | Hint |
+| [`message_chain`](docs/plugins.md#message_chain) | `message_chain` | `max_depth=3` (e.g. `a.b.c.d` triggers) | Warning |
+| [`inappropriate_intimacy`](docs/plugins.md#inappropriate_intimacy) | `inappropriate_intimacy` | Detects bidirectional imports between two files | Warning |
+| [`layer_violation`](docs/plugins.md#layer_violation) | `layer_violation` | Layers configured via `layers = "domain:0,service:1,..."`; lower-rank may not import higher-rank | Error |
+| [`async_callback_leak`](docs/plugins.md#async_callback_leak) | `async_callback_leak` | Function signatures leaking raw `JoinHandle` / `Future` / `Channel` types | Hint |
 
 ### OO Abusers — object-oriented constructs used incorrectly
 
 | Plugin | Smells | Default thresholds | Severity |
 |--------|--------|--------------------|----------|
-| `switch_statement` | `switch_statement` | `max_arms=8` (`switch` / `match` / Python `match` / Go `switch`) | Warning |
-| `temporary_field` | `temporary_field` | `min_methods=3`, `max_usage_ratio=0.3` | Hint |
-| `refused_bequest` | `refused_bequest` | `min_override_ratio=0.5`, `min_methods=3` | Hint |
-| `design_pattern` | `strategy_pattern`, `state_pattern`, `builder_pattern`, `null_object_pattern`, `template_method_pattern`, `observer_pattern` | `strategy_min_arms=4`, `state_min_arms=3`, `builder_min_params=7` (or `builder_alt_min_params=5` + `builder_alt_min_optional=3`), `null_object_min_count=3`, `template_min_self_calls=3`, `template_min_methods=4`; type / state field keyword lists configurable | Hint |
+| [`switch_statement`](docs/plugins.md#switch_statement) | `switch_statement` | `max_arms=8` (`switch` / `match` / Python `match` / Go `switch`) | Warning |
+| [`temporary_field`](docs/plugins.md#temporary_field) | `temporary_field` | `min_methods=3`, `max_usage_ratio=0.3` | Hint |
+| [`refused_bequest`](docs/plugins.md#refused_bequest) | `refused_bequest` | `min_override_ratio=0.5`, `min_methods=3` | Hint |
+| [`design_pattern`](docs/plugins.md#design_pattern) | `strategy_pattern`, `state_pattern`, `builder_pattern`, `null_object_pattern`, `template_method_pattern`, `observer_pattern` | `strategy_min_arms=4`, `state_min_arms=3`, `builder_min_params=7` (or `builder_alt_min_params=5` + `builder_alt_min_optional=3`), `null_object_min_count=3`, `template_min_self_calls=3`, `template_min_methods=4`; type / state field keyword lists configurable | Hint |
 
 ### Change Preventers — change in one place forces changes elsewhere
 
 | Plugin | Smells | Default thresholds | Severity |
 |--------|--------|--------------------|----------|
-| `shotgun_surgery` | `shotgun_surgery` | `min_co_changes=5`, `max_commits=100` (reads `git log`) | Hint |
-| `divergent_change` | `divergent_change` | `min_distinct_reasons=4`, `max_commits=50` (reads `git log`) | Hint |
+| [`shotgun_surgery`](docs/plugins.md#shotgun_surgery) | `shotgun_surgery` | `min_co_changes=5`, `max_commits=100` (reads `git log`) | Hint |
+| [`divergent_change`](docs/plugins.md#divergent_change) | `divergent_change` | `min_distinct_reasons=4`, `max_commits=50` (reads `git log`) | Hint |
 
 ### Dispensables — code that can be removed without losing function
 
 | Plugin | Smells | Default thresholds | Severity |
 |--------|--------|--------------------|----------|
-| `dead_code` | `dead_code` | Unexported + unreferenced symbols; `entry_points` configurable (defaults include Rust `main`/`tokio_main`, Python `__init__`/`__main__`, Go `init`, C `_start`) | Hint |
-| `duplicate_code` | `duplicate_code` | AST-hash duplicate blocks ≥ 10 lines | Warning |
-| `comments` | `excessive_comments` | `max_comment_ratio=0.3`, `min_lines=10` | Hint |
-| `lazy_class` | `lazy_class` | `max_methods=1`, `max_lines=10` | Hint |
-| `data_class` | `data_class` | `min_fields=2` and methods are only field accessors | Hint |
-| `speculative_generality` | `speculative_generality` | Interface / trait with ≤ 1 implementation | Hint |
-| `todo_tracker` | `todo_comment` | TODO / FIXME / HACK / XXX comments; FIXME promotes to Warning | Hint / Warning |
+| [`dead_code`](docs/plugins.md#dead_code) | `dead_code` | Unexported + unreferenced symbols; `entry_points` configurable (defaults include Rust `main`/`new`/`drop`, Python `__init__`/`__new__`/`__call__`, Go `init`, C `_start`) | Hint |
+| [`duplicate_code`](docs/plugins.md#duplicate_code) | `duplicate_code` | AST-hash duplicate blocks ≥ 10 lines | Warning |
+| [`comments`](docs/plugins.md#comments) | `excessive_comments` | `max_comment_ratio=0.3`, `min_lines=10` | Hint |
+| [`lazy_class`](docs/plugins.md#lazy_class) | `lazy_class` | `max_methods=1`, `max_lines=10` | Hint |
+| [`data_class`](docs/plugins.md#data_class) | `data_class` | `min_fields=2` and methods are only field accessors | Hint |
+| [`speculative_generality`](docs/plugins.md#speculative_generality) | `speculative_generality` | Interface / trait with ≤ 1 implementation | Hint |
+| [`todo_tracker`](docs/plugins.md#todo_tracker) | `todo_comment` | TODO / FIXME / HACK / XXX comments; HACK and XXX promote to Warning | Hint / Warning |
 
 ### Security — risky calls and leaked secrets
 
 | Plugin | Smells | Default thresholds | Severity |
 |--------|--------|--------------------|----------|
-| `hardcoded_secret` | `hardcoded_secret` | Regex matches against `string_literal` AST nodes; covers API keys, tokens, passwords, private keys, JWTs | Warning |
-| `unsafe_api` | `unsafe_api` | Dangerous calls: `eval`, `exec`, `system`, `popen`, `sprintf`, `strcpy`, `strcat`, `gets`, `unsafe`, `innerHTML`, `dangerouslySetInnerHTML` | Warning |
-| `error_handling` | `empty_catch`, `unwrap_abuse` | `max_unwraps_per_function=3` for `unwrap()` / `expect()`; empty `catch` / `except` blocks always flagged | Warning |
+| [`hardcoded_secret`](docs/plugins.md#hardcoded_secret) | `hardcoded_secret` | Regex matches against `string_literal` AST nodes; covers API keys, tokens, passwords, private keys, JWTs | Warning |
+| [`unsafe_api`](docs/plugins.md#unsafe_api) | `unsafe_api` | Dangerous calls: `eval`, `exec`, `system`, `sprintf`, `strcpy`, `strcat`, `gets`, `unsafe`, `innerHTML`, `dangerouslySetInnerHTML` | Warning |
+| [`error_handling`](docs/plugins.md#error_handling) | `empty_catch`, `unwrap_abuse` | `max_unwraps_per_function=3` for `unwrap()` / `expect()`; empty `catch` / `except` blocks always flagged | Warning |
 
 Every plugin's `Default` impl and `analyze()` body live under [`cha-core/src/plugins/`](cha-core/src/plugins). Run `cha preset` to see built-in language presets and strictness levels, or `cha analyze --plugin <name>` to run a single detector.
 

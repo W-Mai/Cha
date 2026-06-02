@@ -157,6 +157,8 @@ cargo build --release
 
 34 个插件，45 个 smell。少数插件（`length`、`naming`、`error_handling`、`design_pattern`）一项检测会派生多个相关的 smell。下面按 `SmellCategory` 分组列出，CLI 输出、JSON 报告以及 `--focus` 用的也是同一套分类。
 
+下面这张表是速查——**点击任何插件名字可跳转到 [`docs/plugins.zh-CN.md`](docs/plugins.zh-CN.md) 中对应的详细介绍**，那里写清了每个检测器的行为、阈值含义和触发示例。
+
 所有插件默认启用。在 `[plugins.<name>]` 下设 `enabled = false` 即可关闭。C 语言预设关闭 `naming`、`lazy_class`、`data_class`、`design_pattern`。
 
 下表里的默认值即各插件 `Default for <Analyzer>` 实现里的具体数字；所有阈值都会乘以全局 `strictness` 系数，并可在 `.cha.toml` 里逐插件覆盖，或通过源码中的 `cha:set` 行内指令逐项放宽。
@@ -165,65 +167,67 @@ cargo build --release
 
 | 插件 | smells | 默认阈值 | 严重度 |
 |------|--------|---------|-------|
-| `length` | `long_method`, `large_class`, `large_file` | `max_function_lines=50`、`max_class_methods=10`、`max_class_lines=200`、`max_file_lines=500`、`complexity_factor_threshold=10.0` | Hint / Warning / Error（按超出幅度递增） |
-| `complexity` | `high_complexity` | `warn_threshold=10`、`error_threshold=20` | Warning / Error |
-| `cognitive_complexity` | `cognitive_complexity` | `threshold=15`（在基础复杂度上额外按嵌套深度加权） | Warning / Error |
-| `long_parameter_list` | `long_parameter_list` | `max_params=5` | Warning |
-| `primitive_obsession` | `primitive_obsession` | `min_params=3`、`primitive_ratio=0.8` | Hint |
-| `data_clumps` | `data_clumps` | `min_clump_size=3`、`min_occurrences=3` | Hint |
-| `naming` | `naming_convention`, `naming_too_short`, `naming_too_long` | `min_name_length=2`、`max_name_length=50` | Hint / Warning |
-| `api_surface` | `large_api_surface` | `max_exported_ratio=0.8`、`max_exported_count=20`；C 用 `c_max_exported_ratio=1.01`、`c_max_exported_count=30`、`skip_c_headers=true` | Warning |
-| `god_class` | `god_class` | `max_external_refs=5`（ATFD）、`min_wmc=47`、`min_tcc=0.33`（Lanza-Marinescu） | Warning |
-| `brain_method` | `brain_method` | `min_lines=65`、`min_complexity=4`、`min_external_refs=7` | Warning |
+| [`length`](docs/plugins.zh-CN.md#length) | `long_method`, `large_class`, `large_file` | `max_function_lines=50`、`max_class_methods=10`、`max_class_lines=200`、`max_file_lines=500`、`complexity_factor_threshold=10.0` | Hint / Warning / Error（按超出幅度递增） |
+| [`complexity`](docs/plugins.zh-CN.md#complexity) | `high_complexity` | `warn_threshold=10`、`error_threshold=20` | Warning / Error |
+| [`cognitive_complexity`](docs/plugins.zh-CN.md#cognitive_complexity) | `cognitive_complexity` | `threshold=15`（在基础复杂度上额外按嵌套深度加权） | Warning / Error |
+| [`long_parameter_list`](docs/plugins.zh-CN.md#long_parameter_list) | `long_parameter_list` | `max_params=5` | Warning |
+| [`primitive_obsession`](docs/plugins.zh-CN.md#primitive_obsession) | `primitive_obsession` | `min_params=3`、`primitive_ratio=0.8` | Hint |
+| [`data_clumps`](docs/plugins.zh-CN.md#data_clumps) | `data_clumps` | `min_clump_size=3`、`min_occurrences=3` | Hint |
+| [`naming`](docs/plugins.zh-CN.md#naming) | `naming_convention`, `naming_too_short`, `naming_too_long` | `min_name_length=2`、`max_name_length=50` | Hint / Warning |
+| [`api_surface`](docs/plugins.zh-CN.md#api_surface) | `large_api_surface` | `max_exported_ratio=0.8`、`max_exported_count=20`；C 用 `c_max_exported_ratio=1.01`、`c_max_exported_count=30`、`skip_c_headers=true` | Warning |
+| [`god_class`](docs/plugins.zh-CN.md#god_class) | `god_class` | `max_external_refs=5`（ATFD）、`min_wmc=47`、`min_tcc=0.33`（Lanza-Marinescu） | Warning |
+| [`brain_method`](docs/plugins.zh-CN.md#brain_method) | `brain_method` | `min_lines=65`、`min_complexity=4`、`min_external_refs=7` | Warning |
 
 ### Couplers —— 模块之间耦合过紧
 
 | 插件 | smells | 默认阈值 | 严重度 |
 |------|--------|---------|-------|
-| `coupling` | `high_coupling` | `max_imports=15`；超过 `2 × max_imports` 时升级为 Error | Warning / Error |
-| `hub_like_dependency` | `hub_like_dependency` | `max_imports=20` | Warning |
-| `feature_envy` | `feature_envy` | `min_refs=3`、`external_ratio=0.7` | Hint |
-| `middle_man` | `middle_man` | `min_methods=3`、`delegation_ratio=0.5` | Hint |
-| `message_chain` | `message_chain` | `max_depth=3`（`a.b.c.d` 即触发） | Warning |
-| `inappropriate_intimacy` | `inappropriate_intimacy` | 检测两个文件之间的双向导入 | Warning |
-| `layer_violation` | `layer_violation` | 通过 `layers = "domain:0,service:1,..."` 配置层级；低层不允许导入高层 | Error |
-| `async_callback_leak` | `async_callback_leak` | 函数签名泄漏裸 `JoinHandle` / `Future` / `Channel` | Hint |
+| [`coupling`](docs/plugins.zh-CN.md#coupling) | `high_coupling` | `max_imports=15`；超过 `2 × max_imports` 时升级为 Error | Warning / Error |
+| [`hub_like_dependency`](docs/plugins.zh-CN.md#hub_like_dependency) | `hub_like_dependency` | `max_imports=20` | Warning |
+| [`feature_envy`](docs/plugins.zh-CN.md#feature_envy) | `feature_envy` | `min_refs=3`、`external_ratio=0.7` | Hint |
+| [`middle_man`](docs/plugins.zh-CN.md#middle_man) | `middle_man` | `min_methods=3`、`delegation_ratio=0.5` | Hint |
+| [`message_chain`](docs/plugins.zh-CN.md#message_chain) | `message_chain` | `max_depth=3`（`a.b.c.d` 即触发） | Warning |
+| [`inappropriate_intimacy`](docs/plugins.zh-CN.md#inappropriate_intimacy) | `inappropriate_intimacy` | 检测两个文件之间的双向导入 | Warning |
+| [`layer_violation`](docs/plugins.zh-CN.md#layer_violation) | `layer_violation` | 通过 `layers = "domain:0,service:1,..."` 配置层级；低层不允许导入高层 | Error |
+| [`async_callback_leak`](docs/plugins.zh-CN.md#async_callback_leak) | `async_callback_leak` | 函数签名泄漏裸 `JoinHandle` / `Future` / `Channel` | Hint |
 
 ### OO Abusers —— 面向对象特性使用不当
 
 | 插件 | smells | 默认阈值 | 严重度 |
 |------|--------|---------|-------|
-| `switch_statement` | `switch_statement` | `max_arms=8`（`switch` / `match` / Python `match` / Go `switch`） | Warning |
-| `temporary_field` | `temporary_field` | `min_methods=3`、`max_usage_ratio=0.3` | Hint |
-| `refused_bequest` | `refused_bequest` | `min_override_ratio=0.5`、`min_methods=3` | Hint |
-| `design_pattern` | `strategy_pattern`, `state_pattern`, `builder_pattern`, `null_object_pattern`, `template_method_pattern`, `observer_pattern` | `strategy_min_arms=4`、`state_min_arms=3`、`builder_min_params=7`（或 `builder_alt_min_params=5` + `builder_alt_min_optional=3`）、`null_object_min_count=3`、`template_min_self_calls=3`、`template_min_methods=4`；类型 / 状态字段关键词列表可配置 | Hint |
+| [`switch_statement`](docs/plugins.zh-CN.md#switch_statement) | `switch_statement` | `max_arms=8`（`switch` / `match` / Python `match` / Go `switch`） | Warning |
+| [`temporary_field`](docs/plugins.zh-CN.md#temporary_field) | `temporary_field` | `min_methods=3`、`max_usage_ratio=0.3` | Hint |
+| [`refused_bequest`](docs/plugins.zh-CN.md#refused_bequest) | `refused_bequest` | `min_override_ratio=0.5`、`min_methods=3` | Hint |
+| [`design_pattern`](docs/plugins.zh-CN.md#design_pattern) | `strategy_pattern`, `state_pattern`, `builder_pattern`, `null_object_pattern`, `template_method_pattern`, `observer_pattern` | `strategy_min_arms=4`、`state_min_arms=3`、`builder_min_params=7`（或 `builder_alt_min_params=5` + `builder_alt_min_optional=3`）、`null_object_min_count=3`、`template_min_self_calls=3`、`template_min_methods=4`；类型 / 状态字段关键词列表可配置 | Hint |
 
 ### Change Preventers —— 改一处会牵动其他地方
 
 | 插件 | smells | 默认阈值 | 严重度 |
 |------|--------|---------|-------|
-| `shotgun_surgery` | `shotgun_surgery` | `min_co_changes=5`、`max_commits=100`（读取 `git log`） | Hint |
-| `divergent_change` | `divergent_change` | `min_distinct_reasons=4`、`max_commits=50`（读取 `git log`） | Hint |
+| [`shotgun_surgery`](docs/plugins.zh-CN.md#shotgun_surgery) | `shotgun_surgery` | `min_co_changes=5`、`max_commits=100`（读取 `git log`） | Hint |
+| [`divergent_change`](docs/plugins.zh-CN.md#divergent_change) | `divergent_change` | `min_distinct_reasons=4`、`max_commits=50`（读取 `git log`） | Hint |
 
 ### Dispensables —— 移除掉也不影响功能的代码
 
 | 插件 | smells | 默认阈值 | 严重度 |
 |------|--------|---------|-------|
-| `dead_code` | `dead_code` | 未导出 + 无引用的符号；`entry_points` 可配置（默认包含 Rust `main` / `tokio_main`、Python `__init__` / `__main__`、Go `init`、C `_start`） | Hint |
-| `duplicate_code` | `duplicate_code` | AST 哈希匹配的重复块 ≥ 10 行 | Warning |
-| `comments` | `excessive_comments` | `max_comment_ratio=0.3`、`min_lines=10` | Hint |
-| `lazy_class` | `lazy_class` | `max_methods=1`、`max_lines=10` | Hint |
-| `data_class` | `data_class` | `min_fields=2` 且方法只是字段访问器 | Hint |
-| `speculative_generality` | `speculative_generality` | Interface / trait 实现数 ≤ 1 | Hint |
-| `todo_tracker` | `todo_comment` | TODO / FIXME / HACK / XXX 注释；FIXME 升级为 Warning | Hint / Warning |
+| [`dead_code`](docs/plugins.zh-CN.md#dead_code) | `dead_code` | 未导出 + 无引用的符号；`entry_points` 可配置（默认包含 Rust `main` / `new` / `drop`、Python `__init__` / `__new__` / `__call__`、Go `init`、C `_start`） | Hint |
+| [`duplicate_code`](docs/plugins.zh-CN.md#duplicate_code) | `duplicate_code` | AST 哈希匹配的重复块 ≥ 10 行 | Warning |
+| [`comments`](docs/plugins.zh-CN.md#comments) | `excessive_comments` | `max_comment_ratio=0.3`、`min_lines=10` | Hint |
+| [`lazy_class`](docs/plugins.zh-CN.md#lazy_class) | `lazy_class` | `max_methods=1`、`max_lines=10` | Hint |
+| [`data_class`](docs/plugins.zh-CN.md#data_class) | `data_class` | `min_fields=2` 且方法只是字段访问器 | Hint |
+| [`speculative_generality`](docs/plugins.zh-CN.md#speculative_generality) | `speculative_generality` | Interface / trait 实现数 ≤ 1 | Hint |
+| [`todo_tracker`](docs/plugins.zh-CN.md#todo_tracker) | `todo_comment` | TODO / FIXME / HACK / XXX 注释；HACK 和 XXX 升级为 Warning | Hint / Warning |
 
 ### Security —— 危险调用与泄漏的密钥
 
 | 插件 | smells | 默认阈值 | 严重度 |
 |------|--------|---------|-------|
-| `hardcoded_secret` | `hardcoded_secret` | 在 `string_literal` 节点上跑正则；覆盖 API key、token、密码、私钥、JWT | Warning |
-| `unsafe_api` | `unsafe_api` | 危险调用：`eval`、`exec`、`system`、`popen`、`sprintf`、`strcpy`、`strcat`、`gets`、`unsafe`、`innerHTML`、`dangerouslySetInnerHTML` | Warning |
-| `error_handling` | `empty_catch`, `unwrap_abuse` | `max_unwraps_per_function=3` 限制 `unwrap()` / `expect()`；空 `catch` / `except` 块一律标记 | Warning |
+| [`hardcoded_secret`](docs/plugins.zh-CN.md#hardcoded_secret) | `hardcoded_secret` | 在 `string_literal` 节点上跑正则；覆盖 API key、token、密码、私钥、JWT | Warning |
+| [`unsafe_api`](docs/plugins.zh-CN.md#unsafe_api) | `unsafe_api` | 危险调用：`eval`、`exec`、`system`、`sprintf`、`strcpy`、`strcat`、`gets`、`unsafe`、`innerHTML`、`dangerouslySetInnerHTML` | Warning |
+| [`error_handling`](docs/plugins.zh-CN.md#error_handling) | `empty_catch`, `unwrap_abuse` | `max_unwraps_per_function=3` 限制 `unwrap()` / `expect()`；空 `catch` / `except` 块一律标记 | Warning |
+
+每个插件的详细介绍——它在抓什么、每个阈值什么意思、什么样的代码会触发——见 [`docs/plugins.zh-CN.md`](docs/plugins.zh-CN.md)。
 
 每个插件的 `Default` 实现和 `analyze()` 都在 [`cha-core/src/plugins/`](cha-core/src/plugins)。`cha preset` 列出内置语言预设和严格度等级；`cha analyze --plugin <name>` 单独运行某个检测器。
 
