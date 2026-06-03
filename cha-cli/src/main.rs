@@ -254,6 +254,8 @@ enum Cli {
     },
     /// Start the Language Server Protocol server
     Lsp,
+    #[command(hide = true)]
+    HelpMarkdown,
 }
 
 #[derive(clap::Subcommand)]
@@ -430,6 +432,7 @@ fn run_analysis_commands(cli: Cli) {
         Cli::Lsp => tokio::runtime::Runtime::new()
             .unwrap()
             .block_on(cha_lsp::run_lsp()),
+        Cli::HelpMarkdown => clap_markdown::print_help_markdown::<Args>(),
         _ => unreachable!(),
     }
 }

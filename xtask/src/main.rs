@@ -42,6 +42,7 @@ fn dispatch_with_args(cmd: &str, args: &[String]) -> Result {
         ("plugin-test", cmd_plugin_test),
         ("plugin-e2e", cmd_plugin_e2e),
         ("integration-test", cmd_integration_test),
+        ("docgen-cli", cmd_docgen_cli),
     ];
     if let Some((_, f)) = commands.iter().find(|(name, _)| *name == cmd) {
         return f();
@@ -84,6 +85,28 @@ fn cmd_test() -> Result {
 fn cmd_lint() -> Result {
     cargo(&["clippy", "--workspace", "--", "-D", "warnings"])?;
     cargo(&["fmt", "--all", "--check"])
+}
+
+fn cmd_docgen_cli() -> Result {
+    let root = project_root();
+    let cha = cha_binary();
+    let dest = format!("{root}/target/cli-help.md");
+    println!("  → {cha} help-markdown > {dest}");
+    let out = Command::new(&cha)
+        .arg("help-markdown")
+        .current_dir(&root)
+        .output()
+        .map_err(|e| format!("failed to run {cha}: {e}"))?;
+    if !out.status.success() {
+        return Err(format!(
+            "cha help-markdown failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        )
+        .into());
+    }
+    std::fs::write(&dest, &out.stdout)
+        .map_err(|e| format!("failed to write {dest}: {e}"))?;
+    Ok(())
 }
 
 fn cmd_analyze() -> Result {

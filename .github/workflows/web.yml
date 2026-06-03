@@ -34,6 +34,16 @@ jobs:
         with:
           tool: mdbook@0.4.40
 
+      # CLI manual page {{#include}}s target/cli-help.md, so we generate
+      # it from the cha binary before mdbook runs. This keeps the page
+      # in lockstep with the actual --help output without a checked-in
+      # snapshot to drift.
+      - name: Build cha (release) for docgen
+        run: cargo build --release -p cha-cli
+
+      - name: Generate CLI manual snapshot
+        run: cargo xtask docgen-cli
+
       - name: Build site
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/oranda/releases/latest/download/oranda-installer.sh | sh
