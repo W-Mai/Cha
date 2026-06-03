@@ -1,0 +1,48 @@
+# Cha documentation — primary book.toml.
+#
+# This file is the English book. The zh-CN book at book-zh-CN/book.toml
+# (a parallel sibling, not committed yet at the time this file lands)
+# imports the same theme/ and shares the same plugin set.
+#
+# Two-tree i18n: English source under src/, Chinese under src-zh-CN/.
+# CI builds each tree separately and lays them out at /book/ and /book/zh-CN/.
+
+[book]
+title = "Cha"
+description = "察 — Code Health Analyzer"
+authors = ["W-Mai"]
+language = "en"
+src = "src"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/W-Mai/Cha"
+edit-url-template = "https://github.com/W-Mai/Cha/edit/main/book/{path}"
+additional-css = ["theme/css/cha.css"]
+
+[output.html.fold]
+enable = true
+level = 1
+
+# Preprocessors are wired in lazily — each plugin's `install` step (run by CI)
+# writes its CSS/JS into book/ and amends this file with `additional-css` /
+# `additional-js`. We keep the table entries empty here so a fresh `mdbook build`
+# without the plugins installed still runs (admonish/mermaid will silently no-op
+# if their assets aren't present, the pages just won't render the callouts).
+[preprocessor.admonish]
+command = "mdbook-admonish"
+assets_version = "3.0.4"
+optional = true
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+optional = true
+
+[preprocessor.pagetoc]
+optional = true
+
+[output.linkcheck]
+follow-web-links = false
+warning-policy = "warn"
+optional = true

@@ -1,0 +1,118 @@
+<!--
+  Language switcher for the two-tree mdbook layout.
+
+  Convention:
+    English book is at:  /book/<path>
+    zh-CN book is at:    /book/zh-CN/<path>
+
+  The switcher is injected into mdbook's `.right-buttons` toolbar after the
+  page renders. It HEAD-probes the alternate URL and hides the entry if it
+  404s — handy while zh-CN translation is partial. Pattern lifted from
+  rust-by-example's theme/head.hbs.
+-->
+<style>
+  .lang-switcher { position: relative; display: inline-block; margin-left: .25rem; }
+  .lang-switcher button {
+    background: transparent; border: 0; color: var(--fg);
+    cursor: pointer; padding: .25rem .5rem; font-size: 1rem;
+  }
+  .lang-switcher ul {
+    position: absolute; right: 0; top: 1.6rem;
+    background: var(--bg); border: 1px solid var(--theme-popup-border, #ccc);
+    border-radius: 4px; padding: .25rem 0; margin: 0;
+    list-style: none; min-width: 8rem;
+    box-shadow: 0 2px 6px rgba(0,0,0,.15);
+    display: none;
+  }
+  .lang-switcher.open ul { display: block; }
+  .lang-switcher li a {
+    display: block; padding: .25rem .75rem;
+    color: var(--fg); text-decoration: none;
+  }
+  .lang-switcher li a:hover { background: var(--theme-hover, #eee); }
+  .lang-switcher li.current a { font-weight: 600; }
+</style>
+<script>
+(function() {
+  // Path on the current page, relative to the book root. mdbook exposes it
+  // as the {{ path }} handlebars variable.
+  var pagePath = "{{ path }}";
+  var pathToRoot = "{{ path_to_root }}";
+
+  // Languages we publish. id = URL segment, label = menu text.
+  // English is rendered at the book root; zh-CN sits under /zh-CN/.
+  var langs = [
+    { id: "",      label: "English"  },
+    { id: "zh-CN", label: "简体中文" },
+  ];
+
+  // Detect which language tree we're currently in by walking pathToRoot.
+  // If the path contains "/zh-CN/" before the .md, we're on the zh tree.
+  var here = window.location.pathname;
+  var current = "";
+  for (var i = 0; i < langs.length; i++) {
+    if (langs[i].id && here.indexOf("/" + langs[i].id + "/") !== -1) {
+      current = langs[i].id; break;
+    }
+  }
+
+  // Build menu DOM after mdbook chrome is ready.
+  document.addEventListener("DOMContentLoaded", function() {
+    var rb = document.querySelector(".right-buttons");
+    if (!rb) return;
+
+    var wrap = document.createElement("div");
+    wrap.className = "lang-switcher";
+    var btn = document.createElement("button");
+    btn.setAttribute("aria-label", "Switch language");
+    btn.title = "Switch language";
+    btn.innerHTML = "🌐";
+    var ul = document.createElement("ul");
+
+    // For each language, compute the equivalent URL on the other tree.
+    var pageHtml = pagePath.replace(/\.md$/, ".html");
+
+    langs.forEach(function(lang) {
+      var li = document.createElement("li");
+      if (lang.id === current) li.className = "current";
+      var a = document.createElement("a");
+      // Build the absolute path: <site_root><lang>/<page>
+      // pathToRoot points up to the current book's root (e.g. ../).
+      // If we're at /book/zh-CN/cli/analyze.html, pathToRoot is "../../",
+      // which lands at /book/zh-CN/. We need /book/ for English, /book/<lang>/
+      // otherwise. Strategy: walk up to /book/ then append <lang>/.
+      var bookRoot;
+      if (current === "") {
+        bookRoot = pathToRoot; // already at /book/
+      } else {
+        bookRoot = pathToRoot + "../"; // up one more level past /book/<current>/
+      }
+      var url = bookRoot + (lang.id ? lang.id + "/" : "") + pageHtml;
+      a.href = url;
+      a.textContent = lang.label;
+      li.appendChild(a);
+      ul.appendChild(li);
+
+      // HEAD-probe: hide the entry if the target page doesn't exist on the
+      // other tree. This handles partially-translated zh-CN gracefully.
+      if (lang.id !== current) {
+        fetch(url, { method: "HEAD" }).then(function(resp) {
+          if (!resp.ok) li.style.display = "none";
+        }).catch(function() { li.style.display = "none"; });
+      }
+    });
+
+    wrap.appendChild(btn);
+    wrap.appendChild(ul);
+    rb.insertBefore(wrap, rb.firstChild);
+
+    btn.addEventListener("click", function(e) {
+      e.stopPropagation();
+      wrap.classList.toggle("open");
+    });
+    document.addEventListener("click", function() {
+      wrap.classList.remove("open");
+    });
+  });
+})();
+</script>

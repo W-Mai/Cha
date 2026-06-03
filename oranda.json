@@ -11,6 +11,9 @@
       "auto": true,
       "cargo_dist": true
     },
+    "mdbook": {
+      "path": "./book"
+    },
     "changelog": true
   },
   "styles": {
