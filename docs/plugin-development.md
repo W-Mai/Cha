@@ -28,10 +28,12 @@ cha analyze src/
 my-plugin/
   Cargo.toml   # cdylib + cha-plugin-sdk + wit-bindgen deps
   src/
-    lib.rs     # plugin! macro + Guest impl stub
+    lib.rs     # plugin! macro + minimal PluginImpl stub
 ```
 
 If the current directory is empty, files are generated in-place. Otherwise a `<name>/` subdirectory is created.
+
+The generated `lib.rs` only implements the two required methods (`name` and `analyze`). Add `smells()` yourself when your plugin starts emitting findings — see [Declaring smells](#declaring-smells) below.
 
 ## Plugin Structure
 
@@ -70,7 +72,9 @@ fn analyze(input: AnalysisInput) -> Vec<Finding> {
 }
 ```
 
-The host also post-filters findings whose `smell_name` is disabled, so forgetting to call `is_smell_disabled!` won't surface false positives — it just wastes work.
+Returns `bool`. The macro expands to a closure that walks `input.options` looking for the reserved `__disabled_smells__` key, so `OptionValue` must already be in scope — `plugin!(MyPlugin)` puts it there for you.
+
+The host also post-filters findings whose `smell_name` is disabled — so forgetting to call `is_smell_disabled!` won't leak disabled smells into the user's output. It just means you did the work for nothing.
 
 `version()`, `description()`, and `authors()` are automatically filled from the plugin's `Cargo.toml` — no need to implement them manually.
 
@@ -134,27 +138,32 @@ Plugins can execute tree-sitter queries against the current file's AST via host 
 
 ```rust
 fn analyze(input: AnalysisInput) -> Vec<Finding> {
-    // Find all unsafe blocks in the file
-    let matches = tree_query::run_query("(unsafe_block) @blk");
+    // Find all unsafe blocks in the file.
+    // Returns Vec<Vec<QueryMatch>> — outer vec is per match, inner vec is per capture.
+    let matches: Vec<Vec<QueryMatch>> = tree_query::run_query("(unsafe_block) @blk");
     for m in &matches {
         for capture in m {
             // capture.node_kind, capture.text, capture.start_line, ...
         }
     }
 
-    // Batch multiple queries in one call (reduces overhead)
-    let results = tree_query::run_queries(&[
+    // Batch multiple queries in one call (reduces cross-boundary overhead).
+    // Returns Vec<Vec<Vec<QueryMatch>>> — one Vec<Vec<QueryMatch>> per pattern,
+    // in the same order as the input slice.
+    let results: Vec<Vec<Vec<QueryMatch>>> = tree_query::run_queries(&[
         "(if_statement) @if".into(),
         "(for_statement) @for".into(),
     ]);
 
-    // Get node at a specific position
+    // Get the AST node at a specific position. Returns Option<QueryMatch>.
+    // Lines are 1-based, columns are 0-based.
     if let Some(node) = tree_query::node_at(10, 4) {
         // node.node_kind, node.text, ...
     }
 
-    // Get all named top-level nodes in a line range
-    let nodes = tree_query::nodes_in_range(1, 50);
+    // Get all named top-level child nodes within a line range.
+    // Returns Vec<QueryMatch>.
+    let nodes: Vec<QueryMatch> = tree_query::nodes_in_range(1, 50);
 
     vec![]
 }
@@ -173,32 +182,57 @@ Each `QueryMatch` contains:
 
 ### Project Query API (`project_query`)
 
-For cross-file analysis (callers, type origin, function bodies in other files), plugins call `project_query` host functions:
+For cross-file analysis (callers, type origin, function bodies in other files), plugins call `project_query` host functions.
+
+**Call graph:**
 
 ```rust
-fn analyze(input: AnalysisInput) -> Vec<Finding> {
-    // Is this name called from any file other than the current one?
-    let unused = !project_query::is_called_externally(&fn_name, &input.path);
+// Is this name called from any file other than `exclude_path`?
+let unused = !project_query::is_called_externally(&fn_name, &input.path);
 
-    // Which files reference this function?
-    let callers = project_query::callers_of(&fn_name);
+// All paths that reference `name`.
+let callers: Vec<String> = project_query::callers_of(&fn_name);
 
-    // Find which function declaration contains a position
-    // (1-based line, 0-based col — same as tree_query)
-    if let Some(host_fn) = project_query::function_at(&input.path, line, col) {
-        // host_fn.start_line, host_fn.end_line — both 1-based
-    }
+// Project-wide call counts: each tuple is (caller_path, callee_path, count).
+let counts: Vec<(String, String, u32)> = project_query::cross_file_call_counts();
+```
 
-    // Type origin classification
-    if project_query::is_third_party(&type_ref) {
-        // External crate, not stdlib, not workspace sibling
-    }
+**Symbol home:**
 
-    // Path shape
-    if project_query::is_test_path(&input.path) { /* ... */ }
+```rust
+// First file that declared this function / class.
+let f_home: Option<String> = project_query::function_home(&fn_name);
+let c_home: Option<String> = project_query::class_home(&class_name);
 
-    vec![]
+// First (file, function-info) tuple for this function name.
+let f: Option<(String, FunctionInfo)> = project_query::function_by_name(&fn_name);
+
+// Which function declaration contains this position?
+// (1-based line, 0-based col — same convention as tree_query.)
+// Returns the innermost match (smallest line range).
+if let Some(host_fn) = project_query::function_at(&input.path, line, col) {
+    // host_fn.start_line, host_fn.end_line — both 1-based
 }
+```
+
+**Type origin and project shape:**
+
+```rust
+// True if `name` is declared somewhere in the project.
+let is_local = project_query::is_project_type(&type_ref.name);
+
+// True if the type is a genuine third-party dependency
+// (External origin AND not stdlib AND not workspace sibling).
+let is_3p = project_query::is_third_party(&type_ref);
+
+// Workspace sibling crate names (Rust workspace) — empty otherwise.
+let siblings: Vec<String> = project_query::workspace_crate_names();
+
+// Path shape: __tests__/, __mocks__/, .test.ts, .spec.ts, etc.
+if project_query::is_test_path(&input.path) { /* ... */ }
+
+// Total count of analyzed files.
+let n: u32 = project_query::file_count();
 ```
 
 `function_at` is especially useful for tree-query–driven detectors that need to know which declared function a queried position belongs to (e.g. distinguishing "early-return + later hook" between sibling components in the same file).
@@ -417,8 +451,10 @@ cargo test
 
 | Plugin | Path | Detects |
 |--------|------|---------|
-| `example-wasm` | `examples/wasm-plugin-example` | Functions named todo/fixme/hack |
-| `hardcoded-strings` | `examples/wasm-plugin-hardcoded` | Hardcoded string literals matching configured constants |
+| `example-wasm` | [`examples/wasm-plugin-example`](../examples/wasm-plugin-example) | Functions named todo/fixme/hack |
+| `hardcoded-strings` | [`examples/wasm-plugin-hardcoded`](../examples/wasm-plugin-hardcoded) | Hardcoded string literals matching configured constants |
+| `react-hooks` | [`examples/wasm-plugin-react-hooks`](../examples/wasm-plugin-react-hooks) | React Rules of Hooks violations (call site analysis driven by `tree_query` + `project_query::function_at`) |
+| `todo-tracker` | [`examples/wasm-plugin-todo-tracker`](../examples/wasm-plugin-todo-tracker) | TODO/FIXME/HACK comments with metadata, expiration, priority, hotspot detection |
 
 ## WIT Interface
 
@@ -426,10 +462,16 @@ The full interface is in `wit/plugin.wit`. The `plugin!` macro embeds it at comp
 
 ```wit
 world analyzer {
+    use types.{analysis-input, finding};
+
+    import tree-query;
+    import project-query;
+
     export name: func() -> string;
     export version: func() -> string;       // auto from Cargo.toml
     export description: func() -> string;   // auto from Cargo.toml
     export authors: func() -> list<string>; // auto from Cargo.toml
+    export smells: func() -> list<string>;  // from PluginImpl::smells (default: empty)
     export analyze: func(input: analysis-input) -> list<finding>;
 }
 ```
