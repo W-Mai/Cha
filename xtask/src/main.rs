@@ -43,6 +43,8 @@ fn dispatch_with_args(cmd: &str, args: &[String]) -> Result {
         ("plugin-e2e", cmd_plugin_e2e),
         ("integration-test", cmd_integration_test),
         ("docgen-cli", cmd_docgen_cli),
+        ("docs-check", cmd_docs_check),
+        ("i18n-check", cmd_i18n_check),
     ];
     if let Some((_, f)) = commands.iter().find(|(name, _)| *name == cmd) {
         return f();
@@ -55,7 +57,6 @@ fn dispatch_with_args(cmd: &str, args: &[String]) -> Result {
     std::process::exit(1);
 }
 
-// Run all CI steps in sequence
 fn cmd_ci() -> Result {
     for (name, step) in [
         ("build", cmd_build as fn() -> Result),
@@ -66,6 +67,7 @@ fn cmd_ci() -> Result {
         ("plugin-test", cmd_plugin_test),
         ("plugin-e2e", cmd_plugin_e2e),
         ("integration-test", cmd_integration_test),
+        ("docs-check", cmd_docs_check),
     ] {
         println!("\n=== xtask: {name} ===");
         step()?;
@@ -85,6 +87,109 @@ fn cmd_test() -> Result {
 fn cmd_lint() -> Result {
     cargo(&["clippy", "--workspace", "--", "-D", "warnings"])?;
     cargo(&["fmt", "--all", "--check"])
+}
+
+fn cmd_i18n_check() -> Result {
+    let root = project_root();
+    let en_dir = format!("{root}/book/src");
+    let zh_dir = format!("{root}/book/src-zh-CN");
+    let en_root = std::path::Path::new(&en_dir);
+    let mut stale = Vec::new();
+
+    for entry in walk_md(en_root) {
+        let rel = entry
+            .strip_prefix(en_root)
+            .map_err(|e| format!("path strip: {e}"))?;
+        let zh_path = std::path::Path::new(&zh_dir).join(rel);
+        if !zh_path.exists() {
+            continue;
+        }
+        let en_t = git_last_change(&entry)?;
+        let zh_t = git_last_change(&zh_path)?;
+        if en_t > zh_t {
+            stale.push(rel.to_string_lossy().to_string());
+        }
+    }
+
+    if stale.is_empty() {
+        println!("  → zh-CN tree up to date");
+        return Ok(());
+    }
+    println!("  ⚠ zh-CN translation potentially stale ({} pages):", stale.len());
+    for p in &stale {
+        println!("    - {p}");
+    }
+    Ok(())
+}
+
+fn walk_md(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return out;
+    };
+    for e in rd.flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            out.extend(walk_md(&p));
+        } else if p.extension().is_some_and(|x| x == "md") {
+            out.push(p);
+        }
+    }
+    out
+}
+
+fn git_last_change(path: &std::path::Path) -> Result<i64> {
+    let out = Command::new("git")
+        .args(["log", "-1", "--format=%ct", "--"])
+        .arg(path)
+        .current_dir(project_root())
+        .output()
+        .map_err(|e| format!("git log {}: {e}", path.display()))?;
+    let s = String::from_utf8_lossy(&out.stdout);
+    let t = s.trim().parse::<i64>().unwrap_or(0);
+    Ok(t)
+}
+
+fn cmd_docs_check() -> Result {
+    let root = project_root();
+    let mut errors = Vec::new();
+    for tree in ["book/src", "book/src-zh-CN"] {
+        let summary_path = format!("{root}/{tree}/SUMMARY.md");
+        let summary = std::fs::read_to_string(&summary_path)
+            .map_err(|e| format!("failed to read {summary_path}: {e}"))?;
+        for refp in extract_summary_refs(&summary) {
+            let abs = format!("{root}/{tree}/{refp}");
+            if !std::path::Path::new(&abs).exists() {
+                errors.push(format!("{tree}/SUMMARY.md references missing {refp}"));
+            }
+        }
+    }
+    if errors.is_empty() {
+        println!("  → docs ok");
+        Ok(())
+    } else {
+        for e in &errors {
+            eprintln!("  ✗ {e}");
+        }
+        Err(format!("{} broken doc reference(s)", errors.len()).into())
+    }
+}
+
+fn extract_summary_refs(summary: &str) -> Vec<String> {
+    const PREFIX: &str = "](./";
+    let mut out = Vec::new();
+    for line in summary.lines() {
+        let mut cursor = 0;
+        while let Some(rel_start) = line[cursor..].find(PREFIX) {
+            let path_start = cursor + rel_start + PREFIX.len();
+            let Some(end_rel) = line[path_start..].find(')') else {
+                break;
+            };
+            out.push(line[path_start..path_start + end_rel].to_string());
+            cursor = path_start + end_rel;
+        }
+    }
+    out
 }
 
 fn cmd_docgen_cli() -> Result {

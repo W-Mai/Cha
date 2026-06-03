@@ -62,6 +62,19 @@ jobs:
           out="$GITHUB_WORKSPACE/public/book/zh-CN"
           mdbook build book -d "$out"
 
+      # mdbook's built-in elasticlunr search drops non-ASCII tokens, so the
+      # zh-CN tree has no working search out of the box. Pagefind crawls
+      # the rendered HTML and produces a CJK-aware index per language.
+      - name: Install Pagefind
+        run: |
+          curl -fsSL https://github.com/CloudCannon/pagefind/releases/download/v1.4.0/pagefind-v1.4.0-x86_64-unknown-linux-musl.tar.gz \
+            | tar -xz -C /usr/local/bin
+
+      - name: Index search (Pagefind)
+        run: |
+          pagefind --site public/book
+          pagefind --site public/book/zh-CN
+
       - name: Deploy to Github Pages
         uses: JamesIves/github-pages-deploy-action@v4.6.4
         if: ${{ github.ref == 'refs/heads/main' }}
