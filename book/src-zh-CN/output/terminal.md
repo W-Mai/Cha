@@ -1,3 +1,3 @@
 # 终端
 
-> **TODO**：本页中文版尚未翻译，先看[英文版](../../output/terminal.md)。
+> **TODO**：本页中文版尚未翻译，先看[英文版](/book/output/terminal.html)。

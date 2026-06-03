@@ -1,3 +1,3 @@
 # HTML
 
-> **TODO**：本页中文版尚未翻译，先看[英文版](../../output/html.md)。
+> **TODO**：本页中文版尚未翻译，先看[英文版](/book/output/html.html)。

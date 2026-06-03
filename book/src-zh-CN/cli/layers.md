@@ -1,3 +1,3 @@
 # layers
 
-> **TODO**：本页中文版尚未翻译，先看[英文版](../../cli/layers.md)。
+> **TODO**：本页中文版尚未翻译，先看[英文版](/book/cli/layers.html)。

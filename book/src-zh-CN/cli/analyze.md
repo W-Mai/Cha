@@ -1,3 +1,3 @@
 # analyze
 
-> **TODO**：本页中文版尚未翻译，先看[英文版](../../cli/analyze.md)。
+> **TODO**：本页中文版尚未翻译，先看[英文版](/book/cli/analyze.html)。
