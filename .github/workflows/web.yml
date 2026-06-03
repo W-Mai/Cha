@@ -51,12 +51,6 @@ jobs:
         run: |
           out="$GITHUB_WORKSPACE/public/book/zh-CN"
           mdbook build book -d "$out"
-          # mdbook nests html/ under -d; flatten so /book/zh-CN/index.html
-          # mirrors /book/index.html (which oranda already flattens for the
-          # English tree). Glob would miss .nojekyll, hence find.
-          (cd "$out/html" && find . -mindepth 1 -maxdepth 1 -exec mv {} "$out/" \;)
-          rmdir "$out/html"
-          rm -rf "$out/linkcheck"
 
       - name: Deploy to Github Pages
         uses: JamesIves/github-pages-deploy-action@v4.6.4
