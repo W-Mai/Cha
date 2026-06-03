@@ -32,22 +32,18 @@ jobs:
         uses: taiki-e/cache-cargo-install-action@v2
         with:
           tool: mdbook@0.4.40
+      # Plugin versions are pinned to their last release built against
+      # mdbook 0.4.x — oranda 0.6.5 links mdbook 0.4.37 in-process and
+      # rejects newer plugins (admonish 1.20 wants 0.4.51, mermaid 0.17
+      # is built for the 0.5 split crates).
       - name: Install mdbook-admonish
         uses: taiki-e/cache-cargo-install-action@v2
         with:
-          tool: mdbook-admonish@1.20.0
+          tool: mdbook-admonish@1.19.0
       - name: Install mdbook-mermaid
         uses: taiki-e/cache-cargo-install-action@v2
         with:
-          tool: mdbook-mermaid@0.17.0
-      - name: Install mdbook-pagetoc
-        uses: taiki-e/cache-cargo-install-action@v2
-        with:
-          tool: mdbook-pagetoc@0.3.0
-      - name: Install mdbook-tabs
-        uses: taiki-e/cache-cargo-install-action@v2
-        with:
-          tool: mdbook-tabs@1.0.1
+          tool: mdbook-mermaid@0.15.0
       - name: Install mdbook-linkcheck
         uses: taiki-e/cache-cargo-install-action@v2
         with:
