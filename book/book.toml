@@ -30,19 +30,8 @@ level = 1
 # `additional-js`. We keep the table entries empty here so a fresh `mdbook build`
 # without the plugins installed still runs (admonish/mermaid will silently no-op
 # if their assets aren't present, the pages just won't render the callouts).
-[preprocessor.admonish]
-command = "mdbook-admonish"
-assets_version = "3.0.4"
-optional = true
-
-[preprocessor.mermaid]
-command = "mdbook-mermaid"
-optional = true
-
-[preprocessor.pagetoc]
-optional = true
-
-[output.linkcheck]
-follow-web-links = false
-warning-policy = "warn"
-optional = true
+# Preprocessors are intentionally absent here. oranda 0.6.5 links
+# mdbook 0.4.37 in-process; mdbook-admonish 1.x and mdbook-mermaid 0.16+
+# are built against newer mdbook releases and either crash on parse or
+# fail asset copy. Re-enable once oranda upgrades, or when we pin
+# admonish/mermaid versions known to round-trip with 0.4.37.

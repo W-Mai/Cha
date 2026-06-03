@@ -26,38 +26,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
 
-      # mdbook + preprocessors (cached across runs by version+rustc+os).
-      # First run compiles each crate (~5 min total cold); cache hits ~5s.
+      # mdbook is needed for the second (zh-CN) build below; oranda links
+      # mdbook as a library for the EN build, but the explicit zh re-run
+      # needs the binary on PATH.
       - name: Install mdbook
         uses: taiki-e/cache-cargo-install-action@v2
         with:
           tool: mdbook@0.4.40
-      # Plugin versions are pinned to their last release built against
-      # mdbook 0.4.x — oranda 0.6.5 links mdbook 0.4.37 in-process and
-      # rejects newer plugins (admonish 1.20 wants 0.4.51, mermaid 0.17
-      # is built for the 0.5 split crates).
-      - name: Install mdbook-admonish
-        uses: taiki-e/cache-cargo-install-action@v2
-        with:
-          tool: mdbook-admonish@1.19.0
-      - name: Install mdbook-mermaid
-        uses: taiki-e/cache-cargo-install-action@v2
-        with:
-          tool: mdbook-mermaid@0.15.0
-      - name: Install mdbook-linkcheck
-        uses: taiki-e/cache-cargo-install-action@v2
-        with:
-          tool: mdbook-linkcheck@0.7.7
 
-      # Each plugin's `install` command writes its CSS/JS into the book dir
-      # and amends book.toml with `additional-css` / `additional-js`. Idempotent.
-      - name: Install mdbook plugin assets
-        run: |
-          mdbook-admonish install book
-          mdbook-mermaid install book
-
-      # oranda links mdbook as a library, picks up book/ via auto-detect,
-      # and respects book.toml's preprocessor list.
       - name: Build site
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/oranda/releases/latest/download/oranda-installer.sh | sh
