@@ -49,6 +49,12 @@ jobs:
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/oranda/releases/latest/download/oranda-installer.sh | sh
           oranda build
 
+      # oranda's build clears public/ first, so a checked-in public/404.html
+      # would get clobbered. Drop the site-wide 404 page in after the build.
+      # GitHub Pages serves /404.html for any path it can't resolve.
+      - name: Install site-wide 404 page
+        run: cp static/404.html public/404.html
+
       # Re-run mdbook against the same book.toml with MDBOOK_BOOK__SRC
       # overridden so the zh-CN tree builds without a second book.toml.
       # `-d` is relative to the mdbook source dir (book/), hence the

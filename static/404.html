@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Not Found · Cha</title>
+  <link rel="icon" href="/favicon.ico">
+  <meta property="og:title" content="Not Found · Cha">
+  <meta property="og:description" content="That page isn't here. Maybe one of these is what you wanted.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://cha.to01.icu/static/og-card.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <style>
+    :root {
+      --bg-grad-from: #fff7ed;
+      --bg-grad-to: #fb923c;
+      --card-bg: #ffffff;
+      --fg: #1f1206;
+      --fg-muted: #5a3a20;
+      --accent: #c2410c;
+      --accent-hover: #9a3412;
+      --border: rgba(124, 45, 18, 0.18);
+      --shadow: 0 14px 40px rgba(124, 45, 18, 0.18);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+      color: var(--fg);
+      background: linear-gradient(135deg, var(--bg-grad-from) 0%, #fed7aa 55%, var(--bg-grad-to) 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.5rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      padding: 3rem 3rem 2.5rem;
+      max-width: 560px;
+      width: 100%;
+      text-align: center;
+    }
+    .logo { width: 120px; height: 120px; margin: 0 auto 1.5rem; display: block; }
+    .code {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.85rem;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin: 0 0 0.5rem;
+    }
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.75rem;
+      color: var(--fg);
+    }
+    p.lede {
+      color: var(--fg-muted);
+      font-size: 1.05rem;
+      line-height: 1.5;
+      margin: 0 0 1.75rem;
+    }
+    .nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+    }
+    .nav a {
+      display: inline-block;
+      padding: 0.55rem 1.05rem;
+      border-radius: 999px;
+      font-size: 0.92rem;
+      font-weight: 500;
+      text-decoration: none;
+      color: var(--accent);
+      background: rgba(251, 146, 60, 0.12);
+      border: 1px solid var(--border);
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .nav a:hover, .nav a:focus {
+      background: rgba(251, 146, 60, 0.22);
+      border-color: var(--accent);
+      color: var(--accent-hover);
+      outline: none;
+    }
+    .footer {
+      font-size: 0.85rem;
+      color: var(--fg-muted);
+      opacity: 0.7;
+      margin: 0;
+    }
+    .footer a { color: var(--accent); text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+    @media (max-width: 480px) {
+      .card { padding: 2rem 1.5rem 1.75rem; }
+      h1 { font-size: 1.5rem; }
+      .logo { width: 88px; height: 88px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <img class="logo" src="/static/logo.svg" alt="Cha logo" onerror="this.style.display='none'">
+    <p class="code">404 · Not Found</p>
+    <h1>That page isn't here.</h1>
+    <p class="lede">
+      The link may be stale, the path may be off by one, or the doc may have moved.
+      Try one of these instead.
+    </p>
+    <nav class="nav" aria-label="Site sections">
+      <a href="/">Home</a>
+      <a href="/book/">Docs (EN)</a>
+      <a href="/book/zh-CN/">文档 (中文)</a>
+      <a href="/book/quick-start/cli.html">Quick start</a>
+      <a href="/book/plugins/reference.html">Smells</a>
+      <a href="/changelog/">Changelog</a>
+      <a href="https://github.com/W-Mai/Cha">GitHub</a>
+    </nav>
+    <p class="footer">
+      Looking for something specific? Try the <a href="/book/">documentation</a> and press <kbd>s</kbd> to search.
+    </p>
+  </main>
+</body>
+</html>
