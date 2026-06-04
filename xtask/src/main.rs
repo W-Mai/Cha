@@ -115,7 +115,10 @@ fn cmd_i18n_check() -> Result {
         println!("  → zh-CN tree up to date");
         return Ok(());
     }
-    println!("  ⚠ zh-CN translation potentially stale ({} pages):", stale.len());
+    println!(
+        "  ⚠ zh-CN translation potentially stale ({} pages):",
+        stale.len()
+    );
     for p in &stale {
         println!("    - {p}");
     }
@@ -209,8 +212,7 @@ fn cmd_docgen_cli() -> Result {
         )
         .into());
     }
-    std::fs::write(&dest, &out.stdout)
-        .map_err(|e| format!("failed to write {dest}: {e}"))?;
+    std::fs::write(&dest, &out.stdout).map_err(|e| format!("failed to write {dest}: {e}"))?;
     Ok(())
 }
 
