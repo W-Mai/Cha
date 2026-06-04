@@ -1,6 +1,8 @@
 # 插件开发指南
 
-写一个 Cha 的 WASM 分析器插件——从脚手架、编译、安装到测试、发布。
+Cha 是代码坏味道（code smell）检测工具。除了 34 个内置检测器，还可以装第三方插件——一个 WASM 模块，host 把每个文件解析后丢给你的 `analyze()`，你返回若干 `Finding`（检测到的坏味道），host 汇合所有 finding 输出给用户。
+
+这一页讲怎么从零写、编译、装、测一个这样的插件。
 
 ## 前置
 
@@ -16,11 +18,13 @@
 
 ```bash
 mkdir my-plugin && cd my-plugin
-cha plugin new my-plugin   # 当前目录空的话原地脚手架，否则建子目录
-cha plugin build           # 编译 + 转成 WASM Component
+cha plugin new my-plugin
+cha plugin build           # 产出 my_plugin.wasm
 cha plugin install my_plugin.wasm
 cha analyze src/
 ```
+
+包名是 `my-plugin`，编译产物是 `my_plugin.wasm`——Cargo 把 `-` 转成 `_`。后面 `cha analyze` 自动加载装好的所有插件。
 
 ## 脚手架
 
@@ -49,31 +53,7 @@ impl PluginImpl for MyPlugin {
 }
 ```
 
-`plugin!` 宏会展开成 `wit_bindgen::generate!`，把 SDK 内嵌的 WIT 接口生成到你的 crate 里，再 `export!` 出去。
-
-### Declaring smells
-
-每个 `Finding` 都带一个 `smell_name`。在 `smells()` 里把全部 smell 名声明出来，host 就能：
-
-- 在 `cha plugin list` 里展示你这个插件能出哪些 smell
-- 让用户在 `.cha.toml` 里写 `disabled_smells = ["你的_smell"]` 来禁用某条
-- 把禁用名单回传给你的插件，你早点跳过这部分计算
-
-提前跳过被禁用的 smell：
-
-```rust
-use cha_plugin_sdk::is_smell_disabled;
-
-fn analyze(input: AnalysisInput) -> Vec<Finding> {
-    let mut out = Vec::new();
-    if !is_smell_disabled!(&input.options, "my_smell") {
-        // 没被禁的时候才算
-    }
-    out
-}
-```
-
-host 也会**事后再过滤**一遍 `smell_name` 在禁用名单里的 finding——所以就算你忘了调 `is_smell_disabled!`，被禁的 smell 也不会泄漏到用户输出里，只是你白算了一遍。
+`plugin!` 宏会替你接好 host 跟插件之间的通信、把下面要用到的所有类型 import 进作用域。你只用关心 `PluginImpl` trait 怎么实现。
 
 ### 类型清单
 
@@ -129,6 +109,32 @@ fn analyze(input: AnalysisInput) -> Vec<Finding> {
 }
 ```
 
+### Declaring smells
+
+每个 `Finding` 都带一个 `smell_name`。在 `smells()` 里把全部 smell 名声明出来，host 就能：
+
+- 在 `cha plugin list` 里展示你这个插件能出哪些 smell
+- 让用户在 `.cha.toml` 里写 `disabled_smells = ["你的_smell"]` 来禁用某条
+- 把禁用名单回传给你的插件，你早点跳过这部分计算
+
+`input.options` 里有个特殊 key `__disabled_smells__` 装着用户禁用的 smell 名单。提前跳过：
+
+```rust
+use cha_plugin_sdk::is_smell_disabled;
+
+fn analyze(input: AnalysisInput) -> Vec<Finding> {
+    let mut out = Vec::new();
+    if !is_smell_disabled!(&input.options, "my_smell") {
+        // 没被禁的时候才算
+    }
+    out
+}
+```
+
+`is_smell_disabled!` 是个宏（注意感叹号）。它返回 `bool`。
+
+host 也会**事后再过滤**一遍 finding，所以忘调 `is_smell_disabled!` 不会让被禁的 smell 漏到用户输出——只是白算一遍。
+
 ### AST Query API（`tree_query`）
 
 插件可以通过 host 回调跑 tree-sitter query，查当前文件的 AST：
@@ -164,7 +170,7 @@ fn analyze(input: AnalysisInput) -> Vec<Finding> {
 }
 ```
 
-Query pattern 用 [tree-sitter 的 S 表达式 query 语言](https://tree-sitter.github.io/tree-sitter/syntax-highlighting/queries)。host 一边按需编译并缓存。
+Query pattern 用 [tree-sitter 的 S 表达式 query 语言](https://tree-sitter.github.io/tree-sitter/syntax-highlighting/queries)。重复跑同一个 pattern 没额外开销。
 
 每个 `QueryMatch` 包含：
 
@@ -329,7 +335,7 @@ cha plugin build
 
 | Crate / API | 状态 | 备注 |
 |---|---|---|
-| `regex` | ❌ runtime panic | `Regex::new()` 在 `wasmtime 44 + reactor` 里失败。改手写字符扫描——常见模式大概 50 LOC，更安全 |
+| `regex` | ❌ runtime panic | `Regex::new()` 在当前 host 配置下会失败。改手写字符扫描——常见模式大概 50 LOC，更安全 |
 | `std::time::SystemTime::now()` | ❌ 不可靠 / panic | WASI clock 各 host 不一致。要"今天的日期"就在 `.cha.toml` 加一个 `today` 选项 |
 | `serde_json` | ✅ 能用 | 体积大，但没坑 |
 | `tree-sitter`（Rust crate 本身） | ❌ 别用 | 插件已经在 WASM 里跑了；要 query 调 host 的 `tree_query` |
@@ -350,8 +356,8 @@ cp my_plugin.wasm ~/.cha/plugins/        # 全局
 ## 列出 / 卸载
 
 ```bash
-cha plugin list
-cha plugin remove my_plugin
+cha plugin list                  # 显示已装插件 + 各自的 smell 名单
+cha plugin remove my_plugin      # 用 .wasm 文件名（不带 .wasm 也行）
 ```
 
 ## 配置
@@ -375,7 +381,9 @@ section 名要跟 `name()` 返回的字符串一致。
 cha-plugin-sdk = { git = "https://github.com/W-Mai/Cha", features = ["test-utils"] }
 ```
 
-写测试：
+`test-utils` feature 没默认开，所以 `dev-dependencies` 单独写一行带 `features` 的引用。SDK 还没在 crates.io 上发布，所以走 `git`。
+
+写测试——`source(language, code)` 给测试一个虚拟源文件：
 
 ```rust
 #[cfg(test)]
