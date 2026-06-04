@@ -20,6 +20,7 @@ preferred-dark-theme = "navy"
 git-repository-url = "https://github.com/W-Mai/Cha"
 edit-url-template = "https://github.com/W-Mai/Cha/edit/main/book/{path}"
 additional-css = ["theme/css/cha.css"]
+additional-js = ["theme/mermaid.min.js", "theme/cha-mermaid.js"]
 
 [output.html.fold]
 enable = true

@@ -4,24 +4,28 @@ Cha is a Rust workspace with seven crates. The dependency direction is fixed: `c
 
 ## Crate map
 
-```text
-                ┌──────────┐
-                │   xtask  │  ci/release automation
-                └─────┬────┘
-                      │
-   ┌──────────┐   ┌───▼────────┐   ┌──────────┐
-   │ cha-cli  │──▶│ cha-core   │◀──│ cha-lsp  │
-   │ (binary) │   │ (analysis) │   │ (server) │
-   └──────────┘   └─────▲──────┘   └──────────┘
-                        │
-                  ┌─────┴──────┐
-                  │ cha-parser │  tree-sitter wrappers
-                  └────────────┘
+```mermaid
+flowchart TB
+    xtask["xtask<br/><i>ci / release</i>"]
+    cli["cha-cli<br/><i>binary</i>"]
+    core["cha-core<br/><i>analysis</i>"]
+    lsp["cha-lsp<br/><i>server</i>"]
+    parser["cha-parser<br/><i>tree-sitter wrappers</i>"]
+    sdk["cha-plugin-sdk<br/><i>guest-side, no host deps</i>"]
 
-                ┌────────────────────┐
-                │  cha-plugin-sdk    │  guest-side, no host deps
-                └────────────────────┘
-                       (WASM)
+    xtask -.-> cli
+    xtask -.-> core
+    cli --> core
+    lsp --> core
+    parser --> core
+    sdk -. WASM .-> core
+
+    classDef host fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
+    classDef tool fill:#fff8e1,stroke:#f57f17,color:#5d4037;
+    classDef guest fill:#e3f2fd,stroke:#1565c0,color:#0d47a1,stroke-dasharray:5 3;
+    class core,cli,lsp,parser host;
+    class xtask tool;
+    class sdk guest;
 ```
 
 | Crate | Lives in | Owns |
@@ -36,11 +40,27 @@ Cha is a Rust workspace with seven crates. The dependency direction is fixed: `c
 
 ## Data flow
 
-```text
-source files ──▶ cha-parser ──▶ SourceModel ──┐
-                                              ├──▶ Plugin::analyze ──▶ Vec<Finding>
-                                config TOML ──┤
-                                              └──▶ caches (L1 mem + L2 bincode on disk)
+```mermaid
+flowchart LR
+    src["source files"]
+    parser["cha-parser"]
+    model[("SourceModel")]
+    cfg["config TOML"]
+    analyze["Plugin::analyze"]
+    findings["Vec&lt;Finding&gt;"]
+    cache[("L1 mem + L2 bincode")]
+
+    src --> parser --> model
+    model --> analyze
+    cfg --> analyze
+    analyze --> findings
+    model --> cache
+    cache -.cached?.-> analyze
+
+    classDef store fill:#fff3e0,stroke:#e65100,color:#bf360c;
+    classDef proc fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
+    class model,cache store;
+    class parser,analyze proc;
 ```
 
 `SourceModel` is the single shared format. Every plugin sees the same `&AnalysisContext { file, model, config }`. The model is parsed once, hashed into the cache key, and shared across all plugin invocations on the same file.

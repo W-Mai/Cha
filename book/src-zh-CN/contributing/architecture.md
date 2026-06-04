@@ -4,24 +4,28 @@ cha 是一个 Rust workspace，一共七个 crate。依赖方向写死了：`cha
 
 ## Crate 关系
 
-```text
-                ┌──────────┐
-                │   xtask  │  CI / 发版自动化
-                └─────┬────┘
-                      │
-   ┌──────────┐   ┌───▼────────┐   ┌──────────┐
-   │ cha-cli  │──▶│ cha-core   │◀──│ cha-lsp  │
-   │ （二进制）│   │ （分析） │   │ （server）│
-   └──────────┘   └─────▲──────┘   └──────────┘
-                        │
-                  ┌─────┴──────┐
-                  │ cha-parser │  tree-sitter 封装
-                  └────────────┘
+```mermaid
+flowchart TB
+    xtask["xtask<br/><i>CI / 发版自动化</i>"]
+    cli["cha-cli<br/><i>二进制</i>"]
+    core["cha-core<br/><i>分析核心</i>"]
+    lsp["cha-lsp<br/><i>LSP server</i>"]
+    parser["cha-parser<br/><i>tree-sitter 封装</i>"]
+    sdk["cha-plugin-sdk<br/><i>guest 侧，不依赖 host</i>"]
 
-                ┌────────────────────┐
-                │  cha-plugin-sdk    │  guest 侧，不依赖 host
-                └────────────────────┘
-                       (WASM)
+    xtask -.-> cli
+    xtask -.-> core
+    cli --> core
+    lsp --> core
+    parser --> core
+    sdk -. WASM .-> core
+
+    classDef host fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
+    classDef tool fill:#fff8e1,stroke:#f57f17,color:#5d4037;
+    classDef guest fill:#e3f2fd,stroke:#1565c0,color:#0d47a1,stroke-dasharray:5 3;
+    class core,cli,lsp,parser host;
+    class xtask tool;
+    class sdk guest;
 ```
 
 | Crate | 位置 | 职责 |
@@ -36,11 +40,27 @@ cha 是一个 Rust workspace，一共七个 crate。依赖方向写死了：`cha
 
 ## 数据流
 
-```text
-源文件 ──▶ cha-parser ──▶ SourceModel ──┐
-                                        ├──▶ Plugin::analyze ──▶ Vec<Finding>
-                       config TOML ─────┤
-                                        └──▶ 缓存（L1 内存 + L2 磁盘 bincode）
+```mermaid
+flowchart LR
+    src["源文件"]
+    parser["cha-parser"]
+    model[("SourceModel")]
+    cfg["config TOML"]
+    analyze["Plugin::analyze"]
+    findings["Vec&lt;Finding&gt;"]
+    cache[("L1 内存 + L2 bincode")]
+
+    src --> parser --> model
+    model --> analyze
+    cfg --> analyze
+    analyze --> findings
+    model --> cache
+    cache -.命中?.-> analyze
+
+    classDef store fill:#fff3e0,stroke:#e65100,color:#bf360c;
+    classDef proc fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
+    class model,cache store;
+    class parser,analyze proc;
 ```
 
 `SourceModel` 是统一的中间格式。每个插件拿到的都是同一份 `&AnalysisContext { file, model, config }`。每个文件只解析一次，结果按缓存 key 哈希后在所有插件间共享。
