@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-06-05
+
+🎉 **First minor since v1.0** — and the first release with a proper home on the web. <https://cha.to01.icu> is now a real product page, not just a README dump. Star the repo, share the link, and tell your linter Cha said hi.
+
+The analyzer itself didn't move — every `--version`-visible behavior is identical to v1.19.0. What landed is the documentation, presentation, and integration story: somewhere we can actually point new users.
+
+### Added
+
+- **Bilingual documentation site at <https://cha.to01.icu>** — landing page (oranda) plus a full mdbook tree at `/book/` (English) and `/book/zh-CN/` (中文). 60+ pages covering install, quick-start, every CLI subcommand, every output format, LSP integration for VS Code / Helix / Neovim / Zed, configuration reference, JSON Schema, plugin development, six worked recipes (migrate from clippy, monorepo CI, suppress in legacy code, custom plugin in 50 lines, calibrate to your codebase, baseline workflow), three contributor guides (architecture, writing a smell, releasing), and an academic-references page tracing every smell back to its source.
+- **Cookbook recipes** — six task-oriented walkthroughs: `migrate-from-clippy`, `monorepo-ci`, `suppress-legacy`, `custom-plugin-50loc`, `calibrate`, `baseline`. Each starts with a problem statement and ends with copy-pasteable commands. Authored in English and Chinese (the Chinese versions are written natively, not translated, so the prose style matches the rest of zh-CN).
+- **Contributor guides** — `contributing/architecture.md` documents the seven-crate workspace and data flow with mermaid diagrams; `writing-a-smell.md` walks through `MiddleManAnalyzer` as the worked example; `releasing.md` is the runbook for `cargo xtask bump` → `release`.
+- **Configuration reference** — every `.cha.toml` key, grouped by plugin, with thresholds and defaults sourced from `cha-core/src/plugins/`. JSON Schema reference page documenting `cha schema` output and how to wire it into IDEs.
+- **Bilingual landing page (`LANDING.md`)** — hero with logo + tagline + three CTAs, six feature cards (detectors, WASM SDK, LSP, git-aware analysis, output formats, two-level cache), 30-second get-started block, smell-category table, and editor integration links. Replaces the previous "README dumped into the homepage" experience.
+- **CJK-aware search via Pagefind 1.4** — replaces mdbook's bundled elasticlunr (which silently dropped non-ASCII tokens, leaving the zh-CN tree un-searchable). Press `s` or `/` on any docs page to open a modal that indexes both language trees.
+- **Per-page social meta + branded OG card** — every page emits `og:title` / `og:image` / `twitter:card` so Slack / iMessage / 微信 link previews show a real card instead of a 32×32 favicon. The 1200×628 card embeds the Cha logo and is regenerable via `python3 static/gen_og_card.py`.
+- **Custom 404 page** — site-wide warm-themed 404 with the Cha logo and shortcuts back into the live parts of the site, replacing GitHub Pages' generic gray 404.
+- **Language switcher in mdbook header** — the toolbar globe icon switches between EN and zh-CN trees and remembers per-page equivalents.
+- **`xtask docs-check`** — verifies every page referenced in `book/src(-zh-CN)/SUMMARY.md` actually exists; runs as part of `cargo xtask ci` so a broken SUMMARY can't ship.
+- **`xtask i18n-check`** — flags zh-CN pages whose git ctime trails their English counterpart, surfacing translation drift.
+- **`xtask docgen-cli`** — generates `book/src/reference/cli-manual.md` from `cha help-markdown` so the CLI manual page in docs always matches the binary's actual `--help`. Hidden `cha help-markdown` subcommand added for this.
+- **VS Code extension page** — full inventory of what each LSP capability looks like inside VS Code (wavy underlines, lightbulbs, code-lens overlays, inlay hints, hover cards, semantic-token modifier, status-bar workspace scan progress) plus the `cha.disabledPlugins` setting documentation.
+
+### Fixed
+
+- **tree-sitter S-expression query link** — the link in `docs/plugin-development.md` and the zh-CN translation pointed at `/syntax-highlighting/queries`, which 404s on the current tree-sitter docs site. Updated to `/using-parsers/queries/`.
+- **`docs/plugin-development.md` `FunctionInfo` / `ClassInfo` field tables** — were bare struct dumps; now per-field semantic tables (type + what each field actually drives) for both languages.
+- **README plugin table** — every entry now has an anchor link into `docs/plugins.md`'s detailed description, in both `README.md` and `README.zh-CN.md`. The previous `UnstableDependency` row (which never matched a real detector) was removed and `async_callback_leak` added.
+
+### Changed
+
+- **Project homepage** — `https://cha.to01.icu` is the canonical entry point. README still works on github.com but now points at the docs site for anything beyond the quick-start.
+- **CI** — the `Web` workflow builds the EN tree via oranda, re-builds the zh-CN tree via mdbook with `MDBOOK_BOOK__SRC=src-zh-CN`, indexes both with Pagefind, and restores `public/CNAME` + drops `public/404.html` after oranda's clean. Deploys via `JamesIves/github-pages-deploy-action@v4.6.4`.
+
+### Notes for upgraders
+
+Nothing to do. `cha analyze` produces the same output, `.cha.toml` accepts the same keys, every CLI flag still works. This is a documentation release: the binary moves from "had a single README" to "had a 60-page bilingual docs site" without changing anything you'd notice from the terminal.
+
+If you want to celebrate by reading something other than `--help`: <https://cha.to01.icu>.
+
 ## [1.19.0] - 2026-05-22
 
 Hardcoded thresholds and keyword lists become plugin config; `cha fix` stops hardcoding smell names; the last two text-scanning detectors switch to AST queries.
