@@ -4,7 +4,8 @@
     "description": "察 — Code Health Analyzer · pluggable code-smell detection with 34 built-in detectors and WASM plugins",
     "repository": "https://github.com/W-Mai/Cha",
     "homepage": "https://cha.to01.icu",
-    "license": "MIT"
+    "license": "MIT",
+    "readme_path": "LANDING.md"
   },
   "marketing": {
     "social": {
@@ -24,6 +25,7 @@
     "changelog": true
   },
   "styles": {
-    "theme": "cupcake"
+    "theme": "cupcake",
+    "additional_css": ["static/cha-landing.css"]
   }
 }

@@ -28,7 +28,9 @@ cargo build --release
 
 Requires [Rust](https://www.rust-lang.org/tools/install) (edition 2024).
 
-All platforms and individual binaries are listed at [cha.to01.icu](https://cha.to01.icu).
+## All platforms
+
+Per-platform binaries (macOS aarch64 / x86_64, Linux musl + gnu, Windows) and SHA256 checksums are auto-synced from [cargo-dist](https://opensource.axo.dev/cargo-dist/) to the [Install page](/artifacts/).
 
 ## Verify the install
 

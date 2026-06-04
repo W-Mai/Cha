@@ -49,11 +49,16 @@ jobs:
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/oranda/releases/latest/download/oranda-installer.sh | sh
           oranda build
 
-      # oranda's build clears public/ first, so a checked-in public/404.html
-      # would get clobbered. Drop the site-wide 404 page in after the build.
-      # GitHub Pages serves /404.html for any path it can't resolve.
-      - name: Install site-wide 404 page
-        run: cp static/404.html public/404.html
+      # oranda's build clears public/ before each run, which wipes anything
+      # we've checked in there. Re-place the files that need to live at
+      # the site root after the build:
+      #   - 404.html: GitHub Pages serves this for any unresolved path.
+      #   - CNAME:    the custom-domain marker; without it the site falls
+      #               back to <user>.github.io.
+      - name: Restore site-root files dropped by oranda build
+        run: |
+          cp static/404.html public/404.html
+          git show HEAD:public/CNAME > public/CNAME
 
       # Re-run mdbook against the same book.toml with MDBOOK_BOOK__SRC
       # overridden so the zh-CN tree builds without a second book.toml.

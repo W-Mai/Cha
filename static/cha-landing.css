@@ -1,0 +1,532 @@
+/*
+ * Landing-page styling for cha.to01.icu — hero + features grid for the
+ * homepage rendered from LANDING.md. Only loads via additional_css; the
+ * mdbook tree is unaffected.
+ *
+ * Palette intentionally inherits from oranda's cupcake theme variables
+ * (--b1, --b2, --secondary, --text) so we don't fight the surrounding
+ * chrome, then layers on the warm orange used in the OG card and 404
+ * page as an accent for CTAs and card hover.
+ */
+
+:root {
+  --cha-accent: #c2410c;
+  --cha-accent-hover: #9a3412;
+  --cha-accent-soft: rgba(251, 146, 60, 0.12);
+  --cha-card-bg: #ffffff;
+  --cha-card-border: rgba(41, 19, 52, 0.08);
+  --cha-card-shadow: 0 4px 12px rgba(41, 19, 52, 0.06);
+  --cha-card-shadow-hover: 0 12px 28px rgba(41, 19, 52, 0.12);
+}
+
+/* Index page only: hide oranda's default <h1 class="title">Cha</h1>
+ * because our custom .cha-hero owns the brand block.
+ *
+ * Oranda doesn't expose a per-page CSS hook, so we use :has(.cha-hero)
+ * on the body — this scopes the hide to pages whose content actually
+ * contains our hero (the index, rendered from LANDING.md), and leaves
+ * additional_pages and mdbook-rendered pages untouched.
+ */
+body:has(.cha-hero) header h1.title {
+  display: none;
+}
+
+/* Reorder the index page so the hero sits above oranda's auto-injected
+ * install widget (which the template otherwise emits before the
+ * markdown content). Flex + `order` lets us move things without
+ * forking the index.html.j2 template.
+ */
+body:has(.cha-hero) main {
+  display: flex;
+  flex-direction: column;
+}
+body:has(.cha-hero) main > header { order: -4; }
+body:has(.cha-hero) main > .cha-hero { order: -3; }
+body:has(.cha-hero) main > .cha-features { order: -1; }
+/* The install widget that oranda auto-injects before the markdown
+ * body — keep it on the page (it's a useful one-click download
+ * detector), just position it between hero and features. */
+body:has(.cha-hero) main > .artifacts,
+body:has(.cha-hero) main > .button.mobile-download { order: -2; }
+
+.cha-hero {
+  text-align: center;
+  padding: 3rem 1rem 2.5rem;
+  margin: 0 0 2rem;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(251, 146, 60, 0.18) 0%, transparent 55%),
+    radial-gradient(circle at 80% 100%, rgba(223, 175, 247, 0.35) 0%, transparent 50%);
+  border-radius: 24px;
+}
+
+.cha-hero-logo {
+  width: 110px;
+  height: 110px;
+  margin: 0 auto 1.25rem;
+  display: block;
+}
+
+.cha-hero-title {
+  font-size: 4rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  margin: 0 0 0.5rem !important;
+  background: none !important;
+  color: var(--secondary, #291334) !important;
+  letter-spacing: -0.04em;
+  -webkit-text-fill-color: currentColor;
+}
+
+.cha-hero p.cha-hero-sub {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--cha-accent) !important;
+  margin: 0 0 1rem;
+  letter-spacing: -0.01em;
+}
+
+.cha-hero p.cha-hero-tagline {
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: var(--text, rgba(41, 19, 52, 0.78)) !important;
+  max-width: 640px;
+  margin: 0 auto 1.75rem;
+}
+
+.cha-hero p.cha-hero-langs {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  color: rgba(41, 19, 52, 0.55) !important;
+  margin: 0;
+  letter-spacing: 0.04em;
+}
+
+.cha-hero-ctas {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 0 0 1.25rem;
+}
+
+.cha-btn {
+  display: inline-block;
+  padding: 0.7rem 1.4rem;
+  border-radius: 999px;
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none !important;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.cha-btn-primary {
+  background: var(--cha-accent);
+  color: #ffffff !important;
+  border: 1px solid var(--cha-accent);
+}
+.cha-btn-primary:hover {
+  background: var(--cha-accent-hover);
+  border-color: var(--cha-accent-hover);
+  transform: translateY(-1px);
+}
+
+.cha-btn-secondary {
+  background: transparent;
+  color: var(--secondary, #291334) !important;
+  border: 1px solid var(--cha-card-border);
+}
+.cha-btn-secondary:hover {
+  background: var(--cha-accent-soft);
+  border-color: var(--cha-accent);
+  color: var(--cha-accent-hover) !important;
+}
+
+/* Features grid — 6 cards in a responsive auto-fit layout. */
+
+.cha-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin: 0 0 3rem;
+}
+
+.cha-card {
+  background: var(--cha-card-bg);
+  border: 1px solid var(--cha-card-border);
+  border-radius: 12px;
+  padding: 1.25rem 1.4rem 1.4rem;
+  box-shadow: var(--cha-card-shadow);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+.cha-card:hover {
+  border-color: var(--cha-accent);
+  box-shadow: var(--cha-card-shadow-hover);
+  transform: translateY(-2px);
+}
+
+.cha-card h3 {
+  margin: 0 0 0.6rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--secondary, #291334);
+  line-height: 1.3;
+}
+
+.cha-card p {
+  margin: 0 0 0.85rem;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--text, rgba(41, 19, 52, 0.78));
+}
+
+.cha-card a {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--cha-accent) !important;
+  text-decoration: none !important;
+}
+.cha-card a:hover {
+  color: var(--cha-accent-hover) !important;
+  text-decoration: underline !important;
+}
+
+/* Repo banner — oranda renders this full-width black bar with a
+ * "Check out our GitHub!" link. Replace it with a floating round
+ * button at the top-right corner; the text is hidden, only the
+ * octocat icon shows. Sits over the nav/hero with a subtle warm
+ * shadow so it doesn't hijack the page chrome.
+ *
+ * The default background uses a hardcoded purple (#dfaff7) octocat
+ * SVG inline; we re-emit our own warm-tone octocat via mask-image
+ * so we control the fill color via background-color.
+ */
+.repo_banner {
+  position: fixed !important;
+  top: 14px !important;
+  right: 14px !important;
+  width: auto !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  z-index: 100;
+}
+.repo_banner > a {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  /* Important: gap must be reset. Oranda's default rule sets
+   * gap: .5rem to space the icon from the link text; the text is
+   * removed visually with font-size: 0, but it remains as an
+   * anonymous flex item, so the gap pushes the icon ~8px off-center. */
+  gap: 0 !important;
+  width: 40px !important;
+  height: 40px !important;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.85) !important;
+  color: var(--secondary, #291334) !important;
+  text-decoration: none !important;
+  border: 1px solid var(--cha-card-border, rgba(41, 19, 52, 0.12)) !important;
+  box-shadow: 0 4px 12px rgba(124, 45, 18, 0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: background 0.15s ease, transform 0.1s ease, color 0.15s ease;
+  font-size: 0;
+}
+.repo_banner > a:hover {
+  background: var(--cha-accent, #c2410c) !important;
+  border-color: var(--cha-accent, #c2410c) !important;
+  transform: translateY(-1px);
+}
+.repo_banner > a:hover .github-icon {
+  background-color: #ffffff !important;
+}
+
+/* Re-emit the octocat as a mask so we own the fill color (default
+ * was the cupcake purple #dfaff7, which clashes with our warm
+ * palette). Mask points at the same SVG geometry. */
+.repo_banner .github-icon {
+  width: 20px !important;
+  height: 20px !important;
+  background-image: none !important;
+  background-color: var(--secondary, #291334);
+  mask-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12'/%3E%3C/svg%3E");
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  transition: background-color 0.15s ease;
+}
+
+/* Top nav (Home / Install / Docs / Changelog) — shared across every
+ * oranda-rendered page (landing, changelog, artifacts page,
+ * additional_pages). mdbook subpages have their own chrome, so this
+ * doesn't reach them.
+ *
+ * Default oranda renders this as left-aligned <a> tags with
+ * underline; we lift it to centered pills with the warm-on-cream
+ * brand language used by the hero and the install widget.
+ */
+
+/* Oranda's cupcake theme gives <main> a 96px top margin so the chrome
+ * breathes. On the landing page that pushes the nav way too far below
+ * the GitHub banner. Pull it back to a tight 16px so nav sits right
+ * under the banner; the hero's own background gradient gives the
+ * remaining breathing room visually. */
+main { margin-top: 1rem !important; }
+
+main > header {
+  text-align: center;
+  padding: 0.25rem 0 0.75rem;
+  margin: 0 0 0.5rem;
+}
+
+main > header h1.title {
+  margin: 0 0 0.75rem;
+}
+
+main > header nav.nav {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0;
+}
+
+main > header nav.nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.4rem;
+  margin: 0;
+  list-style: none;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--cha-card-border, rgba(41, 19, 52, 0.08));
+  border-radius: 999px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+main > header nav.nav li { margin: 0; }
+
+main > header nav.nav a {
+  display: inline-block;
+  padding: 0.45rem 1rem;
+  border-radius: 999px;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--secondary, #291334) !important;
+  text-decoration: none !important;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+main > header nav.nav a:hover {
+  background: var(--cha-accent-soft, rgba(251, 146, 60, 0.12));
+  color: var(--cha-accent-hover, #9a3412) !important;
+}
+
+/* Re-skin oranda's auto-generated install widget (.artifacts) so it
+ * matches the warm cream + orange-accent design used by the hero and
+ * features grid. Oranda uses cupcake's flat utility classes; we layer
+ * on rounded corners, soft shadow, pill-shaped tabs and a branded
+ * primary download CTA without forking templates.
+ */
+
+/* Hold the widget at a stable width across tab switches. The widget's
+ * inner content shrinks when you switch from `shell` (long curl line)
+ * to `homebrew` / `tarball` (short text), so without an explicit width
+ * the flex parent collapses the card mid-interaction. width: 100% +
+ * max-width pins it to the column. */
+body:has(.cha-hero) main > .artifacts {
+  background: var(--cha-card-bg);
+  border: 1px solid var(--cha-card-border);
+  border-radius: 16px;
+  box-shadow: var(--cha-card-shadow);
+  padding: 1.5rem 1.75rem 1.75rem;
+  margin: 0 auto 1.5rem !important;
+  width: 100%;
+  max-width: 880px;
+  box-sizing: border-box;
+}
+
+body:has(.cha-hero) main > .artifacts .artifact-header h4 {
+  font-size: 1.4rem !important;
+  font-weight: 700 !important;
+  color: var(--secondary, #291334) !important;
+  margin: 0 0 0.4rem !important;
+  letter-spacing: -0.01em;
+}
+
+body:has(.cha-hero) main > .artifacts .published-date {
+  color: rgba(41, 19, 52, 0.55) !important;
+  font-size: 0.85rem !important;
+}
+
+/* Pill-shaped install-method tabs (shell / homebrew / tarball). */
+body:has(.cha-hero) main > .artifacts .tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0;
+  margin: 1rem 0 0.85rem !important;
+  list-style: none;
+  border: none !important;
+}
+body:has(.cha-hero) main > .artifacts .tabs .install-tab {
+  padding: 0.45rem 1rem !important;
+  border-radius: 999px !important;
+  font-size: 0.88rem !important;
+  font-weight: 500 !important;
+  border: 1px solid var(--cha-card-border) !important;
+  background: transparent !important;
+  color: rgba(41, 19, 52, 0.7) !important;
+  cursor: pointer !important;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+body:has(.cha-hero) main > .artifacts .tabs .install-tab:hover {
+  background: var(--cha-accent-soft) !important;
+  border-color: var(--cha-accent) !important;
+  color: var(--cha-accent-hover) !important;
+}
+body:has(.cha-hero) main > .artifacts .tabs .install-tab.selected {
+  background: var(--cha-accent) !important;
+  color: #ffffff !important;
+  border-color: var(--cha-accent) !important;
+}
+
+/* Code block + copy + Source button form ONE connected dark bar.
+ *
+ * Default oranda renders three flex children — <pre>, copy <button>,
+ * <a class="button primary">Source — each with its own border-radius
+ * and the page background showing through between them. Visually
+ * three islands with white gutters. We:
+ *   - keep the wrapper as the single rounded container (overflow:
+ *     hidden so children's square corners don't leak);
+ *   - strip border-radius off pre and Source so they butt flush;
+ *   - share the same dark fill across pre and Source;
+ *   - separate Source from pre with a 1px border line, not a gutter;
+ *   - lift copy out of flex flow to float top-right of pre, since
+ *     it doesn't need its own column.
+ */
+body:has(.cha-hero) main > .artifacts .install-code-wrapper {
+  display: flex !important;
+  align-items: stretch !important;
+  background-color: #2c1810 !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+  margin: 0 0 0.85rem !important;
+}
+body:has(.cha-hero) main > .artifacts .install-code-wrapper pre {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  background-color: transparent !important;
+  border-radius: 0 !important;
+  padding: 1rem 1.1rem !important;
+  font-size: 0.88rem !important;
+  line-height: 1.5 !important;
+  margin: 0 !important;
+  overflow-x: auto !important;
+}
+
+/* Source button — sit flush with pre, same dark fill, divided by a
+ * 1px hairline. Override oranda's default deep-purple .button.primary
+ * fill with our shared dark code-bar tone so the bar reads as one
+ * piece. The main download CTA below the bar still uses the orange
+ * primary look (rule further down). */
+body:has(.cha-hero) main > .artifacts .install-code-wrapper a.button.primary {
+  flex: 0 0 auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 0 1.1rem !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+  border: 0 !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 0 !important;
+  font-size: 0.85rem !important;
+  font-weight: 500 !important;
+  text-decoration: none !important;
+}
+body:has(.cha-hero) main > .artifacts .install-code-wrapper a.button.primary:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+}
+
+/* Copy button — sit flush in the bar between pre and Source as
+ * another flex column. Earlier we floated it absolutely on top of
+ * pre, but pre's horizontally-scrolling content slid right under
+ * the icon and the URL was illegible at the tail. As an inline flex
+ * column, copy is always next to Source on a clean dark seat. */
+body:has(.cha-hero) main > .artifacts .install-code-wrapper .copy-clipboard-button {
+  flex: 0 0 auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+  border: 0 !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 0 !important;
+  padding: 0 1rem !important;
+  font-size: 0.95rem !important;
+}
+body:has(.cha-hero) main > .artifacts .install-code-wrapper .copy-clipboard-button:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+}
+
+/* Main download CTA below the code bar — full pill orange, same
+ * shape language as the hero's primary button. */
+body:has(.cha-hero) main > .artifacts .download-wrapper .button.primary {
+  background: var(--cha-accent) !important;
+  color: #ffffff !important;
+  border: 1px solid var(--cha-accent) !important;
+  border-radius: 999px !important;
+  padding: 0.7rem 1.4rem !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  text-decoration: none !important;
+  display: inline-block !important;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+body:has(.cha-hero) main > .artifacts .download-wrapper .button.primary:hover {
+  background: var(--cha-accent-hover) !important;
+  border-color: var(--cha-accent-hover) !important;
+  transform: translateY(-1px);
+}
+
+/* "View all installation options" — secondary link below the widget. */
+body:has(.cha-hero) main > a.button.mobile-download.primary {
+  display: inline-block !important;
+  margin: 0 auto 2rem !important;
+  background: transparent !important;
+  border: 1px solid var(--cha-card-border) !important;
+  color: var(--secondary, #291334) !important;
+  border-radius: 999px !important;
+  padding: 0.55rem 1.2rem !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  text-decoration: none !important;
+  align-self: center;
+}
+body:has(.cha-hero) main > a.button.mobile-download.primary:hover {
+  background: var(--cha-accent-soft) !important;
+  border-color: var(--cha-accent) !important;
+  color: var(--cha-accent-hover) !important;
+}
+
+/* Mobile tweaks: tighten paddings and headline size below ~600px. */
+
+@media (max-width: 600px) {
+  .cha-hero {
+    padding: 2rem 1rem 1.75rem;
+    border-radius: 16px;
+  }
+  .cha-hero-logo { width: 84px; height: 84px; }
+  .cha-hero-title { font-size: 2.75rem !important; }
+  .cha-hero-sub { font-size: 1.2rem; }
+  .cha-hero-tagline { font-size: 0.98rem; }
+  .cha-btn { padding: 0.6rem 1.1rem; font-size: 0.95rem; }
+  .cha-features { gap: 0.8rem; }
+  .cha-card { padding: 1.1rem 1.2rem 1.2rem; }
+}
