@@ -12,7 +12,8 @@
       "cargo_dist": true
     },
     "mdbook": {
-      "path": "./book"
+      "path": "./book",
+      "theme": false
     },
     "changelog": true
   },
