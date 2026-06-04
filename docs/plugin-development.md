@@ -239,59 +239,51 @@ let n: u32 = project_query::file_count();
 
 ### FunctionInfo Fields
 
-```rust
-pub struct FunctionInfo {
-    pub name: String,
-    pub start_line: u32,
-    pub end_line: u32,
-    pub name_col: u32,
-    pub name_end_col: u32,
-    pub line_count: u32,
-    pub complexity: u32,
-    pub parameter_count: u32,
-    pub parameter_types: Vec<TypeRef>,
-    pub parameter_names: Vec<String>,
-    pub chain_depth: u32,
-    pub switch_arms: u32,
-    pub switch_arm_values: Vec<ArmValue>,
-    pub external_refs: Vec<String>,
-    pub is_delegating: bool,
-    pub is_exported: bool,
-    pub comment_lines: u32,
-    pub referenced_fields: Vec<String>,
-    pub null_check_fields: Vec<String>,
-    pub switch_dispatch_target: Option<String>,
-    pub optional_param_count: u32,
-    pub called_functions: Vec<String>,
-    pub cognitive_complexity: u32,
-    pub body_hash: Option<String>,
-    pub return_type: Option<TypeRef>,
-}
-```
+| Field | Type | Meaning |
+|---|---|---|
+| `name` | `String` | Function name. |
+| `start_line` / `end_line` | `u32` | Function span (1-based lines). |
+| `name_col` / `name_end_col` | `u32` | Column span of the function name identifier (0-based byte columns). |
+| `line_count` | `u32` | Lines in the function body. |
+| `complexity` | `u32` | Cyclomatic complexity: `1 + branch points`. |
+| `cognitive_complexity` | `u32` | Cognitive complexity (SonarSource 2017): nesting-aware understandability metric. |
+| `is_exported` | `bool` | Whether the function is exported (`pub` / `export`). |
+| `parameter_count` | `u32` | Number of parameters. |
+| `parameter_types` | `Vec<TypeRef>` | Parameter types in declaration order; each resolved to a `TypeRef`. |
+| `parameter_names` | `Vec<String>` | Parameter identifiers, parallel to `parameter_types`. Empty string for anonymous params (C `void foo(int);`). |
+| `optional_param_count` | `u32` | Number of optional parameters (drives Builder pattern detection). |
+| `return_type` | `Option<TypeRef>` | Declared return type; `None` if not annotated or inferred. |
+| `external_refs` | `Vec<String>` | Names of external object fields/methods referenced in the body (drives Feature Envy). |
+| `referenced_fields` | `Vec<String>` | Class field names accessed in this function (drives Temporary Field). |
+| `null_check_fields` | `Vec<String>` | Field names checked for null/None in this function (drives Null Object pattern). |
+| `called_functions` | `Vec<String>` | Function/method names called in the body (feeds the project-level call graph). |
+| `chain_depth` | `u32` | Max method-chain depth in the body (drives Message Chains; e.g. `a.b.c.d` = 4). |
+| `switch_arms` | `u32` | Total `switch` / `match` arms in the function body. |
+| `switch_arm_values` | `Vec<ArmValue>` | Literal values of each arm in source order; drives value-based detectors like `stringly_typed_dispatch` ("≥3 arms are string literals"). |
+| `switch_dispatch_target` | `Option<String>` | Field/variable being dispatched on in the `switch` / `match` (drives Strategy / State pattern). |
+| `is_delegating` | `bool` | Whether the function only forwards to another object's method (drives Middle Man). |
+| `comment_lines` | `u32` | Comment lines inside the function body. |
+| `body_hash` | `Option<String>` | AST-structural hash of the body; drives duplicate detection across structurally-equivalent bodies that differ only in identifiers. |
 
 ### ClassInfo Fields
 
-```rust
-pub struct ClassInfo {
-    pub name: String,
-    pub start_line: u32,
-    pub end_line: u32,
-    pub name_col: u32,      // 0-based column of the name identifier
-    pub name_end_col: u32,  // 0-based end column of the name identifier
-    pub line_count: u32,
-    pub method_count: u32,
-    pub field_count: u32,
-    pub field_names: Vec<String>,
-    pub is_exported: bool,
-    pub has_behavior: bool,
-    pub is_interface: bool,
-    pub parent_name: Option<String>,
-    pub override_count: u32,
-    pub self_call_count: u32,
-    pub has_listener_field: bool,
-    pub has_notify_method: bool,
-}
-```
+| Field | Type | Meaning |
+|---|---|---|
+| `name` | `String` | Class / struct name. |
+| `start_line` / `end_line` | `u32` | Class span (1-based lines). |
+| `name_col` / `name_end_col` | `u32` | Column span of the class name identifier (0-based byte columns). |
+| `line_count` | `u32` | Lines in the class body. |
+| `is_exported` | `bool` | Whether the class is exported. |
+| `is_interface` | `bool` | Whether this is an interface or abstract class. |
+| `has_behavior` | `bool` | Whether the class has non-accessor methods (real business logic). Drives Data Class. |
+| `method_count` | `u32` | Number of methods. |
+| `field_count` | `u32` | Number of fields/properties. |
+| `field_names` | `Vec<String>` | Field names declared in this class. |
+| `parent_name` | `Option<String>` | Parent class / trait name (drives Refused Bequest). |
+| `override_count` | `u32` | Methods overridden from the parent (drives Refused Bequest). |
+| `self_call_count` | `u32` | Self-method calls inside the longest method (drives Template Method). |
+| `has_listener_field` | `bool` | Whether the class holds a listener / callback collection field (drives Observer pattern recognition). |
+| `has_notify_method` | `bool` | Whether the class has a notify / emit method (same). |
 
 ## Reading Options
 

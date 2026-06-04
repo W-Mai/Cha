@@ -240,59 +240,51 @@ let n: u32 = project_query::file_count();
 
 ### FunctionInfo 字段
 
-```rust
-pub struct FunctionInfo {
-    pub name: String,
-    pub start_line: u32,
-    pub end_line: u32,
-    pub name_col: u32,
-    pub name_end_col: u32,
-    pub line_count: u32,
-    pub complexity: u32,
-    pub parameter_count: u32,
-    pub parameter_types: Vec<TypeRef>,
-    pub parameter_names: Vec<String>,
-    pub chain_depth: u32,
-    pub switch_arms: u32,
-    pub switch_arm_values: Vec<ArmValue>,
-    pub external_refs: Vec<String>,
-    pub is_delegating: bool,
-    pub is_exported: bool,
-    pub comment_lines: u32,
-    pub referenced_fields: Vec<String>,
-    pub null_check_fields: Vec<String>,
-    pub switch_dispatch_target: Option<String>,
-    pub optional_param_count: u32,
-    pub called_functions: Vec<String>,
-    pub cognitive_complexity: u32,
-    pub body_hash: Option<String>,
-    pub return_type: Option<TypeRef>,
-}
-```
+| 字段 | 类型 | 含义 |
+|---|---|---|
+| `name` | `String` | 函数名 |
+| `start_line` / `end_line` | `u32` | 函数起止行（1-based） |
+| `name_col` / `name_end_col` | `u32` | 函数名标识符的起止列（0-based 字节列） |
+| `line_count` | `u32` | 函数体行数 |
+| `complexity` | `u32` | 圈复杂度（cyclomatic complexity）：`1 + 分支点数` |
+| `cognitive_complexity` | `u32` | 认知复杂度（SonarSource 2017）：把嵌套深度也算进去的可读性指标 |
+| `is_exported` | `bool` | 是否对外暴露（`pub` / `export`） |
+| `parameter_count` | `u32` | 参数个数 |
+| `parameter_types` | `Vec<TypeRef>` | 参数类型，按声明顺序排列；每项是已经解析好的 `TypeRef` |
+| `parameter_names` | `Vec<String>` | 参数名，跟 `parameter_types` 一一对应；匿名参数（C `void foo(int);`）填空串 |
+| `optional_param_count` | `u32` | 可选参数个数（驱动 Builder pattern 检测） |
+| `return_type` | `Option<TypeRef>` | 声明的返回类型；没标注 / 推断不出时为 `None` |
+| `external_refs` | `Vec<String>` | 函数体里引用的"外部对象的字段或方法"名集合（驱动 Feature Envy） |
+| `referenced_fields` | `Vec<String>` | 函数体里访问到的本类字段名（驱动 Temporary Field） |
+| `null_check_fields` | `Vec<String>` | 函数体里做 null/None 判空的字段名（驱动 Null Object pattern） |
+| `called_functions` | `Vec<String>` | 函数体里调用到的函数 / 方法名（喂给项目级调用图） |
+| `chain_depth` | `u32` | 函数体内方法链的最大长度（驱动 Message Chains，比如 `a.b.c.d` = 4） |
+| `switch_arms` | `u32` | 函数体里 `switch` / `match` 分支的总条数 |
+| `switch_arm_values` | `Vec<ArmValue>` | 每个 `switch` / `match` 分支的字面量值，按源码顺序排；驱动 `stringly_typed_dispatch`（≥3 条全是字符串字面量）这类基于值的检测 |
+| `switch_dispatch_target` | `Option<String>` | `switch` / `match` 是基于哪个字段 / 变量在分发的（驱动 Strategy / State pattern） |
+| `is_delegating` | `bool` | 这个函数是不是单纯转调另一个对象的方法（驱动 Middle Man） |
+| `comment_lines` | `u32` | 函数体内注释行数 |
+| `body_hash` | `Option<String>` | 函数体 AST 结构哈希；驱动重复代码检测，结构等价但变量名不同也能匹中 |
 
 ### ClassInfo 字段
 
-```rust
-pub struct ClassInfo {
-    pub name: String,
-    pub start_line: u32,
-    pub end_line: u32,
-    pub name_col: u32,      // 0-based 列号
-    pub name_end_col: u32,  // 0-based 结束列
-    pub line_count: u32,
-    pub method_count: u32,
-    pub field_count: u32,
-    pub field_names: Vec<String>,
-    pub is_exported: bool,
-    pub has_behavior: bool,
-    pub is_interface: bool,
-    pub parent_name: Option<String>,
-    pub override_count: u32,
-    pub self_call_count: u32,
-    pub has_listener_field: bool,
-    pub has_notify_method: bool,
-}
-```
+| 字段 | 类型 | 含义 |
+|---|---|---|
+| `name` | `String` | 类 / 结构体名 |
+| `start_line` / `end_line` | `u32` | 类起止行（1-based） |
+| `name_col` / `name_end_col` | `u32` | 类名标识符的起止列（0-based 字节列） |
+| `line_count` | `u32` | 类体行数 |
+| `is_exported` | `bool` | 是否对外暴露 |
+| `is_interface` | `bool` | 是不是接口 / 抽象类 |
+| `has_behavior` | `bool` | 类里有没有非访问器方法（也就是真业务逻辑）；用来区分 Data Class |
+| `method_count` | `u32` | 方法总数 |
+| `field_count` | `u32` | 字段总数 |
+| `field_names` | `Vec<String>` | 类里声明的字段名 |
+| `parent_name` | `Option<String>` | 父类 / 父 trait 名（驱动 Refused Bequest） |
+| `override_count` | `u32` | 覆盖了父类多少个方法（驱动 Refused Bequest） |
+| `self_call_count` | `u32` | 类里最长的那个方法对自身其它方法的调用次数（驱动 Template Method） |
+| `has_listener_field` | `bool` | 类里有没有监听器 / 回调集合字段（驱动 Observer pattern 识别） |
+| `has_notify_method` | `bool` | 类里有没有 notify / emit 类型的方法（同上） |
 
 ## 读配置项
 
