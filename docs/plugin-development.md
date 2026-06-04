@@ -169,7 +169,7 @@ fn analyze(input: AnalysisInput) -> Vec<Finding> {
 }
 ```
 
-The query pattern syntax is [tree-sitter's S-expression query language](https://tree-sitter.github.io/tree-sitter/syntax-highlighting/queries). Queries are compiled and cached per-invocation on the host side.
+The query pattern syntax is [tree-sitter's S-expression query language](https://tree-sitter.github.io/tree-sitter/using-parsers/queries/). Queries are compiled and cached per-invocation on the host side.
 
 Each `QueryMatch` contains:
 - `capture_name` — the `@name` from the pattern

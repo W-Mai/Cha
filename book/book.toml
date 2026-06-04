@@ -26,6 +26,11 @@ additional-js = ["theme/mermaid.min.js", "theme/cha-mermaid.js"]
 enable = true
 level = 1
 
+# Disabled: replaced by Pagefind in theme/head.hbs (mdbook's elasticlunr
+# drops CJK tokens, and leaving both enabled makes `s` trigger two UIs).
+[output.html.search]
+enable = false
+
 # Preprocessors are wired in lazily — each plugin's `install` step (run by CI)
 # writes its CSS/JS into book/ and amends this file with `additional-css` /
 # `additional-js`. We keep the table entries empty here so a fresh `mdbook build`

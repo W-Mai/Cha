@@ -236,14 +236,24 @@
       }
     });
 
-    // Hijack mdbook's search-toggle button if it exists.
-    var toggle = document.getElementById("search-toggle");
-    if (toggle) {
-      toggle.addEventListener("click", function(e) {
+    // mdbook's `[output.html.search] enable = false` removes the
+    // built-in search-toggle button along with the elasticlunr index.
+    // Inject a replacement into .right-buttons so users have a clickable
+    // entry point to the Pagefind overlay (not just the `s` shortcut).
+    var rb = document.querySelector(".right-buttons");
+    if (rb) {
+      var btn = document.createElement("a");
+      btn.id = "cha-search-toggle";
+      btn.setAttribute("role", "button");
+      btn.setAttribute("aria-label", "Search documentation");
+      btn.title = "Search documentation (press s or /)";
+      btn.style.cursor = "pointer";
+      btn.innerHTML = '<i class="fa fa-search"></i>';
+      btn.addEventListener("click", function(e) {
         e.preventDefault();
-        e.stopPropagation();
         openOverlay();
-      }, true);
+      });
+      rb.insertBefore(btn, rb.firstChild);
     }
   });
 })();

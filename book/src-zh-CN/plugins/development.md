@@ -170,7 +170,7 @@ fn analyze(input: AnalysisInput) -> Vec<Finding> {
 }
 ```
 
-Query pattern 用 [tree-sitter 的 S 表达式 query 语言](https://tree-sitter.github.io/tree-sitter/syntax-highlighting/queries)。重复跑同一个 pattern 没额外开销。
+Query pattern 用 [tree-sitter 的 S 表达式 query 语言](https://tree-sitter.github.io/tree-sitter/using-parsers/queries/)。重复跑同一个 pattern 没额外开销。
 
 每个 `QueryMatch` 包含：
 
