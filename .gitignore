@@ -8,6 +8,10 @@ public/*
 !public/CNAME
 !public/favicon.ico
 !public/oranda-v0.6.1.css
+
+# OG card image is checked in at static/og-card.png so CI doesn't need
+# rsvg-convert. Regenerate via `python3 static/gen_og_card.py` when the
+# logo or copy changes.
 node_modules/
 
 # mdbook output
