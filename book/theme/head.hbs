@@ -6,50 +6,42 @@
     zh-CN book is at:    /book/zh-CN/<path>
 
   The switcher is injected into mdbook's `.right-buttons` toolbar after the
-  page renders. It HEAD-probes the alternate URL and hides the entry if it
-  404s — handy while zh-CN translation is partial. Pattern lifted from
-  rust-by-example's theme/head.hbs.
+  page renders. Entries that 404 on the alternate tree are marked
+  `unavailable` and rendered as a disabled item, so the menu always shows
+  every language we publish.
 -->
 <style>
-  .lang-switcher { position: relative; display: inline-block; margin-left: .25rem; }
-  .lang-switcher button {
-    background: transparent; border: 0; color: var(--fg);
-    cursor: pointer; padding: .25rem .5rem;
-    display: inline-flex; align-items: center; justify-content: center;
-  }
-  .lang-switcher button svg { display: block; }
+  .lang-switcher { position: relative; display: inline-block; }
+  .lang-switcher > a { cursor: pointer; }
+  .lang-switcher .fa-svg svg { width: 1em; height: 1em; vertical-align: -0.125em; fill: currentColor; }
   .lang-switcher ul {
-    position: absolute; right: 0; top: 1.6rem;
+    position: absolute; right: 0; top: 2rem; z-index: 1000;
     background: var(--bg); border: 1px solid var(--theme-popup-border, #ccc);
     border-radius: 4px; padding: .25rem 0; margin: 0;
-    list-style: none; min-width: 8rem;
+    list-style: none; min-width: 9rem;
     box-shadow: 0 2px 6px rgba(0,0,0,.15);
     display: none;
   }
   .lang-switcher.open ul { display: block; }
   .lang-switcher li a {
-    display: block; padding: .25rem .75rem;
+    display: block; padding: .35rem .9rem;
     color: var(--fg); text-decoration: none;
+    white-space: nowrap;
   }
   .lang-switcher li a:hover { background: var(--theme-hover, #eee); }
   .lang-switcher li.current a { font-weight: 600; }
+  .lang-switcher li.unavailable a { opacity: .45; cursor: not-allowed; pointer-events: none; }
 </style>
 <script>
 (function() {
-  // Path on the current page, relative to the book root. mdbook exposes it
-  // as the {{ path }} handlebars variable.
   var pagePath = "{{ path }}";
   var pathToRoot = "{{ path_to_root }}";
 
-  // Languages we publish. id = URL segment, label = menu text.
-  // English is rendered at the book root; zh-CN sits under /zh-CN/.
   var langs = [
     { id: "",      label: "English"  },
     { id: "zh-CN", label: "简体中文" },
   ];
 
-  // Detect which language tree we're currently in by walking pathToRoot.
-  // If the path contains "/zh-CN/" before the .md, we're on the zh tree.
   var here = window.location.pathname;
   var current = "";
   for (var i = 0; i < langs.length; i++) {
@@ -58,36 +50,38 @@
     }
   }
 
-  // Build menu DOM after mdbook chrome is ready.
+  // Inline globe SVG, sized and styled to match mdbook's print/github/edit icons
+  // (which use the same `.fa-svg` wrapper from book.js). Path: FontAwesome 6.2.0
+  // free `globe` solid.
+  var GLOBE_SVG = '<span class="fa-svg" id="lang-button">' +
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">' +
+    '<path d="M352 256c0 22.2-1.2 43.6-3.3 64H163.3c-2.2-20.4-3.3-41.8-3.3-64s1.2-43.6 3.3-64H348.7c2.2 20.4 3.3 41.8 3.3 64zm28.8-64h95.4c5.2 20.5 8 41.9 8 64s-2.8 43.5-8 64H380.8c2.1-20.6 3.2-42 3.2-64s-1.1-43.4-3.2-64zm87.6-32H375.7c-10-63.9-29.8-117.4-55.3-151.6c78.3 20.7 142 77.5 168 151.6zm-149.1 0H167.7c6.1-36.4 15.5-68.6 27-94.7c10.5-23.6 22.2-40.7 33.5-51.5C239.4 3.2 248.7 0 256 0s16.6 3.2 27.8 13.8c11.3 10.8 23 27.9 33.5 51.5c11.6 26 20.9 58.2 27 94.7zm-209 0H43.6C69.6 85.9 133.3 29.1 211.6 8.4C186.1 42.6 166.3 96.1 156.3 160zM32.4 192h95.4c-2.1 20.6-3.2 42-3.2 64s1.1 43.4 3.2 64H32.4C27.2 299.5 24 278.1 24 256s2.8-43.5 8-64zm129.3 160H344.3c-6.1 36.4-15.5 68.6-27 94.7c-10.5 23.6-22.2 40.7-33.5 51.5C272.6 508.8 263.3 512 256 512s-16.6-3.2-27.8-13.8c-11.3-10.8-23-27.9-33.5-51.5c-11.6-26-20.9-58.2-27-94.7zm-5.4 151.6C130.3 469.4 110.5 415.9 100.5 352H43.6c26 74.1 89.7 130.9 168 151.6zm199.1 0c78.3-20.7 142-77.5 168-151.6H411.5c-10 63.9-29.8 117.4-55.3 151.6z"/>' +
+    '</svg></span>';
+
   document.addEventListener("DOMContentLoaded", function() {
     var rb = document.querySelector(".right-buttons");
     if (!rb) return;
 
     var wrap = document.createElement("div");
     wrap.className = "lang-switcher";
-    var btn = document.createElement("button");
+    var btn = document.createElement("a");
+    btn.setAttribute("role", "button");
     btn.setAttribute("aria-label", "Switch language");
     btn.title = "Switch language";
-    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>';
+    btn.innerHTML = GLOBE_SVG;
     var ul = document.createElement("ul");
 
-    // For each language, compute the equivalent URL on the other tree.
     var pageHtml = pagePath.replace(/\.md$/, ".html");
 
     langs.forEach(function(lang) {
       var li = document.createElement("li");
       if (lang.id === current) li.className = "current";
       var a = document.createElement("a");
-      // Build the absolute path: <site_root><lang>/<page>
-      // pathToRoot points up to the current book's root (e.g. ../).
-      // If we're at /book/zh-CN/cli/analyze.html, pathToRoot is "../../",
-      // which lands at /book/zh-CN/. We need /book/ for English, /book/<lang>/
-      // otherwise. Strategy: walk up to /book/ then append <lang>/.
       var bookRoot;
       if (current === "") {
-        bookRoot = pathToRoot; // already at /book/
+        bookRoot = pathToRoot;
       } else {
-        bookRoot = pathToRoot + "../"; // up one more level past /book/<current>/
+        bookRoot = pathToRoot + "../";
       }
       var url = bookRoot + (lang.id ? lang.id + "/" : "") + pageHtml;
       a.href = url;
@@ -95,12 +89,14 @@
       li.appendChild(a);
       ul.appendChild(li);
 
-      // HEAD-probe: hide the entry if the target page doesn't exist on the
-      // other tree. This handles partially-translated zh-CN gracefully.
+      // HEAD-probe; on 404, mark the entry as unavailable rather than hide it.
+      // Keeps the menu predictable when a translation is partial or when the
+      // alternate tree isn't built locally (e.g. `mdbook serve` only renders
+      // one tree at a time).
       if (lang.id !== current) {
         fetch(url, { method: "HEAD" }).then(function(resp) {
-          if (!resp.ok) li.style.display = "none";
-        }).catch(function() { li.style.display = "none"; });
+          if (!resp.ok) li.className = "unavailable";
+        }).catch(function() { li.className = "unavailable"; });
       }
     });
 
@@ -109,6 +105,7 @@
     rb.insertBefore(wrap, rb.firstChild);
 
     btn.addEventListener("click", function(e) {
+      e.preventDefault();
       e.stopPropagation();
       wrap.classList.toggle("open");
     });
