@@ -113,3 +113,115 @@
   });
 })();
 </script>
+
+<!--
+  Pagefind search overlay.
+
+  mdbook's bundled elasticlunr search drops non-ASCII tokens, so the zh-CN
+  tree has no working search. Pagefind 1.4 indexes both trees in CI
+  (.github/workflows/web.yml). This block injects the Pagefind UI into a
+  modal overlay and hijacks mdbook's search button + `s` shortcut to open
+  it instead of the default search bar.
+
+  bundlePath is computed from `path_to_root` so each tree loads its own
+  index (/book/pagefind/ for English, /book/zh-CN/pagefind/ for Chinese).
+-->
+<link rel="stylesheet" href="{{ path_to_root }}pagefind/pagefind-ui.css" onerror="this.remove()">
+<style>
+  #cha-search-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(0,0,0,.45);
+    display: none;
+    align-items: flex-start; justify-content: center;
+    padding-top: 6rem;
+  }
+  #cha-search-overlay.open { display: flex; }
+  #cha-search-modal {
+    width: min(720px, 92vw);
+    background: var(--bg); color: var(--fg);
+    border: 1px solid var(--theme-popup-border, #ccc);
+    border-radius: 8px; padding: 1rem 1.25rem 1.25rem;
+    box-shadow: 0 12px 32px rgba(0,0,0,.25);
+    max-height: 80vh; overflow: auto;
+  }
+  /* Pagefind UI inherits the modal background; tighten its CSS reset
+     so the input doesn't fight against mdbook's font stack. */
+  #cha-search-modal .pagefind-ui__form { margin-top: 0; }
+</style>
+<div id="cha-search-overlay" role="dialog" aria-modal="true" aria-label="Search documentation">
+  <div id="cha-search-modal">
+    <div id="cha-search"></div>
+  </div>
+</div>
+<script src="{{ path_to_root }}pagefind/pagefind-ui.js" onerror="this.remove()"></script>
+<script>
+(function() {
+  // Stand up Pagefind UI lazily — on first open — so the index isn't
+  // fetched on pages where the user never invokes search.
+  var initialised = false;
+  function ensureInit() {
+    if (initialised) return true;
+    if (typeof PagefindUI === "undefined") return false;
+    new PagefindUI({
+      element: "#cha-search",
+      showSubResults: true,
+      autofocus: true,
+      translations: { placeholder: "Search the docs…" },
+    });
+    initialised = true;
+    return true;
+  }
+
+  function openOverlay() {
+    var overlay = document.getElementById("cha-search-overlay");
+    if (!overlay) return;
+    if (!ensureInit()) return; // Pagefind UI failed to load (no /pagefind/), bail.
+    overlay.classList.add("open");
+    var input = overlay.querySelector("input[type='text']");
+    if (input) input.focus();
+  }
+
+  function closeOverlay() {
+    var overlay = document.getElementById("cha-search-overlay");
+    if (overlay) overlay.classList.remove("open");
+  }
+
+  document.addEventListener("DOMContentLoaded", function() {
+    var overlay = document.getElementById("cha-search-overlay");
+    if (!overlay) return;
+
+    // Click outside the modal closes it.
+    overlay.addEventListener("click", function(e) {
+      if (e.target === overlay) closeOverlay();
+    });
+
+    // Escape closes; `s` opens (matching mdbook's default shortcut),
+    // `/` opens too (matching the convention from GitHub / many docs sites).
+    document.addEventListener("keydown", function(e) {
+      if (e.key === "Escape" && overlay.classList.contains("open")) {
+        closeOverlay();
+        e.preventDefault();
+        return;
+      }
+      var t = e.target;
+      var typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" ||
+                         (t.isContentEditable === true));
+      if (typing) return;
+      if (e.key === "s" || e.key === "/") {
+        openOverlay();
+        e.preventDefault();
+      }
+    });
+
+    // Hijack mdbook's search-toggle button if it exists.
+    var toggle = document.getElementById("search-toggle");
+    if (toggle) {
+      toggle.addEventListener("click", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        openOverlay();
+      }, true);
+    }
+  });
+})();
+</script>
