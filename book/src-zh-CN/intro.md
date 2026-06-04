@@ -1,5 +1,20 @@
 # 简介
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/W-Mai/Cha/main/static/logo.svg" alt="cha logo" width="160"/>
+</p>
+
+<p align="center">
+  <strong>察 — 代码健康度分析器</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/W-Mai/Cha/actions"><img src="https://img.shields.io/github/actions/workflow/status/W-Mai/Cha/ci.yml?style=flat-square" alt="CI" /></a>
+  <a href="https://github.com/W-Mai/Cha/blob/main/LICENSE"><img src="https://img.shields.io/github/license/W-Mai/Cha?style=flat-square" alt="License" /></a>
+  <a href="https://github.com/W-Mai/Cha"><img src="https://img.shields.io/github/stars/W-Mai/Cha?style=flat-square" alt="Stars" /></a>
+  <a href="https://github.com/W-Mai/Cha/releases"><img src="https://img.shields.io/github/v/release/W-Mai/Cha?style=flat-square" alt="Release" /></a>
+</p>
+
 **Cha**（察，「审视、查看」）是一个可插拔的代码坏味道检测工具集。它通过 tree-sitter 在 AST 层解析源码，运行 34 个内置检测器以及用户提供的 WASM 插件，并以终端输出、JSON、LLM 上下文、SARIF 或 HTML 形式呈现结果。
 
 支持语言：Python（`.py`）、TypeScript / TSX（`.ts`、`.tsx`、`.mts`、`.cts`）、Rust（`.rs`）、Go（`.go`）、C（`.c`、`.h`）、C++（`.cpp`、`.cc`、`.cxx`、`.hpp`、`.hxx`）。
