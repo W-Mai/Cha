@@ -269,12 +269,16 @@ body:has(.cha-hero) main > .button.mobile-download { order: -2; }
  * brand language used by the hero and the install widget.
  */
 
-/* Oranda's cupcake theme gives <main> a 96px top margin so the chrome
- * breathes. On the landing page that pushes the nav way too far below
- * the GitHub banner. Pull it back to a tight 16px so nav sits right
- * under the banner; the hero's own background gradient gives the
- * remaining breathing room visually. */
-main { margin-top: 1rem !important; }
+/* Oranda's cupcake theme gives <main> `margin: 6rem auto`. We want a
+ * tighter top margin (so the nav sits close to the GitHub banner) but
+ * MUST keep `margin-inline: auto` for horizontal centering — losing it
+ * left-anchors the whole content column on phones. Use longhand
+ * properties so each axis is independent. */
+main {
+  margin-top: 1rem !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
 
 main > header {
   text-align: center;
@@ -515,18 +519,76 @@ body:has(.cha-hero) main > a.button.mobile-download.primary:hover {
   color: var(--cha-accent-hover) !important;
 }
 
-/* Mobile tweaks: tighten paddings and headline size below ~600px. */
-
+/* Mobile (≤600px): give the content full viewport width minus a small
+ * 16px gutter, switch CTAs to full-width vertical stack, scroll the
+ * nav pill horizontally if it overflows, and let wide tables scroll
+ * inside their own container instead of pushing the page. */
 @media (max-width: 600px) {
+  /* Cupcake's max-width: 80% leaves big asymmetric gutters on phones;
+   * use a 16px symmetric inset instead. */
+  body main {
+    max-width: 100% !important;
+    width: auto !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* CTA row: stack the three buttons vertically so they don't wrap as
+   * a ragged 1+2 split. Each takes the full content width. */
+  .cha-hero-ctas {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .cha-hero-ctas .cha-btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Top nav pill: horizontal scroll if the four labels can't fit. */
+  main > header nav.nav { overflow-x: auto; }
+  main > header nav.nav ul {
+    flex-wrap: nowrap !important;
+    max-width: 100%;
+  }
+  main > header nav.nav a { white-space: nowrap; }
+
+  /* Wide reference tables ("What can cha catch?") get squeezed
+   * unreadable at 360px and push the page wider than viewport because
+   * cells with <code> snippets refuse to shrink. Wrap the whole
+   * table in a horizontal scroll box. !important is needed because
+   * cupcake's `table { width: ... }` rule wins on specificity. */
+  body:has(.cha-hero) main table {
+    display: block !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Install widget content also benefits from full bleed. */
+  body:has(.cha-hero) main > .artifacts {
+    padding: 1.25rem 1rem 1.25rem !important;
+  }
+  body:has(.cha-hero) main > .artifacts .install-code-wrapper pre {
+    font-size: 0.78rem !important;
+  }
+
+  /* Typography + spacing tweaks. */
   .cha-hero {
     padding: 2rem 1rem 1.75rem;
     border-radius: 16px;
   }
   .cha-hero-logo { width: 84px; height: 84px; }
   .cha-hero-title { font-size: 2.75rem !important; }
-  .cha-hero-sub { font-size: 1.2rem; }
-  .cha-hero-tagline { font-size: 0.98rem; }
+  .cha-hero p.cha-hero-sub { font-size: 1.2rem !important; }
+  .cha-hero p.cha-hero-tagline { font-size: 0.98rem !important; }
   .cha-btn { padding: 0.6rem 1.1rem; font-size: 0.95rem; }
   .cha-features { gap: 0.8rem; }
   .cha-card { padding: 1.1rem 1.2rem 1.2rem; }
+
+  /* The repo_banner GitHub button: shrink slightly so it doesn't
+   * crowd the nav pill on narrow viewports. */
+  .repo_banner > a { width: 36px !important; height: 36px !important; }
+  .repo_banner .github-icon { width: 18px !important; height: 18px !important; }
 }
