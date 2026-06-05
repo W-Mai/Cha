@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en" id="oranda" class="cupcake">
+  <head>
+    <title>Cha</title>
+    
+      <meta property="og:url" content="https://cha.to01.icu" />
+    
+    
+      <link rel="icon" href="/favicon.ico" />
+    
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+      <meta name="description" content="察 — Code Health Analyzer · pluggable code-smell detection with 34 built-in detectors and WASM plugins" />
+      <meta property="og:description" content="察 — Code Health Analyzer · pluggable code-smell detection with 34 built-in detectors and WASM plugins" />
+    
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Cha" />
+    
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta property="og:image" content="https://cha.to01.icu/static/og-card.png" />
+    
+    
+      <meta property="og:image:alt" content="Cha — 察 — Code Health Analyzer · pluggable code-smell detection with 34 detectors and WASM plugins · cha.to01.icu" />
+    
+    
+    <meta http-equiv="Permissions-Policy" content="interest-cohort=()" />
+    <link rel="stylesheet" href="/oranda-v0.6.1.css" />
+    
+      <link rel="stylesheet" href="/custom.css" />
+    
+    
+  </head>
+  <body>
+    <div class="container">
+      <div class="page-body">
+        
+          <div class="repo_banner">
+            <a href="https://github.com/W-Mai/Cha">
+              <div class="github-icon" aria-hidden="true"></div>
+              Check out our GitHub!
+            </a>
+          </div>
+        
+
+        <main>
+          <header>
+            
+            <h1 class="title">Cha</h1>
+            
+  <nav class="nav">
+    <ul>
+      <li><a href="/">Home</a></li>
+
+      
+
+      
+        <li><a href="/artifacts/">Install</a></li>
+      
+
+      
+        <li><a href="/book/">Docs</a></li>
+      
+
+      
+
+      
+        <li><a href="/changelog/">Changelog</a></li>
+      
+    </ul>
+  </nav>
+
+          </header>
+
+          
+  <div>
+    <h1>1.19.0 - 2026-05-22</h1>
+    <div class="releases-body">
+      
+      
+      <section class="release ">
+  
+  <div class="release-info">
+    <span class="flex items-center gap-2">
+      <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'>
+    <path stroke-linecap='round' stroke-linejoin='round' d='M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z' />
+    <path stroke-linecap='round' stroke-linejoin='round' d='M6 6h.008v.008H6V6z' /></svg>
+      v1.19.0
+    </span>
+    <span class="flex items-center gap-2">
+      
+        <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' /></svg>
+        May 22 2026 at 18:34 UTC
+      
+    </span>
+  </div>
+  <div class="release-body">
+    <p>Hardcoded thresholds and keyword lists become plugin config; <code>cha fix</code> stops hardcoding smell names; the last two text-scanning detectors switch to AST queries.</p>
+<h3>Added</h3>
+<ul>
+<li><strong><code>Plugin::try_fix(finding, ctx) -&gt; Option&lt;Patch&gt;</code></strong> — every plugin can now contribute auto-fixes. <code>cha fix</code> walks all enabled plugins and asks each one. Adding fix support for a new smell is one trait override, not a host-side <code>if smell_name == ...</code> patch.</li>
+<li><strong><code>cha_core::Patch</code> / <code>cha_core::TextEdit</code></strong> — public byte-range edit types for plugin authors. Edits within a single finding are applied in reverse byte-offset order.</li>
+<li><strong><code>DesignPatternAdvisor</code> config</strong> — 8 magic-number thresholds (<code>strategy_min_arms</code>, <code>state_min_arms</code>, <code>builder_min_params</code>, <code>builder_alt_min_params</code>, <code>builder_alt_min_optional</code>, <code>null_object_min_count</code>, <code>template_min_self_calls</code>, <code>template_min_methods</code>) and 2 keyword lists (<code>type_field_keywords</code>, <code>state_field_keywords</code>) are now overridable via <code>[plugins.design_pattern]</code>.</li>
+<li><strong><code>GodClassAnalyzer::min_tcc</code></strong> — Tight Class Cohesion threshold (Lanza-Marinescu's 1/3) is configurable.</li>
+<li><strong><code>cache.rs</code> walker skip-dirs</strong> — extended from <code>{target, node_modules, dist}</code> to also skip <code>build</code>, <code>out</code>, <code>__pycache__</code>, <code>venv</code>, <code>.venv</code>, <code>vendor</code>. Reduces unnecessary <code>.cha.toml</code> discovery work in polyglot repos.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li><strong><code>switch_statement</code> / <code>message_chain</code></strong>: replaced bespoke text scanners (<code>find_switch_keyword</code>, <code>walk_chain</code> and ~140 lines of hand-rolled tokenization) with tree-sitter queries against <code>switch_statement</code> / <code>match_expression</code> / <code>field_expression</code> / <code>member_expression</code> / <code>selector_expression</code>. Smell counts unchanged, but keyword positions are now sourced from the AST. No more false positives on keywords inside strings.</li>
+<li><strong><code>inappropriate_intimacy</code> import resolution</strong>: extension probe expanded from <code>{.ts, .tsx, .rs}</code> to also include <code>.py</code>, <code>.go</code>, <code>.cpp</code>, <code>.cc</code>, <code>.cxx</code>, <code>.c</code>, <code>.h</code>, <code>.hpp</code>, <code>.hxx</code>, <code>.js</code>, <code>.jsx</code>, <code>.mts</code>, <code>.cts</code>. Sibling-file lookups in non-JS/Rust projects no longer silently fail.</li>
+<li><strong><code>calibrate.rs</code> table rendering</strong>: 3 metric labels were hardcoded across 3 separate <code>println</code> blocks. Adding a calibration metric now means one entry in a <code>(label, samples)</code> array.</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li><strong><code>cha fix</code></strong> delegates to <code>Plugin::try_fix</code> for every finding — no more <code>filter(|f| f.smell_name == "naming_convention")</code> on the host. Existing behavior preserved (NamingAnalyzer fixes <code>naming_convention</code> PascalCase violations); other plugins return <code>None</code> until they opt in.</li>
+</ul>
+
+  </div>
+</section>
+    </div>
+  </div>
+
+        </main>
+      </div>
+
+      <footer>
+        
+          <a href="https://github.com/W-Mai/Cha"><div class="github-icon" aria-hidden="true"></div></a>
+        
+        <span>
+          Cha, MIT
+        </span>
+      </footer>
+    </div>
+
+    
+    
+
+    
+  </body>
+</html>

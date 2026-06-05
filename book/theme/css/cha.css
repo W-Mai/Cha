@@ -1,0 +1,56 @@
+/* Cha branding for mdbook.
+ *
+ * The companion oranda landing uses the Cupcake palette; pick a green
+ * accent that reads "tea" (matching 察 — code health analyzer) without
+ * clashing with mdbook's default light/navy themes. Variables are
+ * overridden via :root so they apply to every mdbook theme variant.
+ */
+
+:root {
+  --cha-accent: #2f7d4a;          /* matcha green */
+  --cha-accent-soft: #cce4d6;
+  --cha-accent-dim: #1f5635;
+}
+
+/* Header logo / book title color. mdbook default is var(--sidebar-fg) for
+ * the sidebar title; we tint links + active items toward Cha green. */
+.sidebar .chapter li.chapter-item a:hover,
+.menu-title:hover {
+  color: var(--cha-accent);
+}
+
+a.active {
+  color: var(--cha-accent) !important;
+}
+
+/* Inline code: subtle green background for `cha`-prefixed identifiers
+ * is too clever, just nudge the default green for all inline code. */
+:not(pre) > code {
+  color: var(--cha-accent-dim);
+}
+
+/* Tables: docs/plugins.md has many wide reference tables. Soften the
+ * default mdbook table to be more readable. */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+table thead {
+  background: var(--cha-accent-soft);
+}
+table th, table td {
+  padding: .4em .75em;
+  border-bottom: 1px solid var(--theme-popup-border, #ddd);
+}
+table tbody tr:hover {
+  background: rgba(47, 125, 74, 0.05);
+}
+
+/* Make the "TODO placeholder" callout in stub pages visually distinct
+ * without needing mdbook-admonish on day 1. */
+blockquote {
+  border-left: 4px solid var(--cha-accent);
+  padding: .5em 1em;
+  margin: 1em 0;
+  background: rgba(47, 125, 74, 0.04);
+}

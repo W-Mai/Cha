@@ -1,0 +1,520 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Pre-commit hook - Cha</title>
+
+
+        <!-- Custom HTML head -->
+        <!--
+          Open Graph / Twitter Card meta. mdbook itself doesn't emit these,
+          so link previews on Slack/Discord/iMessage/微信 fall back to the
+          favicon (a 32×32 ICO that renders as a tiny illegible square in
+          the 1200×628 preview slot).
+        
+          We point at the same og-card.png that oranda uses on the landing
+          page, and let `chapter_title` from mdbook's handlebars context
+          give each page a distinct og:title.
+        -->
+        <meta property="og:title" content="Pre-commit hook · Cha">
+        <meta property="og:description" content="察 — Code Health Analyzer · pluggable code-smell detection with 34 built-in detectors and WASM plugins.">
+        <meta property="og:type" content="article">
+        <meta property="og:image" content="https://cha.to01.icu/static/og-card.png">
+        <meta property="og:image:width" content="1200">
+        <meta property="og:image:height" content="628">
+        <meta property="og:image:alt" content="Cha — 察 — Code Health Analyzer">
+        <meta property="og:site_name" content="Cha documentation">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="Pre-commit hook · Cha">
+        <meta name="twitter:description" content="察 — Code Health Analyzer · pluggable code-smell detection with 34 built-in detectors and WASM plugins.">
+        <meta name="twitter:image" content="https://cha.to01.icu/static/og-card.png">
+        
+        <!--
+          Language switcher for the two-tree mdbook layout.
+        
+          Convention:
+            English book is at:  /book/<path>
+            zh-CN book is at:    /book/zh-CN/<path>
+        
+          The switcher is injected into mdbook's `.right-buttons` toolbar after the
+          page renders. Entries that 404 on the alternate tree are marked
+          `unavailable` and rendered as a disabled item, so the menu always shows
+          every language we publish.
+        -->
+        <style>
+          .lang-switcher { position: relative; display: inline-block; }
+          .lang-switcher > a { cursor: pointer; }
+          .lang-switcher ul {
+            position: absolute; right: 0; top: 2rem; z-index: 1000;
+            background: var(--bg); border: 1px solid var(--theme-popup-border, #ccc);
+            border-radius: 4px; padding: .25rem 0; margin: 0;
+            list-style: none; min-width: 9rem;
+            box-shadow: 0 2px 6px rgba(0,0,0,.15);
+            display: none;
+          }
+          .lang-switcher.open ul { display: block; }
+          .lang-switcher li a {
+            display: block; padding: .35rem .9rem;
+            color: var(--fg); text-decoration: none;
+            white-space: nowrap;
+          }
+          .lang-switcher li a:hover { background: var(--theme-hover, #eee); }
+          .lang-switcher li.current a { font-weight: 600; }
+          .lang-switcher li.unavailable a { opacity: .45; cursor: not-allowed; pointer-events: none; }
+        </style>
+        <script>
+        (function() {
+          var pagePath = "quick-start/pre-commit.md";
+          var pathToRoot = "../";
+        
+          var langs = [
+            { id: "",      label: "English"  },
+            { id: "zh-CN", label: "简体中文" },
+          ];
+        
+          var here = window.location.pathname;
+          var current = "";
+          for (var i = 0; i < langs.length; i++) {
+            if (langs[i].id && here.indexOf("/" + langs[i].id + "/") !== -1) {
+              current = langs[i].id; break;
+            }
+          }
+        
+          // The toolbar's print/github/edit icons render as `<i class="fa fa-*">`
+          // glyphs from the bundled FontAwesome 4 webfont (see FontAwesome/css/
+          // font-awesome.css in the build output). Use the same element so the
+          // switcher inherits the toolbar's color, size, and hover styling without
+          // a bespoke CSS override.
+          var GLOBE_ICON = '<i class="fa fa-globe" id="lang-button"></i>';
+        
+          document.addEventListener("DOMContentLoaded", function() {
+            var rb = document.querySelector(".right-buttons");
+            if (!rb) return;
+        
+            var wrap = document.createElement("div");
+            wrap.className = "lang-switcher";
+            var btn = document.createElement("a");
+            btn.setAttribute("role", "button");
+            btn.setAttribute("aria-label", "Switch language");
+            btn.title = "Switch language";
+            btn.innerHTML = GLOBE_ICON;
+            var ul = document.createElement("ul");
+        
+            var pageHtml = pagePath.replace(/\.md$/, ".html");
+        
+            langs.forEach(function(lang) {
+              var li = document.createElement("li");
+              if (lang.id === current) li.className = "current";
+              var a = document.createElement("a");
+              var bookRoot;
+              if (current === "") {
+                bookRoot = pathToRoot;
+              } else {
+                bookRoot = pathToRoot + "../";
+              }
+              var url = bookRoot + (lang.id ? lang.id + "/" : "") + pageHtml;
+              a.href = url;
+              a.textContent = lang.label;
+              li.appendChild(a);
+              ul.appendChild(li);
+        
+              // HEAD-probe; on 404, mark the entry as unavailable rather than hide it.
+              // Keeps the menu predictable when a translation is partial or when the
+              // alternate tree isn't built locally (e.g. `mdbook serve` only renders
+              // one tree at a time).
+              if (lang.id !== current) {
+                fetch(url, { method: "HEAD" }).then(function(resp) {
+                  if (!resp.ok) li.className = "unavailable";
+                }).catch(function() { li.className = "unavailable"; });
+              }
+            });
+        
+            wrap.appendChild(btn);
+            wrap.appendChild(ul);
+            rb.insertBefore(wrap, rb.firstChild);
+        
+            btn.addEventListener("click", function(e) {
+              e.preventDefault();
+              e.stopPropagation();
+              wrap.classList.toggle("open");
+            });
+            document.addEventListener("click", function() {
+              wrap.classList.remove("open");
+            });
+          });
+        })();
+        </script>
+        
+        <!--
+          Pagefind search overlay.
+        
+          mdbook's bundled elasticlunr search drops non-ASCII tokens, so the zh-CN
+          tree has no working search. Pagefind 1.4 indexes both trees in CI
+          (.github/workflows/web.yml). This block injects the Pagefind UI into a
+          modal overlay and hijacks mdbook's search button + `s` shortcut to open
+          it instead of the default search bar.
+        
+          bundlePath is computed from `path_to_root` so each tree loads its own
+          index (/book/pagefind/ for English, /book/zh-CN/pagefind/ for Chinese).
+        -->
+        <link rel="stylesheet" href="../pagefind/pagefind-ui.css" onerror="this.remove()">
+        <style>
+          #cha-search-overlay {
+            position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,.45);
+            display: none;
+            align-items: flex-start; justify-content: center;
+            padding-top: 6rem;
+          }
+          #cha-search-overlay.open { display: flex; }
+          #cha-search-modal {
+            width: min(720px, 92vw);
+            background: var(--bg); color: var(--fg);
+            border: 1px solid var(--theme-popup-border, #ccc);
+            border-radius: 8px; padding: 1rem 1.25rem 1.25rem;
+            box-shadow: 0 12px 32px rgba(0,0,0,.25);
+            max-height: 80vh; overflow: auto;
+          }
+          /* Pagefind UI inherits the modal background; tighten its CSS reset
+             so the input doesn't fight against mdbook's font stack. */
+          #cha-search-modal .pagefind-ui__form { margin-top: 0; }
+        </style>
+        <div id="cha-search-overlay" role="dialog" aria-modal="true" aria-label="Search documentation">
+          <div id="cha-search-modal">
+            <div id="cha-search"></div>
+          </div>
+        </div>
+        <script src="../pagefind/pagefind-ui.js" onerror="this.remove()"></script>
+        <script>
+        (function() {
+          // Stand up Pagefind UI lazily — on first open — so the index isn't
+          // fetched on pages where the user never invokes search.
+          var initialised = false;
+          function ensureInit() {
+            if (initialised) return true;
+            if (typeof PagefindUI === "undefined") return false;
+            new PagefindUI({
+              element: "#cha-search",
+              showSubResults: true,
+              autofocus: true,
+              translations: { placeholder: "Search the docs…" },
+            });
+            initialised = true;
+            return true;
+          }
+        
+          function openOverlay() {
+            var overlay = document.getElementById("cha-search-overlay");
+            if (!overlay) return;
+            if (!ensureInit()) return; // Pagefind UI failed to load (no /pagefind/), bail.
+            overlay.classList.add("open");
+            var input = overlay.querySelector("input[type='text']");
+            if (input) input.focus();
+          }
+        
+          function closeOverlay() {
+            var overlay = document.getElementById("cha-search-overlay");
+            if (overlay) overlay.classList.remove("open");
+          }
+        
+          document.addEventListener("DOMContentLoaded", function() {
+            var overlay = document.getElementById("cha-search-overlay");
+            if (!overlay) return;
+        
+            // Click outside the modal closes it.
+            overlay.addEventListener("click", function(e) {
+              if (e.target === overlay) closeOverlay();
+            });
+        
+            // Escape closes; `s` opens (matching mdbook's default shortcut),
+            // `/` opens too (matching the convention from GitHub / many docs sites).
+            document.addEventListener("keydown", function(e) {
+              if (e.key === "Escape" && overlay.classList.contains("open")) {
+                closeOverlay();
+                e.preventDefault();
+                return;
+              }
+              var t = e.target;
+              var typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" ||
+                                 (t.isContentEditable === true));
+              if (typing) return;
+              if (e.key === "s" || e.key === "/") {
+                openOverlay();
+                e.preventDefault();
+              }
+            });
+        
+            // mdbook's `[output.html.search] enable = false` removes the
+            // built-in search-toggle button along with the elasticlunr index.
+            // Inject a replacement into .right-buttons so users have a clickable
+            // entry point to the Pagefind overlay (not just the `s` shortcut).
+            var rb = document.querySelector(".right-buttons");
+            if (rb) {
+              var btn = document.createElement("a");
+              btn.id = "cha-search-toggle";
+              btn.setAttribute("role", "button");
+              btn.setAttribute("aria-label", "Search documentation");
+              btn.title = "Search documentation (press s or /)";
+              btn.style.cursor = "pointer";
+              btn.innerHTML = '<i class="fa fa-search"></i>';
+              btn.addEventListener("click", function(e) {
+                e.preventDefault();
+                openOverlay();
+              });
+              rb.insertBefore(btn, rb.firstChild);
+            }
+          });
+        })();
+        </script>
+
+        <meta name="description" content="察 — Code Health Analyzer">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../highlight.css">
+        <link rel="stylesheet" href="../tomorrow-night.css">
+        <link rel="stylesheet" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../theme/css/cha.css">
+
+    </head>
+    <body class="sidebar-visible no-js">
+    <div id="body-container">
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('light')
+            html.classList.add(theme);
+            var body = document.querySelector('body');
+            body.classList.remove('no-js')
+            body.classList.add('js');
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var body = document.querySelector('body');
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            body.classList.remove('sidebar-visible');
+            body.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../intro.html">Introduction</a></li><li class="chapter-item expanded affix "><a href="../install.html">Install</a></li><li class="chapter-item expanded affix "><li class="part-title">Quick Start</li><li class="chapter-item expanded "><a href="../quick-start/cli.html"><strong aria-hidden="true">1.</strong> CLI</a></li><li class="chapter-item expanded "><a href="../quick-start/pre-commit.html" class="active"><strong aria-hidden="true">2.</strong> Pre-commit hook</a></li><li class="chapter-item expanded "><a href="../quick-start/github-actions.html"><strong aria-hidden="true">3.</strong> GitHub Actions</a></li><li class="chapter-item expanded "><a href="../quick-start/editor.html"><strong aria-hidden="true">4.</strong> Editor (LSP)</a></li><li class="chapter-item expanded affix "><li class="part-title">Reference</li><li class="chapter-item expanded "><a href="../configuration/overview.html"><strong aria-hidden="true">5.</strong> Configuration</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../configuration/inline-directives.html"><strong aria-hidden="true">5.1.</strong> Inline directives</a></li><li class="chapter-item "><a href="../configuration/presets.html"><strong aria-hidden="true">5.2.</strong> Strictness and presets</a></li><li class="chapter-item "><a href="../reference/config-keys.html"><strong aria-hidden="true">5.3.</strong> Configuration keys</a></li></ol></li><li class="chapter-item expanded "><a href="../plugins/reference.html"><strong aria-hidden="true">6.</strong> Smells</a></li><li class="chapter-item expanded "><a href="../plugins/development.html"><strong aria-hidden="true">7.</strong> Plugin development</a></li><li class="chapter-item expanded "><a href="../cli/index.html"><strong aria-hidden="true">8.</strong> CLI</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../cli/analyze.html"><strong aria-hidden="true">8.1.</strong> analyze</a></li><li class="chapter-item "><a href="../cli/parse.html"><strong aria-hidden="true">8.2.</strong> parse</a></li><li class="chapter-item "><a href="../cli/baseline.html"><strong aria-hidden="true">8.3.</strong> baseline</a></li><li class="chapter-item "><a href="../cli/fix.html"><strong aria-hidden="true">8.4.</strong> fix</a></li><li class="chapter-item "><a href="../cli/deps.html"><strong aria-hidden="true">8.5.</strong> deps</a></li><li class="chapter-item "><a href="../cli/layers.html"><strong aria-hidden="true">8.6.</strong> layers</a></li><li class="chapter-item "><a href="../cli/hotspot.html"><strong aria-hidden="true">8.7.</strong> hotspot</a></li><li class="chapter-item "><a href="../cli/trend.html"><strong aria-hidden="true">8.8.</strong> trend</a></li><li class="chapter-item "><a href="../cli/calibrate.html"><strong aria-hidden="true">8.9.</strong> calibrate</a></li><li class="chapter-item "><a href="../cli/preset.html"><strong aria-hidden="true">8.10.</strong> preset</a></li><li class="chapter-item "><a href="../cli/plugin.html"><strong aria-hidden="true">8.11.</strong> plugin</a></li><li class="chapter-item "><a href="../cli/completions.html"><strong aria-hidden="true">8.12.</strong> completions</a></li><li class="chapter-item "><a href="../cli/init.html"><strong aria-hidden="true">8.13.</strong> init / schema</a></li><li class="chapter-item "><a href="../reference/cli-manual.html"><strong aria-hidden="true">8.14.</strong> Full CLI manual</a></li></ol></li><li class="chapter-item expanded "><a href="../output/index.html"><strong aria-hidden="true">9.</strong> Output formats</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../output/terminal.html"><strong aria-hidden="true">9.1.</strong> Terminal</a></li><li class="chapter-item "><a href="../output/json.html"><strong aria-hidden="true">9.2.</strong> JSON</a></li><li class="chapter-item "><a href="../output/sarif.html"><strong aria-hidden="true">9.3.</strong> SARIF</a></li><li class="chapter-item "><a href="../output/html.html"><strong aria-hidden="true">9.4.</strong> HTML</a></li><li class="chapter-item "><a href="../output/llm.html"><strong aria-hidden="true">9.5.</strong> LLM context</a></li><li class="chapter-item "><a href="../reference/json-schema.html"><strong aria-hidden="true">9.6.</strong> JSON Schema</a></li></ol></li><li class="chapter-item expanded "><a href="../lsp/overview.html"><strong aria-hidden="true">10.</strong> LSP integration</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../lsp/editors/vscode.html"><strong aria-hidden="true">10.1.</strong> VS Code</a></li><li class="chapter-item "><a href="../lsp/editors/others.html"><strong aria-hidden="true">10.2.</strong> Other editors</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Cookbook</li><li class="chapter-item expanded "><a href="../recipes/index.html"><strong aria-hidden="true">11.</strong> Recipes</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../recipes/migrate-clippy.html"><strong aria-hidden="true">11.1.</strong> Migrate from clippy</a></li><li class="chapter-item "><a href="../recipes/monorepo-ci.html"><strong aria-hidden="true">11.2.</strong> CI on a monorepo</a></li><li class="chapter-item "><a href="../recipes/suppress-legacy.html"><strong aria-hidden="true">11.3.</strong> Suppress in legacy code</a></li><li class="chapter-item "><a href="../recipes/custom-plugin-50loc.html"><strong aria-hidden="true">11.4.</strong> Custom plugin in 50 lines</a></li><li class="chapter-item "><a href="../recipes/calibrate.html"><strong aria-hidden="true">11.5.</strong> Calibrate to your codebase</a></li><li class="chapter-item "><a href="../recipes/baseline.html"><strong aria-hidden="true">11.6.</strong> Baseline workflow</a></li></ol></li><li class="chapter-item expanded "><a href="../faq.html"><strong aria-hidden="true">12.</strong> FAQ</a></li><li class="chapter-item expanded affix "><li class="part-title">Project</li><li class="chapter-item expanded "><a href="../contributing/index.html"><strong aria-hidden="true">13.</strong> Contributing</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../contributing/architecture.html"><strong aria-hidden="true">13.1.</strong> Architecture</a></li><li class="chapter-item "><a href="../contributing/writing-a-smell.html"><strong aria-hidden="true">13.2.</strong> Writing a smell</a></li><li class="chapter-item "><a href="../contributing/releasing.html"><strong aria-hidden="true">13.3.</strong> Releasing</a></li></ol></li><li class="chapter-item expanded "><a href="../references.html"><strong aria-hidden="true">14.</strong> Academic references</a></li><li class="chapter-item expanded "><a href="../changelog.html"><strong aria-hidden="true">15.</strong> Changelog</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                    </div>
+
+                    <h1 class="menu-title">Cha</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/W-Mai/Cha" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/W-Mai/Cha/edit/main/book/src/quick-start/pre-commit.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="quick-start-pre-commit"><a class="header" href="#quick-start-pre-commit">Quick Start: Pre-commit</a></h1>
+<p>Run Cha on staged files before each commit, blocking the commit on warning-or-worse findings.</p>
+<h2 id="setup"><a class="header" href="#setup">Setup</a></h2>
+<p>Add to <code>.pre-commit-config.yaml</code>:</p>
+<pre><code class="language-yaml"># .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/W-Mai/Cha
+    rev: v1.19.0
+    hooks:
+      - id: cha-analyze
+</code></pre>
+<p>Then:</p>
+<pre><code class="language-bash">pre-commit install
+</code></pre>
+<p>The hook id <code>cha-analyze</code> is defined in <a href="https://github.com/W-Mai/Cha/blob/main/.pre-commit-hooks.yaml"><code>.pre-commit-hooks.yaml</code></a> and runs:</p>
+<pre><code>cha analyze --diff --fail-on warning
+</code></pre>
+<h2 id="what-gets-analyzed"><a class="header" href="#what-gets-analyzed">What gets analyzed</a></h2>
+<ul>
+<li><code>--diff</code> — only files changed in the working tree are analyzed. Untouched files don't slow the hook down.</li>
+<li><code>--fail-on warning</code> — the commit is blocked if any finding has severity <code>warning</code> or <code>error</code>. Hints don't block.</li>
+<li><code>types_or</code> is set to <code>c, c++, rust, python, go, ts, javascript</code>, so the hook only fires when staged files include one of these languages.</li>
+<li><code>pass_filenames</code> is <code>false</code>: Cha walks the diff itself rather than receiving a file list from pre-commit, so the gitignore-aware behaviour stays consistent with <code>cha analyze</code>.</li>
+</ul>
+<h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
+<p><strong>Too noisy on day one.</strong> A fresh install on a legacy codebase will fire on every commit. Two options:</p>
+<pre><code class="language-bash"># Option A: only block on errors, downgrade warnings to advisory
+# Edit .pre-commit-config.yaml -&gt; args: [--fail-on, error]
+</code></pre>
+<pre><code class="language-bash"># Option B: snapshot existing findings as baseline; only new findings block
+cha baseline
+git add .cha/baseline.json
+</code></pre>
+<p>Then in <code>.pre-commit-config.yaml</code>:</p>
+<pre><code class="language-yaml">- id: cha-analyze
+  args: [--diff, --fail-on, warning, --baseline, .cha/baseline.json]
+</code></pre>
+<p>See <a href="../recipes/suppress-legacy.html">Suppressing legacy issues</a> for the full baseline workflow.</p>
+<p><strong>Hook is slow.</strong> First run on a fresh checkout is uncached; subsequent runs hit the warm cache and finish in well under a second on most projects. If a single file is repeatedly slow, profile with <code>cha analyze --no-cache &lt;path&gt;</code> to confirm it's parsing rather than the hook framework.</p>
+<p><strong>Hook ignores my language.</strong> Pre-commit's <code>types_or</code> filter is conservative. Add the file extension to your hook config or open an issue if a supported language isn't matching.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../quick-start/cli.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../quick-start/github-actions.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../quick-start/cli.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../quick-start/github-actions.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../theme/mermaid.min.js"></script>
+        <script src="../theme/cha-mermaid.js"></script>
+
+
+    </div>
+    </body>
+</html>

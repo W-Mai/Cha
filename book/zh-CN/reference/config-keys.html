@@ -1,0 +1,599 @@
+<!DOCTYPE HTML>
+<html lang="zh-CN" class="light" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>配置项参考 - Cha</title>
+
+
+        <!-- Custom HTML head -->
+        <!--
+          Open Graph / Twitter Card meta. mdbook itself doesn't emit these,
+          so link previews on Slack/Discord/iMessage/微信 fall back to the
+          favicon (a 32×32 ICO that renders as a tiny illegible square in
+          the 1200×628 preview slot).
+        
+          We point at the same og-card.png that oranda uses on the landing
+          page, and let `chapter_title` from mdbook's handlebars context
+          give each page a distinct og:title.
+        -->
+        <meta property="og:title" content="配置项参考 · Cha">
+        <meta property="og:description" content="察 — Code Health Analyzer · pluggable code-smell detection with 34 built-in detectors and WASM plugins.">
+        <meta property="og:type" content="article">
+        <meta property="og:image" content="https://cha.to01.icu/static/og-card.png">
+        <meta property="og:image:width" content="1200">
+        <meta property="og:image:height" content="628">
+        <meta property="og:image:alt" content="Cha — 察 — Code Health Analyzer">
+        <meta property="og:site_name" content="Cha documentation">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="配置项参考 · Cha">
+        <meta name="twitter:description" content="察 — Code Health Analyzer · pluggable code-smell detection with 34 built-in detectors and WASM plugins.">
+        <meta name="twitter:image" content="https://cha.to01.icu/static/og-card.png">
+        
+        <!--
+          Language switcher for the two-tree mdbook layout.
+        
+          Convention:
+            English book is at:  /book/<path>
+            zh-CN book is at:    /book/zh-CN/<path>
+        
+          The switcher is injected into mdbook's `.right-buttons` toolbar after the
+          page renders. Entries that 404 on the alternate tree are marked
+          `unavailable` and rendered as a disabled item, so the menu always shows
+          every language we publish.
+        -->
+        <style>
+          .lang-switcher { position: relative; display: inline-block; }
+          .lang-switcher > a { cursor: pointer; }
+          .lang-switcher ul {
+            position: absolute; right: 0; top: 2rem; z-index: 1000;
+            background: var(--bg); border: 1px solid var(--theme-popup-border, #ccc);
+            border-radius: 4px; padding: .25rem 0; margin: 0;
+            list-style: none; min-width: 9rem;
+            box-shadow: 0 2px 6px rgba(0,0,0,.15);
+            display: none;
+          }
+          .lang-switcher.open ul { display: block; }
+          .lang-switcher li a {
+            display: block; padding: .35rem .9rem;
+            color: var(--fg); text-decoration: none;
+            white-space: nowrap;
+          }
+          .lang-switcher li a:hover { background: var(--theme-hover, #eee); }
+          .lang-switcher li.current a { font-weight: 600; }
+          .lang-switcher li.unavailable a { opacity: .45; cursor: not-allowed; pointer-events: none; }
+        </style>
+        <script>
+        (function() {
+          var pagePath = "reference/config-keys.md";
+          var pathToRoot = "../";
+        
+          var langs = [
+            { id: "",      label: "English"  },
+            { id: "zh-CN", label: "简体中文" },
+          ];
+        
+          var here = window.location.pathname;
+          var current = "";
+          for (var i = 0; i < langs.length; i++) {
+            if (langs[i].id && here.indexOf("/" + langs[i].id + "/") !== -1) {
+              current = langs[i].id; break;
+            }
+          }
+        
+          // The toolbar's print/github/edit icons render as `<i class="fa fa-*">`
+          // glyphs from the bundled FontAwesome 4 webfont (see FontAwesome/css/
+          // font-awesome.css in the build output). Use the same element so the
+          // switcher inherits the toolbar's color, size, and hover styling without
+          // a bespoke CSS override.
+          var GLOBE_ICON = '<i class="fa fa-globe" id="lang-button"></i>';
+        
+          document.addEventListener("DOMContentLoaded", function() {
+            var rb = document.querySelector(".right-buttons");
+            if (!rb) return;
+        
+            var wrap = document.createElement("div");
+            wrap.className = "lang-switcher";
+            var btn = document.createElement("a");
+            btn.setAttribute("role", "button");
+            btn.setAttribute("aria-label", "Switch language");
+            btn.title = "Switch language";
+            btn.innerHTML = GLOBE_ICON;
+            var ul = document.createElement("ul");
+        
+            var pageHtml = pagePath.replace(/\.md$/, ".html");
+        
+            langs.forEach(function(lang) {
+              var li = document.createElement("li");
+              if (lang.id === current) li.className = "current";
+              var a = document.createElement("a");
+              var bookRoot;
+              if (current === "") {
+                bookRoot = pathToRoot;
+              } else {
+                bookRoot = pathToRoot + "../";
+              }
+              var url = bookRoot + (lang.id ? lang.id + "/" : "") + pageHtml;
+              a.href = url;
+              a.textContent = lang.label;
+              li.appendChild(a);
+              ul.appendChild(li);
+        
+              // HEAD-probe; on 404, mark the entry as unavailable rather than hide it.
+              // Keeps the menu predictable when a translation is partial or when the
+              // alternate tree isn't built locally (e.g. `mdbook serve` only renders
+              // one tree at a time).
+              if (lang.id !== current) {
+                fetch(url, { method: "HEAD" }).then(function(resp) {
+                  if (!resp.ok) li.className = "unavailable";
+                }).catch(function() { li.className = "unavailable"; });
+              }
+            });
+        
+            wrap.appendChild(btn);
+            wrap.appendChild(ul);
+            rb.insertBefore(wrap, rb.firstChild);
+        
+            btn.addEventListener("click", function(e) {
+              e.preventDefault();
+              e.stopPropagation();
+              wrap.classList.toggle("open");
+            });
+            document.addEventListener("click", function() {
+              wrap.classList.remove("open");
+            });
+          });
+        })();
+        </script>
+        
+        <!--
+          Pagefind search overlay.
+        
+          mdbook's bundled elasticlunr search drops non-ASCII tokens, so the zh-CN
+          tree has no working search. Pagefind 1.4 indexes both trees in CI
+          (.github/workflows/web.yml). This block injects the Pagefind UI into a
+          modal overlay and hijacks mdbook's search button + `s` shortcut to open
+          it instead of the default search bar.
+        
+          bundlePath is computed from `path_to_root` so each tree loads its own
+          index (/book/pagefind/ for English, /book/zh-CN/pagefind/ for Chinese).
+        -->
+        <link rel="stylesheet" href="../pagefind/pagefind-ui.css" onerror="this.remove()">
+        <style>
+          #cha-search-overlay {
+            position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,.45);
+            display: none;
+            align-items: flex-start; justify-content: center;
+            padding-top: 6rem;
+          }
+          #cha-search-overlay.open { display: flex; }
+          #cha-search-modal {
+            width: min(720px, 92vw);
+            background: var(--bg); color: var(--fg);
+            border: 1px solid var(--theme-popup-border, #ccc);
+            border-radius: 8px; padding: 1rem 1.25rem 1.25rem;
+            box-shadow: 0 12px 32px rgba(0,0,0,.25);
+            max-height: 80vh; overflow: auto;
+          }
+          /* Pagefind UI inherits the modal background; tighten its CSS reset
+             so the input doesn't fight against mdbook's font stack. */
+          #cha-search-modal .pagefind-ui__form { margin-top: 0; }
+        </style>
+        <div id="cha-search-overlay" role="dialog" aria-modal="true" aria-label="Search documentation">
+          <div id="cha-search-modal">
+            <div id="cha-search"></div>
+          </div>
+        </div>
+        <script src="../pagefind/pagefind-ui.js" onerror="this.remove()"></script>
+        <script>
+        (function() {
+          // Stand up Pagefind UI lazily — on first open — so the index isn't
+          // fetched on pages where the user never invokes search.
+          var initialised = false;
+          function ensureInit() {
+            if (initialised) return true;
+            if (typeof PagefindUI === "undefined") return false;
+            new PagefindUI({
+              element: "#cha-search",
+              showSubResults: true,
+              autofocus: true,
+              translations: { placeholder: "Search the docs…" },
+            });
+            initialised = true;
+            return true;
+          }
+        
+          function openOverlay() {
+            var overlay = document.getElementById("cha-search-overlay");
+            if (!overlay) return;
+            if (!ensureInit()) return; // Pagefind UI failed to load (no /pagefind/), bail.
+            overlay.classList.add("open");
+            var input = overlay.querySelector("input[type='text']");
+            if (input) input.focus();
+          }
+        
+          function closeOverlay() {
+            var overlay = document.getElementById("cha-search-overlay");
+            if (overlay) overlay.classList.remove("open");
+          }
+        
+          document.addEventListener("DOMContentLoaded", function() {
+            var overlay = document.getElementById("cha-search-overlay");
+            if (!overlay) return;
+        
+            // Click outside the modal closes it.
+            overlay.addEventListener("click", function(e) {
+              if (e.target === overlay) closeOverlay();
+            });
+        
+            // Escape closes; `s` opens (matching mdbook's default shortcut),
+            // `/` opens too (matching the convention from GitHub / many docs sites).
+            document.addEventListener("keydown", function(e) {
+              if (e.key === "Escape" && overlay.classList.contains("open")) {
+                closeOverlay();
+                e.preventDefault();
+                return;
+              }
+              var t = e.target;
+              var typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" ||
+                                 (t.isContentEditable === true));
+              if (typing) return;
+              if (e.key === "s" || e.key === "/") {
+                openOverlay();
+                e.preventDefault();
+              }
+            });
+        
+            // mdbook's `[output.html.search] enable = false` removes the
+            // built-in search-toggle button along with the elasticlunr index.
+            // Inject a replacement into .right-buttons so users have a clickable
+            // entry point to the Pagefind overlay (not just the `s` shortcut).
+            var rb = document.querySelector(".right-buttons");
+            if (rb) {
+              var btn = document.createElement("a");
+              btn.id = "cha-search-toggle";
+              btn.setAttribute("role", "button");
+              btn.setAttribute("aria-label", "Search documentation");
+              btn.title = "Search documentation (press s or /)";
+              btn.style.cursor = "pointer";
+              btn.innerHTML = '<i class="fa fa-search"></i>';
+              btn.addEventListener("click", function(e) {
+                e.preventDefault();
+                openOverlay();
+              });
+              rb.insertBefore(btn, rb.firstChild);
+            }
+          });
+        })();
+        </script>
+
+        <meta name="description" content="察 — Code Health Analyzer">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../highlight.css">
+        <link rel="stylesheet" href="../tomorrow-night.css">
+        <link rel="stylesheet" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../theme/css/cha.css">
+
+    </head>
+    <body class="sidebar-visible no-js">
+    <div id="body-container">
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('light')
+            html.classList.add(theme);
+            var body = document.querySelector('body');
+            body.classList.remove('no-js')
+            body.classList.add('js');
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var body = document.querySelector('body');
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            body.classList.remove('sidebar-visible');
+            body.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../intro.html">简介</a></li><li class="chapter-item expanded affix "><a href="../install.html">安装</a></li><li class="chapter-item expanded affix "><li class="part-title">快速开始</li><li class="chapter-item expanded "><a href="../quick-start/cli.html"><strong aria-hidden="true">1.</strong> 命令行</a></li><li class="chapter-item expanded "><a href="../quick-start/pre-commit.html"><strong aria-hidden="true">2.</strong> pre-commit hook</a></li><li class="chapter-item expanded "><a href="../quick-start/github-actions.html"><strong aria-hidden="true">3.</strong> GitHub Actions</a></li><li class="chapter-item expanded "><a href="../quick-start/editor.html"><strong aria-hidden="true">4.</strong> 编辑器（LSP）</a></li><li class="chapter-item expanded affix "><li class="part-title">参考</li><li class="chapter-item expanded "><a href="../configuration/overview.html"><strong aria-hidden="true">5.</strong> 配置</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../configuration/inline-directives.html"><strong aria-hidden="true">5.1.</strong> 行内指令</a></li><li class="chapter-item "><a href="../configuration/presets.html"><strong aria-hidden="true">5.2.</strong> 严格度与预设</a></li><li class="chapter-item expanded "><a href="../reference/config-keys.html" class="active"><strong aria-hidden="true">5.3.</strong> 配置项参考</a></li></ol></li><li class="chapter-item expanded "><a href="../plugins/reference.html"><strong aria-hidden="true">6.</strong> Smell 列表</a></li><li class="chapter-item expanded "><a href="../plugins/development.html"><strong aria-hidden="true">7.</strong> 插件开发</a></li><li class="chapter-item expanded "><a href="../cli/index.html"><strong aria-hidden="true">8.</strong> 命令行</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../cli/analyze.html"><strong aria-hidden="true">8.1.</strong> analyze</a></li><li class="chapter-item "><a href="../cli/parse.html"><strong aria-hidden="true">8.2.</strong> parse</a></li><li class="chapter-item "><a href="../cli/baseline.html"><strong aria-hidden="true">8.3.</strong> baseline</a></li><li class="chapter-item "><a href="../cli/fix.html"><strong aria-hidden="true">8.4.</strong> fix</a></li><li class="chapter-item "><a href="../cli/deps.html"><strong aria-hidden="true">8.5.</strong> deps</a></li><li class="chapter-item "><a href="../cli/layers.html"><strong aria-hidden="true">8.6.</strong> layers</a></li><li class="chapter-item "><a href="../cli/hotspot.html"><strong aria-hidden="true">8.7.</strong> hotspot</a></li><li class="chapter-item "><a href="../cli/trend.html"><strong aria-hidden="true">8.8.</strong> trend</a></li><li class="chapter-item "><a href="../cli/calibrate.html"><strong aria-hidden="true">8.9.</strong> calibrate</a></li><li class="chapter-item "><a href="../cli/preset.html"><strong aria-hidden="true">8.10.</strong> preset</a></li><li class="chapter-item "><a href="../cli/plugin.html"><strong aria-hidden="true">8.11.</strong> plugin</a></li><li class="chapter-item "><a href="../cli/completions.html"><strong aria-hidden="true">8.12.</strong> completions</a></li><li class="chapter-item "><a href="../cli/init.html"><strong aria-hidden="true">8.13.</strong> init / schema</a></li><li class="chapter-item "><a href="../reference/cli-manual.html"><strong aria-hidden="true">8.14.</strong> 完整命令行手册</a></li></ol></li><li class="chapter-item expanded "><a href="../output/index.html"><strong aria-hidden="true">9.</strong> 输出格式</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../output/terminal.html"><strong aria-hidden="true">9.1.</strong> 终端</a></li><li class="chapter-item "><a href="../output/json.html"><strong aria-hidden="true">9.2.</strong> JSON</a></li><li class="chapter-item "><a href="../output/sarif.html"><strong aria-hidden="true">9.3.</strong> SARIF</a></li><li class="chapter-item "><a href="../output/html.html"><strong aria-hidden="true">9.4.</strong> HTML</a></li><li class="chapter-item "><a href="../output/llm.html"><strong aria-hidden="true">9.5.</strong> LLM 上下文</a></li><li class="chapter-item "><a href="../reference/json-schema.html"><strong aria-hidden="true">9.6.</strong> JSON Schema</a></li></ol></li><li class="chapter-item expanded "><a href="../lsp/overview.html"><strong aria-hidden="true">10.</strong> LSP 集成</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../lsp/editors/vscode.html"><strong aria-hidden="true">10.1.</strong> VS Code</a></li><li class="chapter-item "><a href="../lsp/editors/others.html"><strong aria-hidden="true">10.2.</strong> 其他编辑器</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">烹饪书</li><li class="chapter-item expanded "><a href="../recipes/index.html"><strong aria-hidden="true">11.</strong> Recipes</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../recipes/migrate-clippy.html"><strong aria-hidden="true">11.1.</strong> 从 clippy 迁移</a></li><li class="chapter-item "><a href="../recipes/monorepo-ci.html"><strong aria-hidden="true">11.2.</strong> Monorepo CI</a></li><li class="chapter-item "><a href="../recipes/suppress-legacy.html"><strong aria-hidden="true">11.3.</strong> 遗留代码豁免</a></li><li class="chapter-item "><a href="../recipes/custom-plugin-50loc.html"><strong aria-hidden="true">11.4.</strong> 50 行写一个插件</a></li><li class="chapter-item "><a href="../recipes/calibrate.html"><strong aria-hidden="true">11.5.</strong> 给你的项目校准阈值</a></li><li class="chapter-item "><a href="../recipes/baseline.html"><strong aria-hidden="true">11.6.</strong> Baseline 工作流</a></li></ol></li><li class="chapter-item expanded "><a href="../faq.html"><strong aria-hidden="true">12.</strong> 常见问题</a></li><li class="chapter-item expanded affix "><li class="part-title">项目</li><li class="chapter-item expanded "><a href="../contributing/index.html"><strong aria-hidden="true">13.</strong> 贡献</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../contributing/architecture.html"><strong aria-hidden="true">13.1.</strong> 架构</a></li><li class="chapter-item "><a href="../contributing/writing-a-smell.html"><strong aria-hidden="true">13.2.</strong> 写一条 smell</a></li><li class="chapter-item "><a href="../contributing/releasing.html"><strong aria-hidden="true">13.3.</strong> 发版</a></li></ol></li><li class="chapter-item expanded "><a href="../references.html"><strong aria-hidden="true">14.</strong> 学术参考</a></li><li class="chapter-item expanded "><a href="../changelog.html"><strong aria-hidden="true">15.</strong> 更新日志</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                    </div>
+
+                    <h1 class="menu-title">Cha</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/W-Mai/Cha" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/W-Mai/Cha/edit/main/book/src-zh-CN/reference/config-keys.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="配置项参考"><a class="header" href="#配置项参考">配置项参考</a></h1>
+<p><code>.cha.toml</code> 能识别的全部 key。结构由 <a href="https://github.com/W-Mai/Cha/blob/main/cha-core/src/config.rs"><code>cha_core::Config</code></a> 定义；多余的 key 会被静默忽略。</p>
+<h2 id="顶层"><a class="header" href="#顶层">顶层</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Key</th><th>类型</th><th>默认</th><th>含义</th></tr></thead><tbody>
+<tr><td><code>exclude</code></td><td><code>Vec&lt;String&gt;</code></td><td><code>[]</code></td><td>跳过的路径 glob 模式。模式是相对项目根的路径。<code>**</code> 匹配任意层。文件遍历器本身就尊重 <code>.gitignore</code>，所以 <code>node_modules/</code> 这种通常不用写。</td></tr>
+<tr><td><code>strictness</code></td><td><code>"relaxed"</code> / <code>"default"</code> / <code>"strict"</code> / <code>f64</code></td><td><code>"default"</code></td><td>阈值整体倍数。<code>relaxed = 2.0×</code>，<code>default = 1.0×</code>，<code>strict = 0.5×</code>，或者写一个浮点数（<code>0.7</code>）。只作用于整数阈值；比例类阈值不被这个倍数缩放。</td></tr>
+<tr><td><code>disabled_smells</code></td><td><code>Vec&lt;String&gt;</code></td><td><code>[]</code></td><td>全局屏蔽的 smell 名。当一个插件出多条 smell（<code>length</code> 一个插件出 <code>long_method</code> / <code>large_class</code> / <code>large_file</code>）但你只想屏蔽其中几条时用。</td></tr>
+<tr><td><code>debt_weights</code></td><td>table</td><td>见下文</td><td>每个严重度对应的 tech-debt 分钟数。<code>cha analyze</code> 摘要行用。</td></tr>
+<tr><td><code>plugins</code></td><td>table of tables</td><td>（默认值）</td><td>插件级覆盖。见 <a href="#%E6%8F%92%E4%BB%B6%E7%BA%A7-section">插件级 section</a>。</td></tr>
+<tr><td><code>languages</code></td><td>table of tables</td><td><code>{}</code></td><td>语言级覆盖。见 <a href="#%E8%AF%AD%E8%A8%80%E7%BA%A7-section">语言级 section</a>。</td></tr>
+<tr><td><code>layers</code></td><td>table</td><td>（空）</td><td><code>cha layers</code> 的模块 / tier 定义。见 <a href="#layers-section">Layers section</a>。</td></tr>
+</tbody></table>
+</div>
+<h3 id="debt_weights"><a class="header" href="#debt_weights"><code>debt_weights</code></a></h3>
+<pre><code class="language-toml">[debt_weights]
+hint = 5        # 默认 5
+warning = 15    # 默认 15
+error = 30      # 默认 30
+</code></pre>
+<p>单位是分钟。摘要行的总 debt 显示为 <code>&lt;n&gt;h &lt;n&gt;m</code>。</p>
+<h2 id="插件级-section"><a class="header" href="#插件级-section">插件级 section</a></h2>
+<p>每个插件从 <code>[plugins.&lt;name&gt;]</code> 读自己的配置。结构：</p>
+<pre><code class="language-toml">[plugins.&lt;name&gt;]
+enabled = true             # 默认 true；写 false 关掉
+# ... 插件自己的 key
+</code></pre>
+<p>插件自己的 key 各不相同，默认值跟代码里 <code>Default</code> impl 对齐。完整对照：</p>
+<div class="table-wrapper"><table><thead><tr><th><code>[plugins.&lt;name&gt;]</code></th><th>可配 key</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>length</code></td><td><code>max_function_lines</code> (50)、<code>max_class_methods</code> (10)、<code>max_class_lines</code> (200)、<code>max_file_lines</code> (500)、<code>complexity_factor_threshold</code> (10.0)</td><td>越界越多严重度越高。</td></tr>
+<tr><td><code>complexity</code></td><td><code>warn_threshold</code> (10)、<code>error_threshold</code> (20)</td><td>Cyclomatic complexity。</td></tr>
+<tr><td><code>cognitive_complexity</code></td><td><code>threshold</code> (15)</td><td>超过 <code>2 × threshold</code> 升级为 <code>Error</code>。</td></tr>
+<tr><td><code>long_parameter_list</code></td><td><code>max_params</code> (5)</td><td></td></tr>
+<tr><td><code>primitive_obsession</code></td><td><code>min_params</code> (3)、<code>primitive_ratio</code> (0.8)</td><td></td></tr>
+<tr><td><code>data_clumps</code></td><td><code>min_clump_size</code> (3)、<code>min_occurrences</code> (3)</td><td></td></tr>
+<tr><td><code>naming</code></td><td><code>min_name_length</code> (2)、<code>max_name_length</code> (50)</td><td></td></tr>
+<tr><td><code>api_surface</code></td><td><code>max_exported_ratio</code> (0.8)、<code>max_exported_count</code> (20)、<code>c_max_exported_ratio</code> (1.01)、<code>c_max_exported_count</code> (30)、<code>skip_c_headers</code> (true)</td><td>C 单独放宽：header 文件本来就是用来对外暴露 API 的。</td></tr>
+<tr><td><code>god_class</code></td><td><code>max_external_refs</code> (5)、<code>min_wmc</code> (47)、<code>min_tcc</code> (0.33)</td><td>三项分别是 ATFD（access to foreign data，对外部数据的访问数）、WMC（weighted method count，加权方法数）、TCC（tight class cohesion，类内紧密内聚度），来自 Lanza &amp; Marinescu 的 <em>Object-Oriented Metrics in Practice</em>。</td></tr>
+<tr><td><code>brain_method</code></td><td><code>min_lines</code> (65)、<code>min_complexity</code> (4)、<code>min_external_refs</code> (7)</td><td></td></tr>
+<tr><td><code>coupling</code></td><td><code>max_imports</code> (15)</td><td>超过 <code>2 × max_imports</code> 升级为 <code>Error</code>。</td></tr>
+<tr><td><code>hub_like_dependency</code></td><td><code>max_imports</code> (20)</td><td></td></tr>
+<tr><td><code>feature_envy</code></td><td><code>min_refs</code> (3)、<code>external_ratio</code> (0.7)</td><td></td></tr>
+<tr><td><code>middle_man</code></td><td><code>min_methods</code> (3)、<code>delegation_ratio</code> (0.5)</td><td></td></tr>
+<tr><td><code>message_chain</code></td><td><code>max_depth</code> (3)</td><td></td></tr>
+<tr><td><code>inappropriate_intimacy</code></td><td>（无阈值）</td><td>检测两文件互相 import。</td></tr>
+<tr><td><code>layer_violation</code></td><td><code>layers = "domain:0,service:1,..."</code></td><td>字符串格式：<code>name:rank,name:rank,...</code>。低 rank 不能 import 高 rank。</td></tr>
+<tr><td><code>async_callback_leak</code></td><td>（无阈值）</td><td>检测公开签名里裸出现的 <code>JoinHandle</code> / <code>Future</code> / <code>Channel</code>。</td></tr>
+<tr><td><code>switch_statement</code></td><td><code>max_arms</code> (8)</td><td></td></tr>
+<tr><td><code>temporary_field</code></td><td><code>min_methods</code> (3)、<code>max_usage_ratio</code> (0.3)</td><td></td></tr>
+<tr><td><code>refused_bequest</code></td><td><code>min_override_ratio</code> (0.5)、<code>min_methods</code> (3)</td><td></td></tr>
+<tr><td><code>design_pattern</code></td><td><code>strategy_min_arms</code> (4)、<code>state_min_arms</code> (3)、<code>builder_min_params</code> (7)、<code>builder_alt_min_params</code> (5)、<code>builder_alt_min_optional</code> (3)、<code>null_object_min_count</code> (3)、<code>template_min_self_calls</code> (3)、<code>template_min_methods</code> (4)，以及若干关键词列表</td><td>一个插件出 6 个 pattern smell，阈值各管各的。</td></tr>
+<tr><td><code>shotgun_surgery</code></td><td><code>min_co_changes</code> (5)、<code>max_commits</code> (100)</td><td>读 <code>git log</code>。</td></tr>
+<tr><td><code>divergent_change</code></td><td><code>min_distinct_reasons</code> (4)、<code>max_commits</code> (50)</td><td>读 <code>git log</code>。</td></tr>
+<tr><td><code>dead_code</code></td><td><code>entry_points</code> (各语言默认)</td><td>列在这里的函数永远不会被判定为死代码。</td></tr>
+<tr><td><code>duplicate_code</code></td><td><code>min_lines</code> (10)</td><td>AST hash 比对。</td></tr>
+<tr><td><code>comments</code></td><td><code>max_comment_ratio</code> (0.3)、<code>min_lines</code> (10)</td><td></td></tr>
+<tr><td><code>lazy_class</code></td><td><code>max_methods</code> (1)、<code>max_lines</code> (10)</td><td></td></tr>
+<tr><td><code>data_class</code></td><td><code>min_fields</code> (2)</td><td></td></tr>
+<tr><td><code>speculative_generality</code></td><td>（无阈值）</td><td>interface / trait 实现 ≤ 1 个。</td></tr>
+<tr><td><code>todo_tracker</code></td><td>（无阈值）</td><td>TODO / FIXME / HACK / XXX。HACK 和 XXX 升级为 Warning。</td></tr>
+<tr><td><code>hardcoded_secret</code></td><td>（内置正则集）</td><td>API key、token、密码、JWT。</td></tr>
+<tr><td><code>unsafe_api</code></td><td>（内置调用集）</td><td><code>eval</code>、<code>exec</code>、<code>system</code>、<code>strcpy</code>、<code>gets</code>、<code>unsafe</code>、<code>innerHTML</code>、<code>dangerouslySetInnerHTML</code> 等。</td></tr>
+<tr><td><code>error_handling</code></td><td><code>max_unwraps_per_function</code> (3)</td><td>空 <code>catch</code> 永远报。</td></tr>
+</tbody></table>
+</div>
+<p>权威默认值在每个插件的 <code>Default for &lt;Analyzer&gt;</code> impl 里，<a href="https://github.com/W-Mai/Cha/tree/main/cha-core/src/plugins"><code>cha-core/src/plugins/</code></a> 下找。</p>
+<h2 id="语言级-section"><a class="header" href="#语言级-section">语言级 section</a></h2>
+<pre><code class="language-toml">[languages.&lt;lang&gt;]
+disabled_smells = []
+[languages.&lt;lang&gt;.plugins.&lt;name&gt;]
+# ... 跟 [plugins.&lt;name&gt;] 同样的 key
+</code></pre>
+<p><code>&lt;lang&gt;</code> 是 cha 给文件打的语言 ID：<code>python</code>、<code>typescript</code>、<code>tsx</code>、<code>rust</code>、<code>go</code>、<code>c</code>、<code>cpp</code>。语言级配置会<strong>覆盖</strong>全局值，不会跟全局值合并。C 的<a href="../configuration/presets.html">内置预设</a>默认关闭 <code>naming</code>、<code>lazy_class</code>、<code>data_class</code>、<code>design_pattern</code>，并把 <code>length.max_function_lines</code> 提到 80。</p>
+<p>例：</p>
+<pre><code class="language-toml">[languages.c.plugins.naming]
+enabled = false
+
+[languages.c.plugins.length]
+max_function_lines = 80
+
+[languages.python.plugins.long_parameter_list]
+max_params = 8                          # Python 的 **kwargs 容忍多一点
+</code></pre>
+<h2 id="layers-section"><a class="header" href="#layers-section">Layers section</a></h2>
+<p>给 <code>cha layers</code> 和 <code>layer_violation</code> smell 用的：</p>
+<pre><code class="language-toml">[layers]
+modules = { domain = ["src/domain/**"], service = ["src/service/**"], controller = ["src/handlers/**"] }
+
+[[layers.tiers]]
+name = "data"
+modules = ["domain"]
+
+[[layers.tiers]]
+name = "logic"
+modules = ["service"]
+
+[[layers.tiers]]
+name = "api"
+modules = ["controller"]
+</code></pre>
+<p>文件里 tier 的顺序 = 从底到顶。低 tier 不能 import 高 tier。<code>layer_violation</code> 单插件本身有更简单的 inline 写法（<code>[plugins.layer_violation]</code> 下的 <code>layers = "..."</code> 字符串），见上表。</p>
+<h2 id="行内指令"><a class="header" href="#行内指令">行内指令</a></h2>
+<p>直接在源码里覆盖配置。完整语法见 <a href="../configuration/inline-directives.html">行内指令</a>：</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// cha:ignore                        — 屏蔽下一个 item 上的所有规则
+// cha:ignore long_method            — 屏蔽一条
+// cha:ignore long_method,complexity — 屏蔽多条
+// cha:set long_method=100           — 单独把 long_method 阈值提到 100
+// cha:set threshold=200             — 把所有阈值类规则的阈值提到 200
+<span class="boring">}</span></code></pre></pre>
+<p>支持 <code>//</code>、<code>#</code>、<code>/* */</code> 三种注释。</p>
+<h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
+<ul>
+<li><a href="../configuration/overview.html">配置概览</a></li>
+<li><a href="../configuration/presets.html">严格度与预设</a></li>
+<li><a href="../configuration/inline-directives.html">行内指令</a></li>
+<li><a href="./json-schema.html">JSON Schema</a> —— 那是<strong>输出 schema</strong>，不是 config schema。</li>
+<li><a href="https://github.com/W-Mai/Cha/blob/main/cha-core/src/config.rs"><code>cha-core/src/config.rs</code></a> —— 权威源。</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../configuration/presets.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../plugins/reference.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../configuration/presets.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../plugins/reference.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../theme/mermaid.min.js"></script>
+        <script src="../theme/cha-mermaid.js"></script>
+
+
+    </div>
+    </body>
+</html>

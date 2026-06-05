@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en" id="oranda" class="cupcake">
+  <head>
+    <title>Cha</title>
+    
+      <meta property="og:url" content="https://cha.to01.icu" />
+    
+    
+      <link rel="icon" href="/favicon.ico" />
+    
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+      <meta name="description" content="察 — Code Health Analyzer · pluggable code-smell detection with 34 built-in detectors and WASM plugins" />
+      <meta property="og:description" content="察 — Code Health Analyzer · pluggable code-smell detection with 34 built-in detectors and WASM plugins" />
+    
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Cha" />
+    
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta property="og:image" content="https://cha.to01.icu/static/og-card.png" />
+    
+    
+      <meta property="og:image:alt" content="Cha — 察 — Code Health Analyzer · pluggable code-smell detection with 34 detectors and WASM plugins · cha.to01.icu" />
+    
+    
+    <meta http-equiv="Permissions-Policy" content="interest-cohort=()" />
+    <link rel="stylesheet" href="/oranda-v0.6.1.css" />
+    
+      <link rel="stylesheet" href="/custom.css" />
+    
+    
+  </head>
+  <body>
+    <div class="container">
+      <div class="page-body">
+        
+          <div class="repo_banner">
+            <a href="https://github.com/W-Mai/Cha">
+              <div class="github-icon" aria-hidden="true"></div>
+              Check out our GitHub!
+            </a>
+          </div>
+        
+
+        <main>
+          <header>
+            
+            <h1 class="title">Cha</h1>
+            
+  <nav class="nav">
+    <ul>
+      <li><a href="/">Home</a></li>
+
+      
+
+      
+        <li><a href="/artifacts/">Install</a></li>
+      
+
+      
+        <li><a href="/book/">Docs</a></li>
+      
+
+      
+
+      
+        <li><a href="/changelog/">Changelog</a></li>
+      
+    </ul>
+  </nav>
+
+          </header>
+
+          
+  <div>
+    <h1>1.20.0 - 2026-06-05</h1>
+    <div class="releases-body">
+      
+      
+      <section class="release ">
+  
+  <div class="release-info">
+    <span class="flex items-center gap-2">
+      <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'>
+    <path stroke-linecap='round' stroke-linejoin='round' d='M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z' />
+    <path stroke-linecap='round' stroke-linejoin='round' d='M6 6h.008v.008H6V6z' /></svg>
+      v1.20.0
+    </span>
+    <span class="flex items-center gap-2">
+      
+        <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' /></svg>
+        Jun  4 2026 at 19:45 UTC
+      
+    </span>
+  </div>
+  <div class="release-body">
+    <p>🎉 <strong>First minor since v1.0</strong> — and the first release with a proper home on the web. <a href="https://cha.to01.icu" rel="noopener noreferrer">https://cha.to01.icu</a> is now a real product page, not just a README dump. Star the repo, share the link, and tell your linter Cha said hi.</p>
+<p>The analyzer itself didn't move — every <code>--version</code>-visible behavior is identical to v1.19.0. What landed is the documentation, presentation, and integration story: somewhere we can actually point new users.</p>
+<h3>Added</h3>
+<ul>
+<li><strong>Bilingual documentation site at <a href="https://cha.to01.icu" rel="noopener noreferrer">https://cha.to01.icu</a></strong> — landing page (oranda) plus a full mdbook tree at <code>/book/</code> (English) and <code>/book/zh-CN/</code> (中文). 60+ pages covering install, quick-start, every CLI subcommand, every output format, LSP integration for VS Code / Helix / Neovim / Zed, configuration reference, JSON Schema, plugin development, six worked recipes (migrate from clippy, monorepo CI, suppress in legacy code, custom plugin in 50 lines, calibrate to your codebase, baseline workflow), three contributor guides (architecture, writing a smell, releasing), and an academic-references page tracing every smell back to its source.</li>
+<li><strong>Cookbook recipes</strong> — six task-oriented walkthroughs: <code>migrate-from-clippy</code>, <code>monorepo-ci</code>, <code>suppress-legacy</code>, <code>custom-plugin-50loc</code>, <code>calibrate</code>, <code>baseline</code>. Each starts with a problem statement and ends with copy-pasteable commands. Authored in English and Chinese (the Chinese versions are written natively, not translated, so the prose style matches the rest of zh-CN).</li>
+<li><strong>Contributor guides</strong> — <code>contributing/architecture.md</code> documents the seven-crate workspace and data flow with mermaid diagrams; <code>writing-a-smell.md</code> walks through <code>MiddleManAnalyzer</code> as the worked example; <code>releasing.md</code> is the runbook for <code>cargo xtask bump</code> → <code>release</code>.</li>
+<li><strong>Configuration reference</strong> — every <code>.cha.toml</code> key, grouped by plugin, with thresholds and defaults sourced from <code>cha-core/src/plugins/</code>. JSON Schema reference page documenting <code>cha schema</code> output and how to wire it into IDEs.</li>
+<li><strong>Bilingual landing page (<code>LANDING.md</code>)</strong> — hero with logo + tagline + three CTAs, six feature cards (detectors, WASM SDK, LSP, git-aware analysis, output formats, two-level cache), 30-second get-started block, smell-category table, and editor integration links. Replaces the previous "README dumped into the homepage" experience.</li>
+<li><strong>CJK-aware search via Pagefind 1.4</strong> — replaces mdbook's bundled elasticlunr (which silently dropped non-ASCII tokens, leaving the zh-CN tree un-searchable). Press <code>s</code> or <code>/</code> on any docs page to open a modal that indexes both language trees.</li>
+<li><strong>Per-page social meta + branded OG card</strong> — every page emits <code>og:title</code> / <code>og:image</code> / <code>twitter:card</code> so Slack / iMessage / 微信 link previews show a real card instead of a 32×32 favicon. The 1200×628 card embeds the Cha logo and is regenerable via <code>python3 static/gen_og_card.py</code>.</li>
+<li><strong>Custom 404 page</strong> — site-wide warm-themed 404 with the Cha logo and shortcuts back into the live parts of the site, replacing GitHub Pages' generic gray 404.</li>
+<li><strong>Language switcher in mdbook header</strong> — the toolbar globe icon switches between EN and zh-CN trees and remembers per-page equivalents.</li>
+<li><strong><code>xtask docs-check</code></strong> — verifies every page referenced in <code>book/src(-zh-CN)/SUMMARY.md</code> actually exists; runs as part of <code>cargo xtask ci</code> so a broken SUMMARY can't ship.</li>
+<li><strong><code>xtask i18n-check</code></strong> — flags zh-CN pages whose git ctime trails their English counterpart, surfacing translation drift.</li>
+<li><strong><code>xtask docgen-cli</code></strong> — generates <code>book/src/reference/cli-manual.md</code> from <code>cha help-markdown</code> so the CLI manual page in docs always matches the binary's actual <code>--help</code>. Hidden <code>cha help-markdown</code> subcommand added for this.</li>
+<li><strong>VS Code extension page</strong> — full inventory of what each LSP capability looks like inside VS Code (wavy underlines, lightbulbs, code-lens overlays, inlay hints, hover cards, semantic-token modifier, status-bar workspace scan progress) plus the <code>cha.disabledPlugins</code> setting documentation.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li><strong>tree-sitter S-expression query link</strong> — the link in <code>docs/plugin-development.md</code> and the zh-CN translation pointed at <code>/syntax-highlighting/queries</code>, which 404s on the current tree-sitter docs site. Updated to <code>/using-parsers/queries/</code>.</li>
+<li><strong><code>docs/plugin-development.md</code> <code>FunctionInfo</code> / <code>ClassInfo</code> field tables</strong> — were bare struct dumps; now per-field semantic tables (type + what each field actually drives) for both languages.</li>
+<li><strong>README plugin table</strong> — every entry now has an anchor link into <code>docs/plugins.md</code>'s detailed description, in both <code>README.md</code> and <code>README.zh-CN.md</code>. The previous <code>UnstableDependency</code> row (which never matched a real detector) was removed and <code>async_callback_leak</code> added.</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li><strong>Project homepage</strong> — <code>https://cha.to01.icu</code> is the canonical entry point. README still works on github.com but now points at the docs site for anything beyond the quick-start.</li>
+<li><strong>CI</strong> — the <code>Web</code> workflow builds the EN tree via oranda, re-builds the zh-CN tree via mdbook with <code>MDBOOK_BOOK__SRC=src-zh-CN</code>, indexes both with Pagefind, and restores <code>public/CNAME</code> + drops <code>public/404.html</code> after oranda's clean. Deploys via <code>JamesIves/github-pages-deploy-action@v4.6.4</code>.</li>
+</ul>
+<h3>Notes for upgraders</h3>
+<p>Nothing to do. <code>cha analyze</code> produces the same output, <code>.cha.toml</code> accepts the same keys, every CLI flag still works. This is a documentation release: the binary moves from "had a single README" to "had a 60-page bilingual docs site" without changing anything you'd notice from the terminal.</p>
+<p>If you want to celebrate by reading something other than <code>--help</code>: <a href="https://cha.to01.icu" rel="noopener noreferrer">https://cha.to01.icu</a>.</p>
+
+  </div>
+</section>
+    </div>
+  </div>
+
+        </main>
+      </div>
+
+      <footer>
+        
+          <a href="https://github.com/W-Mai/Cha"><div class="github-icon" aria-hidden="true"></div></a>
+        
+        <span>
+          Cha, MIT
+        </span>
+      </footer>
+    </div>
+
+    
+    
+
+    
+  </body>
+</html>

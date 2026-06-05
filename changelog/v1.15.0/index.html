@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en" id="oranda" class="cupcake">
+  <head>
+    <title>Cha</title>
+    
+      <meta property="og:url" content="https://cha.to01.icu" />
+    
+    
+      <link rel="icon" href="/favicon.ico" />
+    
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+      <meta name="description" content="察 — Code Health Analyzer · pluggable code-smell detection with 34 built-in detectors and WASM plugins" />
+      <meta property="og:description" content="察 — Code Health Analyzer · pluggable code-smell detection with 34 built-in detectors and WASM plugins" />
+    
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Cha" />
+    
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta property="og:image" content="https://cha.to01.icu/static/og-card.png" />
+    
+    
+      <meta property="og:image:alt" content="Cha — 察 — Code Health Analyzer · pluggable code-smell detection with 34 detectors and WASM plugins · cha.to01.icu" />
+    
+    
+    <meta http-equiv="Permissions-Policy" content="interest-cohort=()" />
+    <link rel="stylesheet" href="/oranda-v0.6.1.css" />
+    
+      <link rel="stylesheet" href="/custom.css" />
+    
+    
+  </head>
+  <body>
+    <div class="container">
+      <div class="page-body">
+        
+          <div class="repo_banner">
+            <a href="https://github.com/W-Mai/Cha">
+              <div class="github-icon" aria-hidden="true"></div>
+              Check out our GitHub!
+            </a>
+          </div>
+        
+
+        <main>
+          <header>
+            
+            <h1 class="title">Cha</h1>
+            
+  <nav class="nav">
+    <ul>
+      <li><a href="/">Home</a></li>
+
+      
+
+      
+        <li><a href="/artifacts/">Install</a></li>
+      
+
+      
+        <li><a href="/book/">Docs</a></li>
+      
+
+      
+
+      
+        <li><a href="/changelog/">Changelog</a></li>
+      
+    </ul>
+  </nav>
+
+          </header>
+
+          
+  <div>
+    <h1>1.15.0 - 2026-05-14</h1>
+    <div class="releases-body">
+      
+      
+      <section class="release ">
+  
+  <div class="release-info">
+    <span class="flex items-center gap-2">
+      <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'>
+    <path stroke-linecap='round' stroke-linejoin='round' d='M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z' />
+    <path stroke-linecap='round' stroke-linejoin='round' d='M6 6h.008v.008H6V6z' /></svg>
+      v1.15.0
+    </span>
+    <span class="flex items-center gap-2">
+      
+        <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' /></svg>
+        May 21 2026 at 07:43 UTC
+      
+    </span>
+  </div>
+  <div class="release-body">
+    <h3>Added</h3>
+<ul>
+<li><strong><code>ProjectQuery</code> trait</strong> in <code>cha-core</code> — plugins now access cross-file data through a typed interface on <code>AnalysisContext.project</code> instead of host-side post-hoc string-matched filtering. 12 methods cover the project-level queries existing post-analysis passes need: <code>is_called_externally</code>, <code>callers_of</code>, <code>function_home</code>/<code>function_by_name</code>/<code>class_home</code>, <code>is_third_party</code>, <code>workspace_crate_names</code>, <code>is_test_path</code>, etc. WASM plugins also gain access via the <code>project-query</code> host import.</li>
+<li><strong><code>ProjectQueryBulk</code> trait</strong> extends <code>ProjectQuery</code> for in-process iteration (<code>iter_models</code>); not exposed to WASM.</li>
+<li><strong><code>cha_core::is_test_path</code></strong> — public utility consolidating two duplicated implementations.</li>
+<li><strong>example-wasm <code>unused_helper</code> smell</strong> — demonstrates <code>project_query::callers_of</code> callback.</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li><strong>WIT bumped to <code>cha:plugin@0.3.0</code></strong> (breaking) — adds <code>project-query</code> host import. External plugins compiled against <code>0.2.0</code> must rebuild.</li>
+<li><strong><code>large_api_surface</code> C/C++ heuristics</strong> — <code>.h/.hpp</code> headers are now skipped (their 100% public surface is by design); <code>.c/.cpp</code> implementation files use a higher count threshold (30, configurable as <code>c_max_exported_count</code>) and the ratio gate is effectively off (configurable as <code>c_max_exported_ratio</code>). lvgl baseline: 393 → 34 findings (-91%).</li>
+<li><strong><code>dead_code</code> is now project-aware</strong> — uses <code>ProjectQuery::is_called_externally</code> to confirm cross-file usage; the per-file text search is just an early shortcut. The token-concat macro heuristic (<code>#define ... ##</code>) remains because parsers don't macro-expand. lvgl baseline: 67 → 6 findings (-91%).</li>
+</ul>
+<h3>Removed</h3>
+<ul>
+<li><strong><code>Plugin::cross_file_aware_smells</code></strong> trait method — replaced by typed query through <code>AnalysisContext.project</code>.</li>
+<li><strong><code>cha-cli::cross_file_filter</code> module</strong> — the post-hoc string-matched filter is gone; plugins produce final findings using the typed trait.</li>
+<li><strong>3 duplicated <code>workspace_crate_names</code> impls</strong> + 3 duplicated <code>is_third_party</code>/<code>is_external_leak</code> impls + 2 duplicated <code>is_test_path</code> impls — all consolidated.</li>
+</ul>
+<h3>Added</h3>
+<ul>
+<li>New <code>.cha.toml</code> config keys for <code>api_surface</code>: <code>max_exported_ratio</code>, <code>c_max_exported_count</code>, <code>c_max_exported_ratio</code>, <code>skip_c_headers</code>. All language-aware defaults preserved.</li>
+</ul>
+
+  </div>
+</section>
+    </div>
+  </div>
+
+        </main>
+      </div>
+
+      <footer>
+        
+          <a href="https://github.com/W-Mai/Cha"><div class="github-icon" aria-hidden="true"></div></a>
+        
+        <span>
+          Cha, MIT
+        </span>
+      </footer>
+    </div>
+
+    
+    
+
+    
+  </body>
+</html>

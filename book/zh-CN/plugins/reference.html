@@ -1,0 +1,826 @@
+<!DOCTYPE HTML>
+<html lang="zh-CN" class="light" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Smell 列表 - Cha</title>
+
+
+        <!-- Custom HTML head -->
+        <!--
+          Open Graph / Twitter Card meta. mdbook itself doesn't emit these,
+          so link previews on Slack/Discord/iMessage/微信 fall back to the
+          favicon (a 32×32 ICO that renders as a tiny illegible square in
+          the 1200×628 preview slot).
+        
+          We point at the same og-card.png that oranda uses on the landing
+          page, and let `chapter_title` from mdbook's handlebars context
+          give each page a distinct og:title.
+        -->
+        <meta property="og:title" content="Smell 列表 · Cha">
+        <meta property="og:description" content="察 — Code Health Analyzer · pluggable code-smell detection with 34 built-in detectors and WASM plugins.">
+        <meta property="og:type" content="article">
+        <meta property="og:image" content="https://cha.to01.icu/static/og-card.png">
+        <meta property="og:image:width" content="1200">
+        <meta property="og:image:height" content="628">
+        <meta property="og:image:alt" content="Cha — 察 — Code Health Analyzer">
+        <meta property="og:site_name" content="Cha documentation">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="Smell 列表 · Cha">
+        <meta name="twitter:description" content="察 — Code Health Analyzer · pluggable code-smell detection with 34 built-in detectors and WASM plugins.">
+        <meta name="twitter:image" content="https://cha.to01.icu/static/og-card.png">
+        
+        <!--
+          Language switcher for the two-tree mdbook layout.
+        
+          Convention:
+            English book is at:  /book/<path>
+            zh-CN book is at:    /book/zh-CN/<path>
+        
+          The switcher is injected into mdbook's `.right-buttons` toolbar after the
+          page renders. Entries that 404 on the alternate tree are marked
+          `unavailable` and rendered as a disabled item, so the menu always shows
+          every language we publish.
+        -->
+        <style>
+          .lang-switcher { position: relative; display: inline-block; }
+          .lang-switcher > a { cursor: pointer; }
+          .lang-switcher ul {
+            position: absolute; right: 0; top: 2rem; z-index: 1000;
+            background: var(--bg); border: 1px solid var(--theme-popup-border, #ccc);
+            border-radius: 4px; padding: .25rem 0; margin: 0;
+            list-style: none; min-width: 9rem;
+            box-shadow: 0 2px 6px rgba(0,0,0,.15);
+            display: none;
+          }
+          .lang-switcher.open ul { display: block; }
+          .lang-switcher li a {
+            display: block; padding: .35rem .9rem;
+            color: var(--fg); text-decoration: none;
+            white-space: nowrap;
+          }
+          .lang-switcher li a:hover { background: var(--theme-hover, #eee); }
+          .lang-switcher li.current a { font-weight: 600; }
+          .lang-switcher li.unavailable a { opacity: .45; cursor: not-allowed; pointer-events: none; }
+        </style>
+        <script>
+        (function() {
+          var pagePath = "plugins/reference.md";
+          var pathToRoot = "../";
+        
+          var langs = [
+            { id: "",      label: "English"  },
+            { id: "zh-CN", label: "简体中文" },
+          ];
+        
+          var here = window.location.pathname;
+          var current = "";
+          for (var i = 0; i < langs.length; i++) {
+            if (langs[i].id && here.indexOf("/" + langs[i].id + "/") !== -1) {
+              current = langs[i].id; break;
+            }
+          }
+        
+          // The toolbar's print/github/edit icons render as `<i class="fa fa-*">`
+          // glyphs from the bundled FontAwesome 4 webfont (see FontAwesome/css/
+          // font-awesome.css in the build output). Use the same element so the
+          // switcher inherits the toolbar's color, size, and hover styling without
+          // a bespoke CSS override.
+          var GLOBE_ICON = '<i class="fa fa-globe" id="lang-button"></i>';
+        
+          document.addEventListener("DOMContentLoaded", function() {
+            var rb = document.querySelector(".right-buttons");
+            if (!rb) return;
+        
+            var wrap = document.createElement("div");
+            wrap.className = "lang-switcher";
+            var btn = document.createElement("a");
+            btn.setAttribute("role", "button");
+            btn.setAttribute("aria-label", "Switch language");
+            btn.title = "Switch language";
+            btn.innerHTML = GLOBE_ICON;
+            var ul = document.createElement("ul");
+        
+            var pageHtml = pagePath.replace(/\.md$/, ".html");
+        
+            langs.forEach(function(lang) {
+              var li = document.createElement("li");
+              if (lang.id === current) li.className = "current";
+              var a = document.createElement("a");
+              var bookRoot;
+              if (current === "") {
+                bookRoot = pathToRoot;
+              } else {
+                bookRoot = pathToRoot + "../";
+              }
+              var url = bookRoot + (lang.id ? lang.id + "/" : "") + pageHtml;
+              a.href = url;
+              a.textContent = lang.label;
+              li.appendChild(a);
+              ul.appendChild(li);
+        
+              // HEAD-probe; on 404, mark the entry as unavailable rather than hide it.
+              // Keeps the menu predictable when a translation is partial or when the
+              // alternate tree isn't built locally (e.g. `mdbook serve` only renders
+              // one tree at a time).
+              if (lang.id !== current) {
+                fetch(url, { method: "HEAD" }).then(function(resp) {
+                  if (!resp.ok) li.className = "unavailable";
+                }).catch(function() { li.className = "unavailable"; });
+              }
+            });
+        
+            wrap.appendChild(btn);
+            wrap.appendChild(ul);
+            rb.insertBefore(wrap, rb.firstChild);
+        
+            btn.addEventListener("click", function(e) {
+              e.preventDefault();
+              e.stopPropagation();
+              wrap.classList.toggle("open");
+            });
+            document.addEventListener("click", function() {
+              wrap.classList.remove("open");
+            });
+          });
+        })();
+        </script>
+        
+        <!--
+          Pagefind search overlay.
+        
+          mdbook's bundled elasticlunr search drops non-ASCII tokens, so the zh-CN
+          tree has no working search. Pagefind 1.4 indexes both trees in CI
+          (.github/workflows/web.yml). This block injects the Pagefind UI into a
+          modal overlay and hijacks mdbook's search button + `s` shortcut to open
+          it instead of the default search bar.
+        
+          bundlePath is computed from `path_to_root` so each tree loads its own
+          index (/book/pagefind/ for English, /book/zh-CN/pagefind/ for Chinese).
+        -->
+        <link rel="stylesheet" href="../pagefind/pagefind-ui.css" onerror="this.remove()">
+        <style>
+          #cha-search-overlay {
+            position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,.45);
+            display: none;
+            align-items: flex-start; justify-content: center;
+            padding-top: 6rem;
+          }
+          #cha-search-overlay.open { display: flex; }
+          #cha-search-modal {
+            width: min(720px, 92vw);
+            background: var(--bg); color: var(--fg);
+            border: 1px solid var(--theme-popup-border, #ccc);
+            border-radius: 8px; padding: 1rem 1.25rem 1.25rem;
+            box-shadow: 0 12px 32px rgba(0,0,0,.25);
+            max-height: 80vh; overflow: auto;
+          }
+          /* Pagefind UI inherits the modal background; tighten its CSS reset
+             so the input doesn't fight against mdbook's font stack. */
+          #cha-search-modal .pagefind-ui__form { margin-top: 0; }
+        </style>
+        <div id="cha-search-overlay" role="dialog" aria-modal="true" aria-label="Search documentation">
+          <div id="cha-search-modal">
+            <div id="cha-search"></div>
+          </div>
+        </div>
+        <script src="../pagefind/pagefind-ui.js" onerror="this.remove()"></script>
+        <script>
+        (function() {
+          // Stand up Pagefind UI lazily — on first open — so the index isn't
+          // fetched on pages where the user never invokes search.
+          var initialised = false;
+          function ensureInit() {
+            if (initialised) return true;
+            if (typeof PagefindUI === "undefined") return false;
+            new PagefindUI({
+              element: "#cha-search",
+              showSubResults: true,
+              autofocus: true,
+              translations: { placeholder: "Search the docs…" },
+            });
+            initialised = true;
+            return true;
+          }
+        
+          function openOverlay() {
+            var overlay = document.getElementById("cha-search-overlay");
+            if (!overlay) return;
+            if (!ensureInit()) return; // Pagefind UI failed to load (no /pagefind/), bail.
+            overlay.classList.add("open");
+            var input = overlay.querySelector("input[type='text']");
+            if (input) input.focus();
+          }
+        
+          function closeOverlay() {
+            var overlay = document.getElementById("cha-search-overlay");
+            if (overlay) overlay.classList.remove("open");
+          }
+        
+          document.addEventListener("DOMContentLoaded", function() {
+            var overlay = document.getElementById("cha-search-overlay");
+            if (!overlay) return;
+        
+            // Click outside the modal closes it.
+            overlay.addEventListener("click", function(e) {
+              if (e.target === overlay) closeOverlay();
+            });
+        
+            // Escape closes; `s` opens (matching mdbook's default shortcut),
+            // `/` opens too (matching the convention from GitHub / many docs sites).
+            document.addEventListener("keydown", function(e) {
+              if (e.key === "Escape" && overlay.classList.contains("open")) {
+                closeOverlay();
+                e.preventDefault();
+                return;
+              }
+              var t = e.target;
+              var typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" ||
+                                 (t.isContentEditable === true));
+              if (typing) return;
+              if (e.key === "s" || e.key === "/") {
+                openOverlay();
+                e.preventDefault();
+              }
+            });
+        
+            // mdbook's `[output.html.search] enable = false` removes the
+            // built-in search-toggle button along with the elasticlunr index.
+            // Inject a replacement into .right-buttons so users have a clickable
+            // entry point to the Pagefind overlay (not just the `s` shortcut).
+            var rb = document.querySelector(".right-buttons");
+            if (rb) {
+              var btn = document.createElement("a");
+              btn.id = "cha-search-toggle";
+              btn.setAttribute("role", "button");
+              btn.setAttribute("aria-label", "Search documentation");
+              btn.title = "Search documentation (press s or /)";
+              btn.style.cursor = "pointer";
+              btn.innerHTML = '<i class="fa fa-search"></i>';
+              btn.addEventListener("click", function(e) {
+                e.preventDefault();
+                openOverlay();
+              });
+              rb.insertBefore(btn, rb.firstChild);
+            }
+          });
+        })();
+        </script>
+
+        <meta name="description" content="察 — Code Health Analyzer">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../highlight.css">
+        <link rel="stylesheet" href="../tomorrow-night.css">
+        <link rel="stylesheet" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../theme/css/cha.css">
+
+    </head>
+    <body class="sidebar-visible no-js">
+    <div id="body-container">
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('light')
+            html.classList.add(theme);
+            var body = document.querySelector('body');
+            body.classList.remove('no-js')
+            body.classList.add('js');
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var body = document.querySelector('body');
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            body.classList.remove('sidebar-visible');
+            body.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../intro.html">简介</a></li><li class="chapter-item expanded affix "><a href="../install.html">安装</a></li><li class="chapter-item expanded affix "><li class="part-title">快速开始</li><li class="chapter-item expanded "><a href="../quick-start/cli.html"><strong aria-hidden="true">1.</strong> 命令行</a></li><li class="chapter-item expanded "><a href="../quick-start/pre-commit.html"><strong aria-hidden="true">2.</strong> pre-commit hook</a></li><li class="chapter-item expanded "><a href="../quick-start/github-actions.html"><strong aria-hidden="true">3.</strong> GitHub Actions</a></li><li class="chapter-item expanded "><a href="../quick-start/editor.html"><strong aria-hidden="true">4.</strong> 编辑器（LSP）</a></li><li class="chapter-item expanded affix "><li class="part-title">参考</li><li class="chapter-item expanded "><a href="../configuration/overview.html"><strong aria-hidden="true">5.</strong> 配置</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../configuration/inline-directives.html"><strong aria-hidden="true">5.1.</strong> 行内指令</a></li><li class="chapter-item "><a href="../configuration/presets.html"><strong aria-hidden="true">5.2.</strong> 严格度与预设</a></li><li class="chapter-item "><a href="../reference/config-keys.html"><strong aria-hidden="true">5.3.</strong> 配置项参考</a></li></ol></li><li class="chapter-item expanded "><a href="../plugins/reference.html" class="active"><strong aria-hidden="true">6.</strong> Smell 列表</a></li><li class="chapter-item expanded "><a href="../plugins/development.html"><strong aria-hidden="true">7.</strong> 插件开发</a></li><li class="chapter-item expanded "><a href="../cli/index.html"><strong aria-hidden="true">8.</strong> 命令行</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../cli/analyze.html"><strong aria-hidden="true">8.1.</strong> analyze</a></li><li class="chapter-item "><a href="../cli/parse.html"><strong aria-hidden="true">8.2.</strong> parse</a></li><li class="chapter-item "><a href="../cli/baseline.html"><strong aria-hidden="true">8.3.</strong> baseline</a></li><li class="chapter-item "><a href="../cli/fix.html"><strong aria-hidden="true">8.4.</strong> fix</a></li><li class="chapter-item "><a href="../cli/deps.html"><strong aria-hidden="true">8.5.</strong> deps</a></li><li class="chapter-item "><a href="../cli/layers.html"><strong aria-hidden="true">8.6.</strong> layers</a></li><li class="chapter-item "><a href="../cli/hotspot.html"><strong aria-hidden="true">8.7.</strong> hotspot</a></li><li class="chapter-item "><a href="../cli/trend.html"><strong aria-hidden="true">8.8.</strong> trend</a></li><li class="chapter-item "><a href="../cli/calibrate.html"><strong aria-hidden="true">8.9.</strong> calibrate</a></li><li class="chapter-item "><a href="../cli/preset.html"><strong aria-hidden="true">8.10.</strong> preset</a></li><li class="chapter-item "><a href="../cli/plugin.html"><strong aria-hidden="true">8.11.</strong> plugin</a></li><li class="chapter-item "><a href="../cli/completions.html"><strong aria-hidden="true">8.12.</strong> completions</a></li><li class="chapter-item "><a href="../cli/init.html"><strong aria-hidden="true">8.13.</strong> init / schema</a></li><li class="chapter-item "><a href="../reference/cli-manual.html"><strong aria-hidden="true">8.14.</strong> 完整命令行手册</a></li></ol></li><li class="chapter-item expanded "><a href="../output/index.html"><strong aria-hidden="true">9.</strong> 输出格式</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../output/terminal.html"><strong aria-hidden="true">9.1.</strong> 终端</a></li><li class="chapter-item "><a href="../output/json.html"><strong aria-hidden="true">9.2.</strong> JSON</a></li><li class="chapter-item "><a href="../output/sarif.html"><strong aria-hidden="true">9.3.</strong> SARIF</a></li><li class="chapter-item "><a href="../output/html.html"><strong aria-hidden="true">9.4.</strong> HTML</a></li><li class="chapter-item "><a href="../output/llm.html"><strong aria-hidden="true">9.5.</strong> LLM 上下文</a></li><li class="chapter-item "><a href="../reference/json-schema.html"><strong aria-hidden="true">9.6.</strong> JSON Schema</a></li></ol></li><li class="chapter-item expanded "><a href="../lsp/overview.html"><strong aria-hidden="true">10.</strong> LSP 集成</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../lsp/editors/vscode.html"><strong aria-hidden="true">10.1.</strong> VS Code</a></li><li class="chapter-item "><a href="../lsp/editors/others.html"><strong aria-hidden="true">10.2.</strong> 其他编辑器</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">烹饪书</li><li class="chapter-item expanded "><a href="../recipes/index.html"><strong aria-hidden="true">11.</strong> Recipes</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../recipes/migrate-clippy.html"><strong aria-hidden="true">11.1.</strong> 从 clippy 迁移</a></li><li class="chapter-item "><a href="../recipes/monorepo-ci.html"><strong aria-hidden="true">11.2.</strong> Monorepo CI</a></li><li class="chapter-item "><a href="../recipes/suppress-legacy.html"><strong aria-hidden="true">11.3.</strong> 遗留代码豁免</a></li><li class="chapter-item "><a href="../recipes/custom-plugin-50loc.html"><strong aria-hidden="true">11.4.</strong> 50 行写一个插件</a></li><li class="chapter-item "><a href="../recipes/calibrate.html"><strong aria-hidden="true">11.5.</strong> 给你的项目校准阈值</a></li><li class="chapter-item "><a href="../recipes/baseline.html"><strong aria-hidden="true">11.6.</strong> Baseline 工作流</a></li></ol></li><li class="chapter-item expanded "><a href="../faq.html"><strong aria-hidden="true">12.</strong> 常见问题</a></li><li class="chapter-item expanded affix "><li class="part-title">项目</li><li class="chapter-item expanded "><a href="../contributing/index.html"><strong aria-hidden="true">13.</strong> 贡献</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../contributing/architecture.html"><strong aria-hidden="true">13.1.</strong> 架构</a></li><li class="chapter-item "><a href="../contributing/writing-a-smell.html"><strong aria-hidden="true">13.2.</strong> 写一条 smell</a></li><li class="chapter-item "><a href="../contributing/releasing.html"><strong aria-hidden="true">13.3.</strong> 发版</a></li></ol></li><li class="chapter-item expanded "><a href="../references.html"><strong aria-hidden="true">14.</strong> 学术参考</a></li><li class="chapter-item expanded "><a href="../changelog.html"><strong aria-hidden="true">15.</strong> 更新日志</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                    </div>
+
+                    <h1 class="menu-title">Cha</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/W-Mai/Cha" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/W-Mai/Cha/edit/main/book/src-zh-CN/plugins/reference.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="内置插件参考"><a class="header" href="#内置插件参考">内置插件参考</a></h1>
+<p><a href="../README.zh-CN.html#-%E5%86%85%E7%BD%AE%E6%8F%92%E4%BB%B6">README</a> 那张表格的详细版。每个检测器到底在查什么、阈值的含义、什么样的代码会触发它，都在这里。</p>
+<p>几点约定：</p>
+<ul>
+<li>每个插件的源码都在 <a href="../cha-core/src/plugins"><code>cha-core/src/plugins/&lt;name&gt;.rs</code></a>，下面写的默认值就是各文件里 <code>Default for &lt;Analyzer&gt;</code> 写死的那些数。</li>
+<li>阈值都会再乘以全局 <code>strictness</code>（<code>relaxed</code> 2.0×、<code>default</code> 1.0×、<code>strict</code> 0.5×，也可以写任意小数）。</li>
+<li>想改某个插件，在 <code>.cha.toml</code> 的 <code>[plugins.&lt;name&gt;]</code> 节里覆盖；只想放过单个函数 / 类，在源码里写 <code>// cha:set &lt;字段&gt;=&lt;值&gt;</code> 或 <code>// cha:ignore &lt;名字&gt;</code>。</li>
+</ul>
+<hr />
+<h2 id="bloaters"><a class="header" href="#bloaters">Bloaters</a></h2>
+<h3 id="length"><a class="header" href="#length"><code>length</code></a></h3>
+<p>抓过长的函数、过大的类、过大的文件。</p>
+<p>源码：<a href="../cha-core/src/plugins/length.rs"><code>length.rs</code></a></p>
+<div class="table-wrapper"><table><thead><tr><th>smell</th><th>触发条件</th><th>严重度</th></tr></thead><tbody>
+<tr><td><code>long_method</code></td><td>函数行数超过 <code>max_function_lines</code>（默认 50）。如果这个函数本身又复杂——<code>cyclomatic × cognitive ≥ complexity_factor_threshold</code>（默认 10.0）——直接升 Error；否则停在 Warning。</td><td>Hint / Warning / Error</td></tr>
+<tr><td><code>large_class</code></td><td>类里方法数超过 <code>max_class_methods</code>（默认 10），或者类的总行数超过 <code>max_class_lines</code>（默认 200）。</td><td>Warning</td></tr>
+<tr><td><code>large_file</code></td><td>文件超过 <code>max_file_lines</code>（默认 500）行。</td><td>Warning</td></tr>
+</tbody></table>
+</div>
+<p><code>complexity_factor</code> 这道闸门是为了不冤枉那些"长但顺"的函数：一段 60 行的 lookup 表构造，复杂度低，那就停在 Warning；同样 60 行但绕来绕去的（complexity 12 × cognitive 14 = 168），就升级到 Error。</p>
+<pre><code class="language-toml">[plugins.length]
+max_function_lines = 80
+max_class_lines    = 300
+</code></pre>
+<h3 id="complexity"><a class="header" href="#complexity"><code>complexity</code></a></h3>
+<p>圈复杂度，也就是函数里能走出多少条互相独立的路径。每碰到一个分支关键字（<code>if</code>、<code>else if</code>、<code>while</code>、<code>for</code>、<code>case</code>、<code>&amp;&amp;</code>、<code>||</code>、<code>?</code>、<code>catch</code>）就 +1。</p>
+<p>源码：<a href="../cha-core/src/plugins/complexity.rs"><code>complexity.rs</code></a></p>
+<p>超过 <code>warn_threshold</code>（默认 10）报 <code>high_complexity</code> Warning；超过 <code>error_threshold</code>（默认 20）直接 Error。</p>
+<pre><code class="language-toml">[plugins.complexity]
+warn_threshold  = 8
+error_threshold = 15
+</code></pre>
+<h3 id="cognitive_complexity"><a class="header" href="#cognitive_complexity"><code>cognitive_complexity</code></a></h3>
+<p>输出形式跟 <code>complexity</code> 一样，但算分方式不同——它会对嵌套加重惩罚。三个并排的 <code>if</code> 比一个 <code>if</code> 套 <code>if</code> 再套 <code>for</code> 便宜得多。</p>
+<p>源码：<a href="../cha-core/src/plugins/cognitive_complexity.rs"><code>cognitive_complexity.rs</code></a></p>
+<p>得分超过 <code>threshold</code>（默认 15）报 Warning；超过两倍阈值升 Error。</p>
+<p>它跟 <code>complexity</code> 是互补的，不是二选一：<code>complexity</code> 关心的是"要写多少测试才能覆盖"，<code>cognitive_complexity</code> 关心的是"读着累不累"。同一个函数两边都飘红，基本就是该重构了。</p>
+<pre><code class="language-toml">[plugins.cognitive_complexity]
+threshold = 12
+</code></pre>
+<h3 id="long_parameter_list"><a class="header" href="#long_parameter_list"><code>long_parameter_list</code></a></h3>
+<p>参数超过 <code>max_params</code> 个（默认 5）报 Warning。</p>
+<p>源码：<a href="../cha-core/src/plugins/long_parameter_list.rs"><code>long_parameter_list.rs</code></a></p>
+<p>推荐的修法是把相关参数打包成一个结构体（<em>Introduce Parameter Object</em> / <em>Preserve Whole Object</em>），调用方就不用记参数顺序了——参数一多最容易出的 bug 就是把两个 <code>String</code> 传反。</p>
+<pre><code class="language-toml">[plugins.long_parameter_list]
+max_params = 7
+</code></pre>
+<h3 id="primitive_obsession"><a class="header" href="#primitive_obsession"><code>primitive_obsession</code></a></h3>
+<p>参数至少 <code>min_params</code> 个（默认 3）、且其中基本类型占比超过 <code>primitive_ratio</code>（默认 0.8）时报 Hint。</p>
+<p>源码：<a href="../cha-core/src/plugins/primitive_obsession.rs"><code>primitive_obsession.rs</code></a></p>
+<p>"基本类型"是各语言自带的数字 / 字符串 / 布尔之类——<code>i32</code>、<code>f64</code>、<code>bool</code>、<code>String</code>、<code>&amp;str</code>、<code>number</code>、<code>boolean</code>、<code>any</code>。这条 smell 抓的就是那种"用户 id 是 <code>String</code>、订单 id 也是 <code>String</code>，传参时两个一掉换我没察觉"的失控滑坡。</p>
+<p>修法是 <em>Replace Primitive with Object</em>：把语义裹进一个 newtype 或值对象里，类型系统就能替你拦下传错。</p>
+<pre><code class="language-toml">[plugins.primitive_obsession]
+min_params       = 4
+primitive_ratio  = 0.9
+</code></pre>
+<h3 id="data_clumps"><a class="header" href="#data_clumps"><code>data_clumps</code></a></h3>
+<p>同一组参数类型在至少 <code>min_occurrences</code>（默认 3）个不同函数里反复出现，并且这组类型本身长度至少 <code>min_clump_size</code>（默认 3）。每抓到一组报一个 Hint。</p>
+<p>源码：<a href="../cha-core/src/plugins/data_clumps.rs"><code>data_clumps.rs</code></a></p>
+<p>跟 <code>primitive_obsession</code> 是同一类问题的两个角度：那条是"一个函数里塞了一堆 primitive"，这条是"<code>(String, String, i32)</code> 这三联体在五个函数里都出现了"。修法也是同一个——抽出一个结构体。</p>
+<pre><code class="language-toml">[plugins.data_clumps]
+min_clump_size  = 4
+min_occurrences = 2
+</code></pre>
+<h3 id="naming"><a class="header" href="#naming"><code>naming</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/naming.rs"><code>naming.rs</code></a></p>
+<div class="table-wrapper"><table><thead><tr><th>smell</th><th>触发条件</th><th>严重度</th></tr></thead><tbody>
+<tr><td><code>naming_too_short</code></td><td>函数 / 类名短于 <code>min_name_length</code>（默认 2 个字符）。</td><td>Warning</td></tr>
+<tr><td><code>naming_too_long</code></td><td>函数 / 类名长于 <code>max_name_length</code>（默认 50 个字符）。</td><td>Hint</td></tr>
+<tr><td><code>naming_convention</code></td><td>类名首字母不是大写（违反 PascalCase）。</td><td>Hint</td></tr>
+</tbody></table>
+</div>
+<p><code>naming_convention</code> 是目前 Cha 里唯一带自动修复的 smell —— <code>cha fix</code> 会通过 <code>Plugin::try_fix</code> 把代码里所有引用都改成 PascalCase。改名走的是 AST 路径，字符串字面量和注释里的同名字符串不会被误伤。</p>
+<p>C 语言预设里这个插件是关掉的：C 用 <code>snake_case</code> 是惯例，报"违反"只会满屏噪音。</p>
+<pre><code class="language-toml">[plugins.naming]
+min_name_length = 3
+max_name_length = 40
+</code></pre>
+<h3 id="api_surface"><a class="header" href="#api_surface"><code>api_surface</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/api_surface.rs"><code>api_surface.rs</code></a></p>
+<p>一个文件里导出的（public）函数和类，要么数量超过绝对值（默认 <code>max_exported_count = 20</code>），要么占比超过总声明数的 <code>max_exported_ratio</code>（默认 0.8），就报一个 <code>large_api_surface</code> Warning。一个文件里如果一共还没 5 个声明，直接跳过——3 个函数的文件谈"暴露过多"没意义。</p>
+<p>C / C++ 源文件走一套更宽松的阈值（<code>c_max_exported_count = 30</code>、<code>c_max_exported_ratio = 1.01</code>），因为 <code>.c</code> 里 non-static 函数本来就是默认全导出，是 <code>.h</code> 头文件在控制可见性，对 <code>.c</code> 算"导出占比"几乎一定 100%。<code>.h</code> / <code>.hpp</code> / <code>.hxx</code> / <code>.hh</code> / <code>.h++</code> 这些头文件本身就是公开 API，开了 <code>skip_c_headers</code>（默认 <code>true</code>）会整个跳过。</p>
+<pre><code class="language-toml">[plugins.api_surface]
+max_exported_count = 15
+max_exported_ratio = 0.7
+</code></pre>
+<h3 id="god_class"><a class="header" href="#god_class"><code>god_class</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/god_class.rs"><code>god_class.rs</code></a></p>
+<p>一个类要触发 <code>god_class</code> Warning，必须<strong>三个信号同时</strong>满足：</p>
+<ul>
+<li><strong>ATFD</strong>（Access to Foreign Data）：这个类各个方法访问到的"外部类 / 对象"种类数，超过 <code>max_external_refs</code>（默认 5）。说明它伸手伸太远。</li>
+<li><strong>WMC</strong>（Weighted Method Count）：所有方法的圈复杂度之和，达到 <code>min_wmc</code>（默认 47）。说明它干得太多。</li>
+<li><strong>TCC</strong>（Tight Class Cohesion）：方法两两之间共享至少一个字段的比例，低于 <code>min_tcc</code>（默认 0.33）。说明这些方法对"这个类要干嘛"看法不一致。</li>
+</ul>
+<p>默认值是经验阈值（来自一份 45 个 Java 项目的统计）。三个信号取交集是为了压假阳性：一个类只是忙（WMC 高）但还内聚，不报；一个类内聚低但本身很小，也不报。<strong>忙、散、还往外伸</strong>三件事必须凑齐。</p>
+<p>修法是 <em>Extract Class</em>（拆掉一部分职责）或者直接按单一职责原则重构。</p>
+<pre><code class="language-toml">[plugins.god_class]
+max_external_refs = 7
+min_wmc           = 60
+min_tcc           = 0.25
+</code></pre>
+<h3 id="brain_method"><a class="header" href="#brain_method"><code>brain_method</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/brain_method.rs"><code>brain_method.rs</code></a></p>
+<p><code>god_class</code> 的函数级对应。一个函数要报 <code>brain_method</code> Warning，三个信号必须同时满足：</p>
+<ul>
+<li>行数达到 <code>min_lines</code>（默认 65）。</li>
+<li>圈复杂度达到 <code>min_complexity</code>（默认 4）。</li>
+<li>外部引用（来自函数自身作用域之外的变量 / 字段 / 函数）的种类数达到 <code>min_external_refs</code>（默认 7）。</li>
+</ul>
+<p>只长不绕的函数（低复杂度）不会报；只绕不长的函数（行数不够）也不会报；行数和复杂度都飘红但全是自包含计算，外部引用为零，也不会报。三个信号取交集，刚好夹住那种"做太多事、绕太多弯、还伸太多手"的函数。</p>
+<p>修法是 <em>Extract Method</em>（拆函数）和 <em>Move Method</em>（搬到该归属的类去）。</p>
+<pre><code class="language-toml">[plugins.brain_method]
+min_lines         = 80
+min_complexity    = 6
+min_external_refs = 10
+</code></pre>
+<hr />
+<h2 id="couplers"><a class="header" href="#couplers">Couplers</a></h2>
+<h3 id="coupling"><a class="header" href="#coupling"><code>coupling</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/coupling.rs"><code>coupling.rs</code></a></p>
+<p>文件 import 数超过 <code>max_imports</code>（默认 15）报 <code>high_coupling</code> Warning；超过 <code>2 × max_imports</code> 升级到 Error。</p>
+<p>Rust 的 <code>mod</code> 声明不算在内——那是模块组织，不是对外耦合。</p>
+<pre><code class="language-toml">[plugins.coupling]
+max_imports = 12
+</code></pre>
+<h3 id="hub_like_dependency"><a class="header" href="#hub_like_dependency"><code>hub_like_dependency</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/hub_like.rs"><code>hub_like.rs</code></a></p>
+<p>跟 <code>coupling</code> 是同一类信号，但门槛更高（默认 <code>max_imports = 20</code>），关注角度也不一样：这条不是说"这个文件做太多事"（那是 <code>coupling</code>），而是说这个文件已经成了依赖图里的<strong>枢纽节点</strong>——一个伸进系统大半的中转站。</p>
+<p>两条插件刻意有重合。<code>coupling</code> 抓的是日常意义上"这个文件管太多"，<code>hub_like_dependency</code> 抓的是架构意义上"整个项目都从这一个文件转一道"。修法是拆模块，或者插一层 Facade 把扇出收拢。</p>
+<pre><code class="language-toml">[plugins.hub_like_dependency]
+max_imports = 15
+</code></pre>
+<h3 id="feature_envy"><a class="header" href="#feature_envy"><code>feature_envy</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/feature_envy.rs"><code>feature_envy.rs</code></a></p>
+<p>一个函数的外部引用至少 <code>min_refs</code> 个（默认 3），其中<strong>单一对象</strong>就占了至少 <code>external_ratio</code>（默认 0.7）的份额，报 Hint。</p>
+<p>经典例子：<code>Order::shipping_total()</code> 一上来读 <code>customer.address</code>、<code>customer.country</code>、<code>customer.tax_zone</code>、<code>customer.discount_tier</code>。这个方法挂在 <code>Order</code> 上，但全程都在扒 <code>Customer</code>。修法是把方法搬到它惦记的那个类去（<em>Move Method</em>）。</p>
+<pre><code class="language-toml">[plugins.feature_envy]
+min_refs       = 4
+external_ratio = 0.8
+</code></pre>
+<h3 id="middle_man"><a class="header" href="#middle_man"><code>middle_man</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/middle_man.rs"><code>middle_man.rs</code></a></p>
+<p>一个类至少有 <code>min_methods</code> 个方法（默认 3），其中至少 <code>delegation_ratio</code>（默认 0.5）的方法只是把调用转给别的对象，报 Hint。</p>
+<p>一个类如果绝大部分方法都是转发，它本身没在干活——调用方完全可以直接找下游对象。修法是 <em>Remove Middle Man</em>：让调用方绕过去。</p>
+<p>注意：少量委托是健康的（封装、生命周期管理）。50% 这个默认值要抓的是那种"已经退化成透传薄壳"的类，不是要把正常的 facade 一起拍掉。</p>
+<pre><code class="language-toml">[plugins.middle_man]
+min_methods       = 4
+delegation_ratio  = 0.6
+</code></pre>
+<h3 id="message_chain"><a class="header" href="#message_chain"><code>message_chain</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/message_chain.rs"><code>message_chain.rs</code></a></p>
+<p>函数里出现长于 <code>max_depth</code>（默认 3）的点访问链——比如 <code>a.b.c.d.e</code>——报 Warning。链路通过 tree-sitter 识别（按语言对应 <code>field_expression</code> / <code>member_expression</code> / <code>attribute</code> / <code>selector_expression</code>），不是文本匹配，所以跨行或夹了方法调用的链照样能抓出来。</p>
+<p>要抓的不是那串点号，而是它隐含的耦合：<code>a.b().c().d().e()</code> 的调用方知道整条中间链路上每一层的类型。用 <em>Hide Delegate</em> 让 <code>a</code> 直接对外暴露 <code>e</code>，调用方就不用再依赖中间这堆类型形状。</p>
+<pre><code class="language-toml">[plugins.message_chain]
+max_depth = 4
+</code></pre>
+<h3 id="inappropriate_intimacy"><a class="header" href="#inappropriate_intimacy"><code>inappropriate_intimacy</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/inappropriate_intimacy.rs"><code>inappropriate_intimacy.rs</code></a></p>
+<p>文件 <code>A</code> 引入 <code>B</code>，同时 <code>B</code> 也引入 <code>A</code>，两边都在 import 那一行报 Warning。这是"本来该合在一起的两个模块被拆开了"或者"两个不相关的模块互相缠在一起"最直接的征兆。</p>
+<p>检测时把相对路径解析到磁盘，依次试常见扩展名（<code>.ts</code>、<code>.tsx</code>、<code>.rs</code>、<code>.py</code>、<code>.go</code>、<code>.cpp</code>、<code>.cc</code>、<code>.cxx</code>、<code>.c</code>、<code>.h</code>、<code>.hpp</code>、<code>.hxx</code>、<code>.js</code>、<code>.jsx</code>、<code>.mts</code>、<code>.cts</code>）。非相对路径（npm 包、第三方 crate）一律忽略——循环必须发生在你自己项目里。</p>
+<p>修法是 <em>Move Method</em>（把责任推到一边去）或 <em>Hide Delegate</em>（拉出一个第三方模块同时持有两边）。</p>
+<h3 id="layer_violation"><a class="header" href="#layer_violation"><code>layer_violation</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/layer_violation.rs"><code>layer_violation.rs</code></a></p>
+<p>默认是关的，要先在 <code>.cha.toml</code> 里配层级：</p>
+<pre><code class="language-toml">[plugins.layer_violation]
+enabled = true
+layers  = "domain:0,service:1,controller:2,ui:3"
+</code></pre>
+<p>每一项是 <code>&lt;路径前缀&gt;:&lt;层级&gt;</code>。文件路径能匹到哪个前缀就属于哪一层。<strong>底层文件 import 高层文件，直接 Error</strong>：<code>domain</code> 不能 import <code>service</code>，<code>service</code> 不能 import <code>controller</code>，以此类推。反向（高层 import 底层）是允许的。</p>
+<p>用它在 lint 阶段把整洁架构 / hexagonal / onion 那种分层规则钉死。配好之后，CI 会拦下那种"domain 实体悄悄开始 import 数据库适配器"的慢性漂移。</p>
+<h3 id="async_callback_leak"><a class="header" href="#async_callback_leak"><code>async_callback_leak</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/async_callback_leak.rs"><code>async_callback_leak.rs</code></a></p>
+<p>一个函数的<strong>对外签名</strong>里出现裸的异步句柄类型——<code>JoinHandle</code>、<code>Future</code>、<code>Task</code>、<code>AbortHandle</code>、<code>Sender</code> / <code>Receiver</code>、<code>UnboundedSender</code> / <code>UnboundedReceiver</code>、<code>Promise</code>、<code>Awaitable</code>、<code>Coroutine</code>、<code>Queue</code>、<code>CancelFunc</code>、<code>WaitGroup</code>、<code>oneshot</code>、<code>mpsc</code>——无论是作为参数类型还是返回类型，都报 Hint。</p>
+<p>启动器函数会被豁免：函数名以 <code>spawn</code>、<code>launch</code>、<code>start</code>、<code>run_async</code>、<code>fire_</code>、<code>dispatch_</code>、<code>background_</code> 开头的，存在的意义本来就是产生句柄，跳过。</p>
+<p>要抓的是把并发原语漏过模块边界。一旦你的公开 API 返回 <code>JoinHandle</code>，每一个调用方都得知道你用的是哪套 runtime、怎么管生命周期。把句柄包进领域类型（比如 <code>RenderJob</code> 内部持有 <code>JoinHandle</code>），调用方就用你自己的词汇 cancel / await / 查询，不用学 tokio 那一套。</p>
+<hr />
+<h2 id="oo-abusers"><a class="header" href="#oo-abusers">OO Abusers</a></h2>
+<h3 id="switch_statement"><a class="header" href="#switch_statement"><code>switch_statement</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/switch_statement.rs"><code>switch_statement.rs</code></a></p>
+<p>函数里的 <code>switch</code> / <code>match</code> 分支数超过 <code>max_arms</code>（默认 8）报 Warning。判定走 tree-sitter（Rust 的 <code>match_expression</code>、TypeScript / C / C++ 的 <code>switch_statement</code>、Python 的 <code>match_statement</code>、Go 的 <code>expression_switch_statement</code> / <code>type_switch_statement</code>），不是字符串匹配，所以注释和字符串里出现的关键字不会误报。</p>
+<p>经典修法是 <em>Replace Conditional with Polymorphism</em>：每个分支变成子类 / trait 实现 / 枚举变体的一个方法，调度本身消化进多态调用。值不值得做要看分支组改的频率：如果几乎每周都加一个新分支，多态划算；如果分支集合稳定，留着 switch 反而清楚。</p>
+<pre><code class="language-toml">[plugins.switch_statement]
+max_arms = 12
+</code></pre>
+<h3 id="temporary_field"><a class="header" href="#temporary_field"><code>temporary_field</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/temporary_field.rs"><code>temporary_field.rs</code></a></p>
+<p>一个类至少有 <code>min_methods</code> 个方法（默认 3），其中某个字段只被不超过 <code>max_usage_ratio</code>（默认 0.3，即 30%）的方法用到，每个这样的字段报一个 Hint。零使用的字段不算——那是死代码不是临时字段。</p>
+<p>要抓的是那种"以防万一加一个"或者"只在特定场景活一会儿"的字段：一个 <code>_intermediate_buffer</code> 只被 <code>compute()</code> 用、一个 <code>_pending_request_id</code> 只被 <code>cancel()</code> 用。修法是 <em>Extract Class</em>：把这个字段和真正用它的那几个方法一起拆成新对象。</p>
+<pre><code class="language-toml">[plugins.temporary_field]
+min_methods      = 5
+max_usage_ratio  = 0.25
+</code></pre>
+<h3 id="refused_bequest"><a class="header" href="#refused_bequest"><code>refused_bequest</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/refused_bequest.rs"><code>refused_bequest.rs</code></a></p>
+<p>子类至少有 <code>min_methods</code> 个方法（默认 3），其中至少 <code>min_override_ratio</code>（默认 0.5）覆盖了父类，报 Hint。</p>
+<p>子类把继承下来的东西改写过半，继承关系就名存实亡了——这子类已经不是父类的"是一个"，只是把父类当藏起来的成员在用。修法是 <em>Replace Inheritance with Delegation</em>：把父类换成一个字段持有，"override 大半"的子类就老老实实变成一层包装。或者反过来用 <em>Push Down Method</em>：如果父类的某些方法只有一个子类在用，把它们直接搬下去。</p>
+<pre><code class="language-toml">[plugins.refused_bequest]
+min_override_ratio = 0.6
+min_methods        = 4
+</code></pre>
+<h3 id="design_pattern"><a class="header" href="#design_pattern"><code>design_pattern</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/design_pattern.rs"><code>design_pattern.rs</code></a></p>
+<p>提示六种结构性模式，各自一个 smell，全部 Hint 级别：</p>
+<div class="table-wrapper"><table><thead><tr><th>smell</th><th>触发条件</th></tr></thead><tbody>
+<tr><td><code>strategy_pattern</code></td><td>函数在某个字段上 dispatch，字段名包含 <code>type_field_keywords</code> 之一（默认 <code>type</code>、<code>kind</code>、<code>role</code>、<code>action</code>、<code>mode</code>），且分支数至少 <code>strategy_min_arms</code>（默认 4）。</td></tr>
+<tr><td><code>state_pattern</code></td><td>同样的形状，但 dispatch 的字段名包含 <code>state_field_keywords</code> 之一（默认 <code>state</code>、<code>status</code>），分支数至少 <code>state_min_arms</code>（默认 3）。</td></tr>
+<tr><td><code>builder_pattern</code></td><td>函数参数数至少 <code>builder_min_params</code>（默认 7）；或者参数数至少 <code>builder_alt_min_params</code>（默认 5），且其中可选参数至少 <code>builder_alt_min_optional</code>（默认 3）。</td></tr>
+<tr><td><code>null_object_pattern</code></td><td>同一个字段在至少 <code>null_object_min_count</code>（默认 3）个不同函数里都被做了 null check。</td></tr>
+<tr><td><code>template_method_pattern</code></td><td>一个类至少有 <code>template_min_methods</code>（默认 4）个方法，其中某个方法在 <code>self</code> 上调用了至少 <code>template_min_self_calls</code>（默认 3）个其他方法。</td></tr>
+<tr><td><code>observer_pattern</code></td><td>类有名字带 <code>Listener</code> / <code>Observer</code> / <code>Callback</code> / <code>Handler</code> 的字段，并 / 或有名字带 <code>notify</code> / <code>emit</code> / <code>publish</code> 的方法。</td></tr>
+</tbody></table>
+</div>
+<p>这些都是建议性的——模式不一定永远是对的答案，比如分支固定的小 switch、或者 7 个参数确实是 7 个逻辑独立字段的构造函数。建议只是"这个形状常见地能在模式 X 下变干净"，不是"这是错的"。</p>
+<pre><code class="language-toml">[plugins.design_pattern]
+strategy_min_arms = 5
+builder_min_params = 8
+
+# 你项目里用的字段命名不一样的话覆盖这些列表
+type_field_keywords  = ["type", "kind", "variant", "tag"]
+state_field_keywords = ["state", "phase", "stage"]
+</code></pre>
+<hr />
+<h2 id="change-preventers"><a class="header" href="#change-preventers">Change Preventers</a></h2>
+<p>这一组的两条插件不读代码，读的是 <code>git log</code>。每次分析跑一次 <code>git log</code> 然后整轮缓存，回答的是"这个项目实际上是<strong>怎么被改的</strong>"，不是它现在长什么样。</p>
+<h3 id="shotgun_surgery"><a class="header" href="#shotgun_surgery"><code>shotgun_surgery</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/shotgun_surgery.rs"><code>shotgun_surgery.rs</code></a></p>
+<p>对每个文件，看过去 <code>max_commits</code> 个 commit（默认 100），统计它跟其他每个文件一起被改的次数。某个搭档文件共出现至少 <code>min_co_changes</code> 次（默认 5），就为这一对报一个 Hint。每个文件最多报最常一起出现的前 3 个搭档。</p>
+<p>要抓的形态：每次做一个逻辑变更都得同时改一组固定的文件。修法是 <em>Move Method</em> 或 <em>Move Field</em>——把散在各处的行为聚到一个类里，下一次相同的变更只需要改一处。</p>
+<p>容易假阳性的几类：迁移脚本、配置文件、构建清单、锁文件。这些放进 <code>.cha.toml</code> 的 <code>exclude</code> 里。</p>
+<pre><code class="language-toml">[plugins.shotgun_surgery]
+min_co_changes = 8
+max_commits    = 200
+</code></pre>
+<h3 id="divergent_change"><a class="header" href="#divergent_change"><code>divergent_change</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/divergent_change.rs"><code>divergent_change.rs</code></a></p>
+<p>同一份数据，反过来问：不是"哪些文件总一起改"，而是"这一个文件<strong>因为多少种不同原因</strong>被改过"。</p>
+<p>"原因" 取的是 conventional commit 的 scope（<code>type(scope): subject</code> 里的 scope），如果没有 scope 就退而取主题第一个词。同一个文件在过去 <code>max_commits</code> 次 commit（默认 50）里跨过至少 <code>min_distinct_reasons</code>（默认 4）种 scope，就报一个 Hint。</p>
+<p>要抓的形态：这个文件干的事太杂，各种不相关的需求都会扯到它。修法是 <em>Extract Class</em>——按 scope 边界把文件切开。</p>
+<p>这条规则非常依赖 commit message 的卫生。项目没用 conventional commits 的话，fallback（取主题第一个词）只是近似分组，结果会更糙——可以把阈值调高。</p>
+<pre><code class="language-toml">[plugins.divergent_change]
+min_distinct_reasons = 6
+max_commits          = 100
+</code></pre>
+<hr />
+<h2 id="dispensables"><a class="header" href="#dispensables">Dispensables</a></h2>
+<h3 id="dead_code"><a class="header" href="#dead_code"><code>dead_code</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/dead_code.rs"><code>dead_code.rs</code></a></p>
+<p>一个非导出的函数或类，文件内、全项目调用图里都没人引用，<strong>而且</strong>也不在 <code>entry_points</code> 名单里——报 Hint。</p>
+<p>三层信号叠加：</p>
+<ul>
+<li><strong>同文件使用</strong> —— 走 AST 标识符扫描。字符串字面量、注释里出现的同名子串不算"引用"。</li>
+<li><strong>跨文件调用图</strong> —— 来自 parser 的全项目索引；本文件不用、但别的文件调用过的函数仍然算活的。</li>
+<li><strong>Token-concat 还原</strong>（仅 C / C++）—— 文件里有 <code>#define ... ##</code> 这种宏（X-macro 派发表）时，分析器会扫宏体里的 <code>prefix##X##suffix</code> 槽位，再扫每一处调用点的实参，反推出可能的展开名字（比如 <code>_handleColorAttr</code>）。这些名字会被加进文件的引用集合，避免一个 X-macro 把整个文件的真函数都按死代码报掉。</li>
+</ul>
+<p><code>entry_points</code> 是给框架 / runtime / 构建系统调用、但你代码里看不到的函数留的白名单：默认包含 Rust 的 <code>main</code> / <code>new</code> / <code>default</code> / <code>drop</code> / <code>fmt</code>，Python 的 <code>__init__</code> / <code>__new__</code> / <code>__call__</code> / <code>__enter__</code> / <code>__exit__</code> / <code>__del__</code>，Go 的 <code>init</code>，C 的 <code>_start</code>，tokio 的 <code>tokio_main</code> / <code>main_async</code>。</p>
+<p>如果 <code>ctx.tree</code> 不可用，插件会退回到子串扫描——这只会在 unit test 场景遇到，CLI 实际跑不会触发。</p>
+<pre><code class="language-toml">[plugins.dead_code]
+entry_points = ["main", "wasm_main", "ffi_entry"]
+</code></pre>
+<h3 id="duplicate_code"><a class="header" href="#duplicate_code"><code>duplicate_code</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/duplicate_code.rs"><code>duplicate_code.rs</code></a></p>
+<p>两个或更多函数的 AST 结构哈希一致，<strong>且</strong>每个都超过 10 行，每一份重复都报一个 Warning。哈希计算忽略变量名和具体空白，所以结构一样、变量重命名过的"双胞胎"也能抓出来。</p>
+<p>10 行下限是为了不让 trivial 的 getter 和一行函数刷屏（它们经常哈希相同）。修法：<em>Extract Method</em> / <em>Extract Function</em> / <em>Pull Up Method</em>。</p>
+<p>这条插件没配置项——重复就是重复，10 行下限是写死的实现细节而非旋钮。</p>
+<h3 id="comments"><a class="header" href="#comments"><code>comments</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/comments.rs"><code>comments.rs</code></a></p>
+<p>函数至少 <code>min_lines</code> 行（默认 10），且其中注释行占比超过 <code>max_comment_ratio</code>（默认 0.3，即 30%），报 Hint。</p>
+<p>要抓的不是"注释多本身"，而是"用注释来填补结构上的缺失"。一个 20 行函数要写 8 行注释才能解释清楚，通常意味着它应该被拆成三个更小的函数，让函数名替注释发声。</p>
+<pre><code class="language-toml">[plugins.comments]
+max_comment_ratio = 0.4
+min_lines         = 15
+</code></pre>
+<h3 id="lazy_class"><a class="header" href="#lazy_class"><code>lazy_class</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/lazy_class.rs"><code>lazy_class.rs</code></a></p>
+<p>类的方法数不超过 <code>max_methods</code>（默认 1）<strong>且</strong>总行数不超过 <code>max_lines</code>（默认 10）报 Hint。Interface / trait 不算——那本来就是刻意保持很小的。</p>
+<p>默认值（≤ 1 个方法、≤ 10 行）故意打得很狠，要抓的是教科书式的"为一个 helper 包了个壳，之后再也没长大"。如果你项目里本来就有大量小但有意为之的值类型，把两个上限调高。</p>
+<pre><code class="language-toml">[plugins.lazy_class]
+max_methods = 2
+max_lines   = 20
+</code></pre>
+<h3 id="data_class"><a class="header" href="#data_class"><code>data_class</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/data_class.rs"><code>data_class.rs</code></a></p>
+<p>类至少有 <code>min_fields</code>（默认 2）个字段、没有任何行为方法（只有字段访问器 / 修改器 / 构造器 / <code>Default</code> 之类）、并且不是 interface——报 Hint。</p>
+<p>要抓的形态叫"贫血领域模型"：类只是个状态容器，对自己持有的数据没观点，调用方只好直接读写它的字段。修法是 <em>Move Method</em>——找到代码库其他地方那些专门处理这个类数据的函数，搬进来。</p>
+<p>确实该是纯数据的类型（API 边界的 DTO、序列化封装）就老老实实是 data class。这种情况用 <code>// cha:ignore data_class</code> 压掉。</p>
+<pre><code class="language-toml">[plugins.data_class]
+min_fields = 3
+</code></pre>
+<h3 id="speculative_generality"><a class="header" href="#speculative_generality"><code>speculative_generality</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/speculative_generality.rs"><code>speculative_generality.rs</code></a></p>
+<p>interface / trait 在同一个文件里有 <strong>0 个或 1 个</strong>实现，报 Hint。没配置项——规则就是二选一。</p>
+<p>要抓的形态：一个抽象当初为了"以后可能要换实现"加上去，结果到现在只有一个实现。在第二个实现出现之前，这个抽象等于在为你不用的可选性付维护税。修法是把 interface 内联掉；以后真有第二个实现需要时再抽出来不晚。</p>
+<p>设计上这条只看本文件。同文件定义、跨模块实现的 trait 不会触发——跨文件检测交给 post-analysis pass <code>cross_layer_import</code>（那不是 Plugin trait 体系下的检测器）。</p>
+<h3 id="todo_tracker"><a class="header" href="#todo_tracker"><code>todo_tracker</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/todo_tracker.rs"><code>todo_tracker.rs</code></a></p>
+<p>代码里每一条 <code>TODO</code> / <code>FIXME</code> / <code>HACK</code> / <code>XXX</code> 注释都报一个 finding：</p>
+<div class="table-wrapper"><table><thead><tr><th>标签</th><th>严重度</th></tr></thead><tbody>
+<tr><td><code>HACK</code></td><td>Warning</td></tr>
+<tr><td><code>XXX</code></td><td>Warning</td></tr>
+<tr><td><code>FIXME</code></td><td>Hint</td></tr>
+<tr><td><code>TODO</code></td><td>Hint</td></tr>
+</tbody></table>
+</div>
+<p>匹配是按词边界的（<code>"TODOs"</code> 不会触发，<code>methodo</code> 也不会）。没配置项——四种标签和各自的严重度都写死了。</p>
+<hr />
+<h2 id="security"><a class="header" href="#security">Security</a></h2>
+<h3 id="hardcoded_secret"><a class="header" href="#hardcoded_secret"><code>hardcoded_secret</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/hardcoded_secret.rs"><code>hardcoded_secret.rs</code></a></p>
+<p>每个字符串字面量会跟一组固定的"密钥形状"正则匹配：</p>
+<div class="table-wrapper"><table><thead><tr><th>模式</th><th>匹配</th></tr></thead><tbody>
+<tr><td>AWS Access Key</td><td><code>AKIA[0-9A-Z]{16,}</code></td></tr>
+<tr><td>Private Key</td><td><code>-----BEGIN (RSA | EC | DSA | OPENSSH )?PRIVATE KEY-----</code></td></tr>
+<tr><td>GitHub Token</td><td><code>gh[ps]_[A-Za-z0-9_]{36,}</code></td></tr>
+<tr><td>Slack Token</td><td><code>xox[bpors]-[A-Za-z0-9-]{10,}</code></td></tr>
+<tr><td>JWT</td><td><code>eyJ...eyJ...</code>（点分隔三段 base64 风格）</td></tr>
+<tr><td>Hex Secret</td><td>整段字面量是 32+ 位 hex</td></tr>
+<tr><td>Long Base64-ish Secret</td><td>整段字面量是 40+ 位 base64 / urlsafe 字符</td></tr>
+</tbody></table>
+</div>
+<p>每命中一条报一个 Warning。匹配只在 <code>string_literal</code> AST 节点上跑，注释、标识符、doc 块里出现的同样字符串不会触发。</p>
+<p>"Hex Secret" 和 "Long Base64-ish Secret" 这两条对长确定性常量会假阳性（测试向量、哈希摘要、嵌入资源 ID）。这种逐行用 <code>// cha:ignore hardcoded_secret</code> 压掉。</p>
+<p>目前没配置项——模式是写死的。要按你团队的规则做扩展，写个 WASM 插件挂上去。</p>
+<h3 id="unsafe_api"><a class="header" href="#unsafe_api"><code>unsafe_api</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/unsafe_api.rs"><code>unsafe_api.rs</code></a></p>
+<p>按语言用 tree-sitter query 匹配已知危险调用：</p>
+<ul>
+<li><strong>Rust</strong>：<code>unsafe</code> 块、<code>unsafe fn</code></li>
+<li><strong>Python</strong>：<code>eval</code>、<code>exec</code>、<code>os.system</code>、<code>subprocess.call</code>、<code>pickle.load</code> / <code>pickle.loads</code></li>
+<li><strong>TypeScript</strong>：<code>eval</code>、<code>innerHTML</code> 赋值、React 的 <code>dangerouslySetInnerHTML</code> JSX 属性、<code>document.write</code></li>
+<li><strong>C / C++</strong>：<code>gets</code>、<code>sprintf</code>、<code>strcpy</code>、<code>strcat</code>、<code>system</code></li>
+<li><strong>Go</strong>：<code>exec.Command</code>、<code>template.HTML</code></li>
+</ul>
+<p>每命中一处报一个 Warning，写明触发的名字和一句原因。AST 路径走的，字符串 <code>"system(rm -rf /)"</code> 写在日志里不会触发。</p>
+<p><code>ctx.tree</code> 不可用时插件直接返回空——比起 grep 一通在字符串、注释里乱报，宁愿沉默。</p>
+<p>没配置项——危险 API 名单写死。</p>
+<h3 id="error_handling"><a class="header" href="#error_handling"><code>error_handling</code></a></h3>
+<p>源码：<a href="../cha-core/src/plugins/error_handling.rs"><code>error_handling.rs</code></a></p>
+<p>两个独立的 smell 共用一次扫描：</p>
+<ul>
+<li><strong><code>unwrap_abuse</code></strong> —— 函数里 <code>.unwrap()</code> 或 <code>.expect(...)</code> 的次数超过 <code>max_unwraps_per_function</code>（默认 3），把这个函数里<strong>每一处</strong> <code>.unwrap()</code> / <code>.expect()</code> 都报成 Warning。检测走 <code>(call_expression (field_expression (field_identifier) @method))</code> 然后比对方法名是不是 <code>unwrap</code> / <code>expect</code>。</li>
+<li><strong><code>empty_catch</code></strong> —— TypeScript / JavaScript 的 <code>catch</code> 或 Python 的 <code>except</code> 块如果是空的，或者只有 <code>pass</code> / 一行注释，报 Warning。Rust 不在这条规则里——<code>match</code> 的空分支大多数时候是有意为之。</li>
+</ul>
+<p>阈值要抓的是那种"unwrap 的速度快过错误模型设计"的函数。一处 <code>.unwrap()</code> 跑在已知必成立的不变量上没问题；同一函数十处就该考虑这个函数本身应该返回 <code>Result</code>。</p>
+<pre><code class="language-toml">[plugins.error_handling]
+max_unwraps_per_function = 5
+</code></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../reference/config-keys.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../plugins/development.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../reference/config-keys.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../plugins/development.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../theme/mermaid.min.js"></script>
+        <script src="../theme/cha-mermaid.js"></script>
+
+
+    </div>
+    </body>
+</html>

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en" id="oranda" class="cupcake">
+  <head>
+    <title>Cha</title>
+    
+      <meta property="og:url" content="https://cha.to01.icu" />
+    
+    
+      <link rel="icon" href="/favicon.ico" />
+    
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+      <meta name="description" content="察 — Code Health Analyzer · pluggable code-smell detection with 34 built-in detectors and WASM plugins" />
+      <meta property="og:description" content="察 — Code Health Analyzer · pluggable code-smell detection with 34 built-in detectors and WASM plugins" />
+    
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Cha" />
+    
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta property="og:image" content="https://cha.to01.icu/static/og-card.png" />
+    
+    
+      <meta property="og:image:alt" content="Cha — 察 — Code Health Analyzer · pluggable code-smell detection with 34 detectors and WASM plugins · cha.to01.icu" />
+    
+    
+    <meta http-equiv="Permissions-Policy" content="interest-cohort=()" />
+    <link rel="stylesheet" href="/oranda-v0.6.1.css" />
+    
+      <link rel="stylesheet" href="/custom.css" />
+    
+    
+  </head>
+  <body>
+    <div class="container">
+      <div class="page-body">
+        
+          <div class="repo_banner">
+            <a href="https://github.com/W-Mai/Cha">
+              <div class="github-icon" aria-hidden="true"></div>
+              Check out our GitHub!
+            </a>
+          </div>
+        
+
+        <main>
+          <header>
+            
+            <h1 class="title">Cha</h1>
+            
+  <nav class="nav">
+    <ul>
+      <li><a href="/">Home</a></li>
+
+      
+
+      
+        <li><a href="/artifacts/">Install</a></li>
+      
+
+      
+        <li><a href="/book/">Docs</a></li>
+      
+
+      
+
+      
+        <li><a href="/changelog/">Changelog</a></li>
+      
+    </ul>
+  </nav>
+
+          </header>
+
+          
+  <div>
+    <h1>1.18.0 - 2026-05-22</h1>
+    <div class="releases-body">
+      
+      
+      <section class="release ">
+  
+  <div class="release-info">
+    <span class="flex items-center gap-2">
+      <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'>
+    <path stroke-linecap='round' stroke-linejoin='round' d='M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z' />
+    <path stroke-linecap='round' stroke-linejoin='round' d='M6 6h.008v.008H6V6z' /></svg>
+      v1.18.0
+    </span>
+    <span class="flex items-center gap-2">
+      
+        <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' /></svg>
+        May 22 2026 at 11:51 UTC
+      
+    </span>
+  </div>
+  <div class="release-body">
+    <p>Built-in detectors now use AST queries instead of text scanning. Several core plugins previously did substring matches that misfired on strings, comments, and unrelated identifiers.</p>
+<h3>Added</h3>
+<ul>
+<li><strong><code>cha_core::query</code></strong> — host-side tree-sitter query helper (<code>run_query</code> / <code>run_queries</code> / <code>node_to_match</code>). Both built-in plugins and the WASM <code>tree_query</code> host import now go through this single API.</li>
+<li><strong><code>DeadCodeAnalyzer::entry_points</code></strong> — entry-point names are now configurable via <code>[plugins.dead_code] entry_points = [...]</code>. Default list expanded from Rust-only (5 names) to multi-language (Rust + Python <code>__init__</code> etc + Go <code>init</code> + C <code>_start</code> + tokio).</li>
+<li><strong><code>LengthAnalyzer::complexity_factor_threshold</code></strong> — was hardcoded <code>10.0</code>, now configurable via <code>[plugins.length]</code>.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li><strong><code>unsafe_api</code></strong>: rewritten from line-based <code>line.contains</code> + odd-quote-count heuristic to per-language tree-sitter queries. Picks up real <code>sprintf</code>/<code>strcpy</code>/<code>strcat</code>/<code>system</code> call sites that the line-based heuristic missed. Comments and string literals containing keywords like <code>unsafe</code> no longer false-positive.</li>
+<li><strong><code>dead_code</code></strong>: substring <code>is_in_file_referenced</code> replaced with AST identifier scan. Token-concat macro detection rewritten — instead of nuking the entire file when any <code>#define ... ##</code> exists, parse define bodies for <code>prefix##X##suffix</code> slots, scan call sites for invocation arguments, synthesize plausible expansion names, and add them to the reference set. X-macro dispatch tables (e.g. <code>STYLE_DEF</code>) no longer hide every dispatch function. <code>IdentifierPositions</code> lookup is now O(1) per symbol via <code>HashMap&lt;name, Vec&lt;line&gt;&gt;</code>.</li>
+<li><strong><code>error_handling</code></strong>: <code>unwrap_abuse</code> uses tree-sitter (<code>(call_expression field_expression unwrap|expect)</code>); empty-catch detection is per-language (Rust skipped, TS <code>catch_clause</code>, Python <code>except_clause</code>). String literals and comments containing the substring <code>unwrap</code> or <code>catch</code> no longer trigger.</li>
+<li><strong><code>hardcoded_secret</code></strong>: regex matches now run against <code>string_literal</code> node text only, not full source lines. Comments and identifier names with secret-like substrings no longer false-positive.</li>
+<li><strong><code>cha fix</code></strong>: <code>String::replace</code> whole-content substitution replaced with tree-sitter identifier-node range collection + byte-offset reverse substitution. The previous implementation could rewrite identifier names inside string literals and comments, corrupting source files.</li>
+<li><strong><code>git_metrics::check_test_ratio</code></strong>: <code>f.contains("test") || f.contains("spec")</code> replaced with <code>cha_core::is_test_path</code>. The substring check wrongly counted <code>request.rs</code> / <code>spectrum.rs</code> etc. as test files, polluting the test-to-production ratio that drives <code>low_test_ratio</code>.</li>
+<li><strong><code>wasm.rs::infer_file_role</code></strong>: replaced duplicate test-path heuristics with <code>cha_core::is_test_path</code>. WASM plugins' <code>FileRole::Test</code> classification now matches the canonical convention used elsewhere (<code>__tests__/</code>, <code>__mocks__/</code>, <code>.test.ts</code>, <code>.spec.ts</code>).</li>
+<li><strong><code>find_macro_invocation_args</code></strong>: word-boundary check added — <code>STYLE_DEF</code> no longer matches <code>STYLE_DEFINE</code> invocations.</li>
+</ul>
+<h3>Removed</h3>
+<ul>
+<li><strong><code>unsafe_api</code> <code>is_in_string</code> heuristic</strong> — superseded by tree-sitter queries that distinguish string literals at the AST level.</li>
+<li><strong><code>error_handling</code> line-based <code>detect_empty_catch</code></strong> — replaced with grammar-aware queries.</li>
+<li><strong><code>HostState::query_cache</code></strong> — query compilation now lives in <code>cha_core::query</code> (compile-on-demand; LRU caching to be added if measurement warrants).</li>
+</ul>
+
+  </div>
+</section>
+    </div>
+  </div>
+
+        </main>
+      </div>
+
+      <footer>
+        
+          <a href="https://github.com/W-Mai/Cha"><div class="github-icon" aria-hidden="true"></div></a>
+        
+        <span>
+          Cha, MIT
+        </span>
+      </footer>
+    </div>
+
+    
+    
+
+    
+  </body>
+</html>

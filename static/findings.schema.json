@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Array_of_Finding",
+  "type": "array",
+  "items": {
+    "$ref": "#/$defs/Finding"
+  },
+  "$defs": {
+    "Finding": {
+      "description": "A single analysis finding.",
+      "type": "object",
+      "properties": {
+        "actual_value": {
+          "description": "The actual measured value (e.g. line count, complexity score).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "category": {
+          "$ref": "#/$defs/SmellCategory"
+        },
+        "location": {
+          "$ref": "#/$defs/Location"
+        },
+        "message": {
+          "type": "string"
+        },
+        "risk_score": {
+          "description": "Composite priority score: severity × overshoot × hotspot factor.\nPopulated by `prioritize_findings` after analysis completes; absent\nfor findings produced but not yet ranked (pre-sort).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "severity": {
+          "$ref": "#/$defs/Severity"
+        },
+        "smell_name": {
+          "type": "string"
+        },
+        "suggested_refactorings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "threshold": {
+          "description": "The threshold that was exceeded to produce this finding.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      },
+      "required": [
+        "smell_name",
+        "category",
+        "severity",
+        "location",
+        "message",
+        "suggested_refactorings"
+      ]
+    },
+    "Location": {
+      "description": "Source location of a finding.",
+      "type": "object",
+      "properties": {
+        "end_col": {
+          "description": "0-based column of the end position.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "end_line": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "start_col": {
+          "description": "0-based column of the start position.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "start_line": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "path",
+        "start_line",
+        "end_line"
+      ]
+    },
+    "Severity": {
+      "description": "Severity level for a finding.",
+      "type": "string",
+      "enum": [
+        "hint",
+        "warning",
+        "error"
+      ]
+    },
+    "SmellCategory": {
+      "description": "Smell category from refactoring literature.",
+      "type": "string",
+      "enum": [
+        "bloaters",
+        "oo_abusers",
+        "change_preventers",
+        "dispensables",
+        "couplers",
+        "security"
+      ]
+    }
+  }
+}
