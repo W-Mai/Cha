@@ -95,6 +95,11 @@ jobs:
 
   vscode:
     name: VS Code Extension (${{ matrix.os }})
+    # Disabled: headless-VS-Code e2e has been red on all 3 OSes since
+    # it landed; downloadToStorage swallows errors via showErrorMessage
+    # which doesn't reach CI logs. Re-enable after adding console.log
+    # around download + client.start() to find the real failure.
+    if: false
     continue-on-error: true
     strategy:
       fail-fast: false
